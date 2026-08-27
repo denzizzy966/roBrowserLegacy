@@ -1,5 +1,10 @@
 import Network  from '../../src/Network/NetworkManager.js';
 import GoSocket from './GoSocket.js';
+import { loadSchema, encodePing, decodePong } from './proto.js';
+
+const SERVER_HOST = 'localhost';
+const SERVER_PORT = 5121;
+const SCHEMA_URL  = `http://${SERVER_HOST}:${SERVER_PORT}/proto/ro.proto`;
 
 const logEl = document.getElementById('log');
 
@@ -8,29 +13,33 @@ function log(msg) {
 	console.log('[m1]', msg);
 }
 
-function hex(buffer) {
-	return Array.from(new Uint8Array(buffer))
-		.map((b) => b.toString(16).padStart(2, '0'))
-		.join(' ');
-}
-
-// NetworkManager menyimpan socket di variabel privat modul, jadi kita
-// simpan referensinya sendiri saat factory dipanggil.
+let schema   = null;
+// NetworkManager menyimpan socket di variabel privat modul; kita simpan
+// referensinya sendiri agar bisa merebut kembali onMessage setelah connect.
 let goSocket = null;
 
-// Titik sisip resmi roBrowserLegacy: seluruh transport dialihkan ke
-// server Go tanpa menyentuh kode upstream. NetworkManager memanggil
-// factory dengan tepat dua argumen: (host, port), dan ia sendiri yang
-// menetapkan onComplete serta onClose — jangan disetel di sini.
-Network.setSocketFactory((host, port) => {
-	goSocket = new GoSocket(host, port);
-	return goSocket;
-});
+document.getElementById('connect').addEventListener('click', async () => {
+	try {
+		log(`memuat skema dari ${SCHEMA_URL} ...`);
+		schema = await loadSchema(SCHEMA_URL);
+		log('skema termuat.');
+	} catch (err) {
+		log(`! gagal memuat skema: ${err.message}`);
+		return;
+	}
 
-document.getElementById('connect').addEventListener('click', () => {
-	log('menyambung ke ws://localhost:5121/ws ...');
+	// Titik sisip resmi roBrowserLegacy: seluruh transport dialihkan ke
+	// server Go tanpa menyentuh kode upstream. NetworkManager memanggil
+	// factory dengan tepat dua argumen: (host, port), dan ia sendiri yang
+	// menetapkan onComplete serta onClose — jangan disetel di sini.
+	Network.setSocketFactory((host, port) => {
+		goSocket = new GoSocket(host, port);
+		return goSocket;
+	});
 
-	Network.connect('localhost', 5121, (success) => {
+	log(`menyambung ke ws://${SERVER_HOST}:${SERVER_PORT}/ws ...`);
+
+	Network.connect(SERVER_HOST, SERVER_PORT, (success) => {
 		if (!success) {
 			log('! gagal menyambung — apakah roserver sudah berjalan?');
 			return;
@@ -41,10 +50,15 @@ document.getElementById('connect').addEventListener('click', () => {
 		// NetworkManager.connect() menjalankan `socket.onMessage = receive`
 		// tepat sebelum memanggil callback ini, mengarahkan seluruh data
 		// masuk ke pengurai paket Gravity. Protokol kita bukan Gravity,
-		// jadi kita ambil alih kembali di sini. Justru urutan itu yang
-		// membuatnya mungkin: onMessage disetel SEBELUM callback dipanggil.
+		// jadi kita ambil alih kembali di sini.
 		goSocket.onMessage = (data) => {
-			log(`< diterima ${data.byteLength} byte: ${hex(data)}`);
+			const pong = decodePong(schema.ServerMsg, data);
+			if (!pong) {
+				log(`< pesan tanpa body yang dikenali (${data.byteLength} byte)`);
+				return;
+			}
+			const rtt = Date.now() - pong.clientTimeMs;
+			log(`< pong "${pong.text}" server_time=${pong.serverTimeMs} rtt=${rtt}ms`);
 		};
 
 		document.getElementById('send').disabled = false;
@@ -52,7 +66,8 @@ document.getElementById('connect').addEventListener('click', () => {
 });
 
 document.getElementById('send').addEventListener('click', () => {
-	const payload = new Uint8Array([0xde, 0xad, 0xbe, 0xef]).buffer;
-	log(`> mengirim ${payload.byteLength} byte: ${hex(payload)}`);
-	Network.send(payload);
+	const now = Date.now();
+	const buf = encodePing(schema.ClientMsg, 'halo dari browser', now);
+	log(`> ping "halo dari browser" (${buf.byteLength} byte)`);
+	Network.send(buf);
 });
