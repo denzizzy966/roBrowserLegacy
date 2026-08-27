@@ -14,22 +14,18 @@ function hex(buffer) {
 		.join(' ');
 }
 
+// NetworkManager menyimpan socket di variabel privat modul, jadi kita
+// simpan referensinya sendiri saat factory dipanggil.
+let goSocket = null;
+
 // Titik sisip resmi roBrowserLegacy: seluruh transport dialihkan ke
 // server Go tanpa menyentuh kode upstream. NetworkManager memanggil
-// factory dengan tepat dua argumen: (host, port).
+// factory dengan tepat dua argumen: (host, port), dan ia sendiri yang
+// menetapkan onComplete serta onClose — jangan disetel di sini.
 Network.setSocketFactory((host, port) => {
-	const socket = new GoSocket(host, port);
-
-	// Pada M1 pesan masuk ditangani di sini, TIDAK diteruskan ke pengurai
-	// paket Gravity milik NetworkManager. Alasannya dicatat di seam report.
-	socket.onMessage = (data) => {
-		log(`< diterima ${data.byteLength} byte: ${hex(data)}`);
-	};
-
-	return socket;
+	goSocket = new GoSocket(host, port);
+	return goSocket;
 });
-
-let socket = null;
 
 document.getElementById('connect').addEventListener('click', () => {
 	log('menyambung ke ws://localhost:5121/ws ...');
@@ -40,6 +36,17 @@ document.getElementById('connect').addEventListener('click', () => {
 			return;
 		}
 		log('tersambung.');
+
+		// TEMUAN M1 — jangan pindahkan blok ini ke dalam factory.
+		// NetworkManager.connect() menjalankan `socket.onMessage = receive`
+		// tepat sebelum memanggil callback ini, mengarahkan seluruh data
+		// masuk ke pengurai paket Gravity. Protokol kita bukan Gravity,
+		// jadi kita ambil alih kembali di sini. Justru urutan itu yang
+		// membuatnya mungkin: onMessage disetel SEBELUM callback dipanggil.
+		goSocket.onMessage = (data) => {
+			log(`< diterima ${data.byteLength} byte: ${hex(data)}`);
+		};
+
 		document.getElementById('send').disabled = false;
 	}, false);
 });

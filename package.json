@@ -8,6 +8,7 @@
 		"pwa": "vite --open applications/pwa/index.html",
 		"tools": "vite --open applications/tools/index.html",
 		"m1": "vite --open applications/m1-harness/index.html",
+		"test:m1": "vitest run --config applications/m1-harness/vitest.config.js",
 		"build": "node ./applications/tools/builder-web.mjs",
 		"build:online": "npm run build -- -O",
 		"build:mapviewer": "npm run build -- -V",

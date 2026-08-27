@@ -7,11 +7,18 @@ import baseConfig from '../../vite.config.js';
 // di applications/m1-harness/ (sesuai task brief), sehingga tidak
 // pernah ditemukan oleh vitest tanpa config tambahan ini.
 //
-// File ini hanya menambahkan satu include pattern di atas konfigurasi
+// File ini menambahkan resolve/alias dan environment dari konfigurasi
 // upstream (lewat mergeConfig) — vite.config.js bawaan tidak diubah
-// sama sekali.
-export default mergeConfig(baseConfig, defineConfig({
+// sama sekali — lalu mengganti test.include agar HANYA test m1-harness
+// yang berjalan. mergeConfig menggabungkan array (concat), bukan
+// mengganti, jadi include harus ditimpa secara eksplisit di sini agar
+// `npm run test:m1` tidak diam-diam menjalankan seluruh suite tests/.
+const merged = mergeConfig(baseConfig, defineConfig({
 	test: {
 		include: ['applications/m1-harness/**/*.test.js']
 	}
 }));
+
+merged.test.include = ['applications/m1-harness/**/*.test.js'];
+
+export default merged;
