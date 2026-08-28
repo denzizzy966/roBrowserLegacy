@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="id">
+<head>
+	<meta charset="utf-8">
+	<title>M2 — Render Map dari GRF</title>
+	<style>
+		html, body { margin: 0; height: 100%; background: #111; color: #ddd;
+		             font-family: ui-monospace, monospace; }
+		#log { position: fixed; left: 0; bottom: 0; right: 0; max-height: 9rem;
+		       overflow: auto; white-space: pre-wrap; background: rgba(0,0,0,.75);
+		       padding: .5rem; font-size: 12px; z-index: 100; }
+	</style>
+	<script>
+		// Configs.js mengisi dirinya dari window.ROConfig lewat IIFE saat
+		// modulnya diimpor, jadi ini HARUS berjalan sebelum <script type="module">
+		// di bawah. 'api' sengaja tidak disetel: nilainya harus falsy agar
+		// jalur pemilih berkas Intro yang dipakai, bukan jalur postMessage.
+		window.ROConfig = {
+			development: true,
+			BGMFileExtension: ['mp3']
+		};
+	</script>
+</head>
+<body>
+	<div id="log"></div>
+	<script type="module" src="./main.js"></script>
+</body>
+</html>
