@@ -98,15 +98,12 @@ export function spawnPlacement(info, altitudeWidth, altitudeHeight) {
 /**
  * Membaca EvtZoneTick dari sebuah ServerMsg.
  *
- * Menerima pesan yang sudah di-decode, bukan ArrayBuffer — berbeda dari
- * decodeMapInfo/decodeServerError. Ini karena EvtZoneTick tidak memerlukan
- * dekode protobuf penuh: ia datang melalui msg.zoneTick yang sudah tersedia
- * di hasil decode ServerMsg sebelumnya.
- *
- * @param {object} msg - ServerMsg hasil decode
+ * @param {object} ServerMsg - tipe ServerMsg dari skema protobuf
+ * @param {ArrayBuffer} data - pesan terenkripsi
  * @returns {{tick:number, entities:number, serverTimeMs:number}|null}
  */
-export function decodeZoneTick(msg) {
+export function decodeZoneTick(ServerMsg, data) {
+	const msg = ServerMsg.decode(new Uint8Array(data));
 	const t = msg && msg.zoneTick;
 	if (!t) {
 		return null;
@@ -121,11 +118,10 @@ export function decodeZoneTick(msg) {
 /**
  * Selisih antara dua heartbeat berurutan.
  *
- * Inilah yang membuat heartbeat berguna. Server mengirimnya sekali per
- * detik tetapi membawa hitungan tick SESUNGGUHNYA, jadi lompatan yang
- * sehat adalah 20. Lompatan yang mengecil berarti zone membuang tick --
- * sesuatu yang mustahil terlihat bila kita hanya menghitung pesan yang
- * datang.
+ * Delta tick selalu 20 secara konstruksi: z.tick naik satu per tick yang
+ * DITERIMA, dan heartbeat terbit di tiap kelipatan 20. Jadi delta ≠ 20
+ * berarti heartbeat MESSAGE HILANG dalam transit, bukan zone yang membuang
+ * tick.
  *
  * @param {number|null} sebelumnya - tick heartbeat sebelumnya
  * @param {number} sekarang - tick heartbeat sekarang
@@ -136,4 +132,31 @@ export function lompatanTick(sebelumnya, sekarang) {
 		return null;
 	}
 	return sekarang - sebelumnya;
+}
+
+/**
+ * Memperkirakan berapa tick yang dibuang zone antara dua heartbeat.
+ *
+ * Inilah sinyal kelambatan yang sebenarnya. Delta `tick` antar-heartbeat
+ * selalu 20 secara konstruksi -- z.tick naik satu per tick yang DITERIMA,
+ * dan heartbeat terbit di tiap kelipatan 20. Zone yang tersendat tidak
+ * melompat lebih pendek; ia tiba lebih lambat.
+ *
+ * time.Ticker di Go MEMBUANG tick bila penerimanya lambat, ia tidak
+ * mengantre. Jadi kelebihan waktu di atas 1000 ms dibagi 50 ms adalah
+ * perkiraan jumlah tick yang hilang.
+ *
+ * @param {number|null} sebelumnya - serverTimeMs heartbeat sebelumnya
+ * @param {number} sekarang - serverTimeMs heartbeat sekarang
+ * @returns {number|null} null bila belum ada pembanding; 0 bila sehat
+ */
+export function tickTerbuang(sebelumnya, sekarang) {
+	if (sebelumnya === null || sebelumnya === undefined) {
+		return null;
+	}
+	const kelebihan = (sekarang - sebelumnya) - 1000;
+	if (kelebihan <= 0) {
+		return 0;
+	}
+	return Math.round(kelebihan / 50);
 }

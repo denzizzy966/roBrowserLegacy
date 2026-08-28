@@ -14,7 +14,7 @@ import Network     from 'Network/NetworkManager.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
@@ -44,6 +44,7 @@ let goSocket = null;
 const spot = Session.Entity = new Entity();
 
 let tickSebelumnya = null;
+let serverTimeSebelumnya = null;
 
 const q = new Queue();
 
@@ -152,14 +153,18 @@ q.add(async function () {
 					return;
 				}
 
-				const msg = schema.ServerMsg.decode(new Uint8Array(data));
-				const ht = decodeZoneTick(msg);
+				const ht = decodeZoneTick(schema.ServerMsg, data);
 				if (ht) {
 					const lompat = lompatanTick(tickSebelumnya, ht.tick);
+					const terbuang = tickTerbuang(serverTimeSebelumnya, ht.serverTimeMs);
 					tickSebelumnya = ht.tick;
-					const catatan = lompat === null ? ''
-						: lompat === 20 ? `  (+${lompat})`
-						: `  (+${lompat}  <- zone membuang tick!)`;
+					serverTimeSebelumnya = ht.serverTimeMs;
+
+					let catatan = lompat === null ? '' : lompat === 20 ? `  (+${lompat})` : `  (+${lompat}  <- heartbeat hilang!)`;
+					if (terbuang !== null && terbuang > 0) {
+						catatan += ` zone membuang ${terbuang} tick!`;
+					}
+
 					log(`< zone tick ${ht.tick}, ${ht.entities} entity${catatan}`);
 					window.__m2.tick = ht;
 					return;

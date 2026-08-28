@@ -3,7 +3,7 @@ import protobuf from 'protobufjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang } from './mapinfo.js';
 
 // Membaca skema yang SAMA dengan yang dipakai server. Menyalin isi ro.proto
 // ke dalam test akan membuatnya tetap lulus walau skema aslinya berubah.
@@ -201,18 +201,24 @@ describe('spawnPlacement', () => {
 });
 
 describe('decodeZoneTick', () => {
-	it('membaca tick, entities, dan waktu server', () => {
-		const msg = {
+	it('membaca tick, entities, dan waktu server dari buffer terenkripsi', () => {
+		const { ServerMsg } = types();
+		const raw = ServerMsg.encode(ServerMsg.create({
 			zoneTick: { tick: 40, entities: 2, serverTimeMs: 1735689600000 }
-		};
-		expect(decodeZoneTick(msg)).toEqual({
+		})).finish();
+
+		expect(decodeZoneTick(ServerMsg, toArrayBuffer(raw))).toEqual({
 			tick: 40, entities: 2, serverTimeMs: 1735689600000
 		});
 	});
 
 	it('mengembalikan null untuk pesan lain', () => {
-		expect(decodeZoneTick({ mapInfo: { mapName: 'prontera' } })).toBeNull();
-		expect(decodeZoneTick({})).toBeNull();
+		const { ServerMsg } = types();
+		const raw = ServerMsg.encode(ServerMsg.create({
+			mapInfo: { mapName: 'prontera', xs: 312, ys: 392, spawnX: 156, spawnY: 196 }
+		})).finish();
+
+		expect(decodeZoneTick(ServerMsg, toArrayBuffer(raw))).toBeNull();
 	});
 });
 
@@ -228,10 +234,38 @@ describe('lompatanTick', () => {
 		expect(lompatanTick(40, 60)).toBe(20);
 	});
 
-	it('memberi angka lebih kecil saat zone membuang tick', () => {
-		// Inilah alasan heartbeat membawa hitungan tick sesungguhnya.
-		// Menghitung pesan yang datang tidak akan memperlihatkan apa pun:
-		// pesannya tetap tiba sekali per detik meski zone tersendat.
+	it('memberi angka berbeda saat heartbeat hilang dalam transit', () => {
+		// Delta tick lain daripada 20 menandakan heartbeat message hilang,
+		// bukan zone yang membuang tick. Pesan berikutnya akan datang dengan
+		// tick yang lebih besar dari biasanya karena z.tick naik sesuai tick
+		// yang DITERIMA — jika beberapa tick tidak sampai ke client, delta
+		// ketika message tiba akan lebih besar.
+		expect(lompatanTick(20, 50)).toBe(30);
 		expect(lompatanTick(40, 54)).toBe(14);
+	});
+});
+
+describe('tickTerbuang', () => {
+	it('mengembalikan null untuk heartbeat pertama', () => {
+		// Yang pertama tidak punya pembanding.
+		expect(tickTerbuang(null, 1000)).toBeNull();
+		expect(tickTerbuang(undefined, 1000)).toBeNull();
+	});
+
+	it('memberi 0 saat gap serverTimeMs sekitar 1000 ms (sehat)', () => {
+		expect(tickTerbuang(1000, 2000)).toBe(0);
+		expect(tickTerbuang(5000, 6000)).toBe(0);
+	});
+
+	it('memberi 0 saat gap di bawah 1000 ms (sehat)', () => {
+		expect(tickTerbuang(1000, 1999)).toBe(0);
+		expect(tickTerbuang(5000, 5500)).toBe(0);
+	});
+
+	it('mengestimasi tick terbuang dari excess waktu', () => {
+		// Gap 1400 ms = 400 ms excess → 400/50 = 8 tick terbuang.
+		expect(tickTerbuang(1000, 2400)).toBe(8);
+		// Gap 1500 ms = 500 ms excess → 500/50 = 10 tick terbuang.
+		expect(tickTerbuang(5000, 6500)).toBe(10);
 	});
 });
