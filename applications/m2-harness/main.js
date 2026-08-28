@@ -14,7 +14,7 @@ import Network     from 'Network/NetworkManager.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
@@ -100,63 +100,58 @@ q.add(async function () {
 		// tepat sebelum memanggil callback ini, mengarahkan seluruh data
 		// masuk ke pengurai paket Gravity. Protokol kita bukan Gravity.
 		goSocket.onMessage = (data) => {
-			const err = decodeServerError(schema.ServerMsg, data);
-			if (err) {
-				log(`! server menolak: ${err}`);
-				return;
-			}
-
-			const info = decodeMapInfo(schema.ServerMsg, data);
-			if (!info) {
-				log(`< pesan tanpa body yang dikenali (${data.byteLength} byte)`);
-				return;
-			}
-
-			log(`< server: map ${info.mapName} ${info.xs}x${info.ys}, spawn (${info.spawnX},${info.spawnY})`);
-
-			MapRenderer.onLoad = function () {
-				log(`map termuat: ${info.mapName}`);
-				log(`dimensi menurut GRF: ${Altitude.width}x${Altitude.height}`);
-
-				const check = validateSpawn(info, Altitude.width, Altitude.height);
-				if (!check.ok) {
-					log(`! ${check.reason}`);
-					log('! karakter TIDAK ditempatkan di spawn server — periksa versi client GRF vs map_cache.dat rAthena');
-
-					// Kamera TETAP harus punya target meski spawn ditolak.
-					// MapRenderer.onMapComplete memanggil Renderer.render(onRender)
-					// TANPA SYARAT setelah onLoad selesai, dan onRender
-					// mendereferensi Camera.target.position. Keluar lebih awal
-					// tanpa setTarget membuat setiap frame melempar TypeError
-					// yang ditelan try/catch di Renderer.js — konsol dibanjiri
-					// selamanya dan kanvas tidak pernah menggambar. Itu justru
-					// kegagalan senyap yang Task 1 dibangun untuk menghapus.
-					spot.position[0] = Altitude.width  >> 1;
-					spot.position[1] = Altitude.height >> 1;
-					spot.position[2] = Altitude.getCellHeight(spot.position[0], spot.position[1]);
-					Camera.setTarget(spot);
-					Camera.init();
-					log(`  kamera dijatuhkan ke titik tengah (${spot.position[0]},${spot.position[1]}) agar render tetap jalan.`);
+			try {
+				const err = decodeServerError(schema.ServerMsg, data);
+				if (err) {
+					log(`! server menolak: ${err}`);
 					return;
 				}
 
-				// CATATAN: urutan argumen di bawah tidak diuji otomatis mana pun.
-				// spawnX/spawnY yang tertukar di sini, atau di getCellHeight,
-				// lolos seluruh 15 test — main.js tidak punya coverage karena
-				// butuh WebGL. Hanya verifikasi visual yang menangkapnya.
-				spot.position[0] = info.spawnX;
-				spot.position[1] = info.spawnY;
-				spot.position[2] = Altitude.getCellHeight(info.spawnX, info.spawnY);
+				const info = decodeMapInfo(schema.ServerMsg, data);
+				if (!info) {
+					log(`< pesan tanpa body yang dikenali (${data.byteLength} byte)`);
+					return;
+				}
 
-				Camera.setTarget(spot);
-				Camera.init();
+				log(`< server: map ${info.mapName} ${info.xs}x${info.ys}, spawn (${info.spawnX},${info.spawnY})`);
 
-				log(`karakter di (${info.spawnX},${info.spawnY},${spot.position[2].toFixed(2)}), kamera mengikuti.`);
-			};
+				MapRenderer.onLoad = function () {
+					log(`map termuat: ${info.mapName}`);
+					log(`dimensi menurut GRF: ${Altitude.width}x${Altitude.height}`);
 
-			const rsw = rswFileName(info.mapName);
-			log(`memuat ${rsw} dari GRF ...`);
-			MapRenderer.setMap(rsw);
+					const p = spawnPlacement(info, Altitude.width, Altitude.height);
+
+					if (!p.ok) {
+						log(`! ${p.reason}`);
+						log('! karakter TIDAK ditempatkan di spawn server — periksa versi client GRF vs map_cache.dat rAthena');
+					}
+
+					// Kamera WAJIB punya target pada setiap jalur, termasuk saat
+					// spawn ditolak. MapRenderer.onMapComplete memanggil
+					// Renderer.render(onRender) tanpa syarat setelah onLoad selesai,
+					// dan onRender mendereferensi Camera.target.position. Keluar
+					// lebih awal tanpa setTarget membuat setiap frame melempar
+					// TypeError yang ditelan try/catch di Renderer.js — konsol
+					// dibanjiri selamanya dan kanvas tidak pernah menggambar.
+					spot.position[0] = p.x;
+					spot.position[1] = p.y;
+					spot.position[2] = Altitude.getCellHeight(p.x, p.y);
+
+					Camera.setTarget(spot);
+					Camera.init();
+
+					log(p.ok
+						? `karakter di (${spot.position[0]},${spot.position[1]},${spot.position[2].toFixed(2)}), kamera mengikuti.`
+						: `  kamera dijatuhkan ke titik tengah (${spot.position[0]},${spot.position[1]}) agar render tetap jalan.`);
+				};
+
+				const rsw = rswFileName(info.mapName);
+				log(`memuat ${rsw} dari GRF ...`);
+				MapRenderer.setMap(rsw);
+			} catch (err) {
+				log(`! frame tidak dapat didekode (${data.byteLength} byte): ${err.message}`);
+				log('! kemungkinan skema client dan server berbeda — coba hard reload (Ctrl+Shift+R)');
+			}
 		};
 
 		log(`> minta masuk map: ${MAP_NAME}`);
@@ -166,4 +161,4 @@ q.add(async function () {
 
 q.run();
 
-window.__m2 = { Configs, MapRenderer, Altitude, log };
+window.__m2 = { Configs, MapRenderer, Altitude, Camera, Session, spot, log };
