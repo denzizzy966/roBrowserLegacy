@@ -6,31 +6,22 @@ import BGM         from 'Audio/BGM.js';
 import Renderer    from 'Renderer/Renderer.js';
 import MapRenderer from 'Renderer/MapRenderer.js';
 import Altitude    from 'Renderer/Map/Altitude.js';
-import Intro       from 'UI/Components/Intro/Intro.js';
 import Camera      from 'Renderer/Camera.js';
 import Entity      from 'Renderer/Entity/Entity.js';
 import Session     from 'Engine/SessionStorage.js';
+import Intro       from 'UI/Components/Intro/Intro.js';
+import Network     from 'Network/NetworkManager.js';
 
-const MAP_NAME = 'geffen';
+import GoSocket        from '../m1-harness/GoSocket.js';
+import { loadSchema }  from '../m1-harness/proto.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError } from './mapinfo.js';
+
+const SERVER_HOST = 'localhost';
+const SERVER_PORT = 5121;
+const SCHEMA_URL  = `http://${SERVER_HOST}:${SERVER_PORT}/proto/ro.proto`;
+const MAP_NAME    = 'geffen';
 
 const logEl = document.getElementById('log');
-
-// WAJIB ADA SEBELUM FRAME PERTAMA DIRENDER.
-//
-// MapRenderer.onRender memanggil Camera.update(tick) di baris pertamanya, dan
-// Camera.update mendereferensi this.target.position tanpa penjagaan. Bila
-// Camera.target masih null, ia melempar TypeError setiap frame — dan
-// Renderer.js membungkus tiap callback render dalam try/catch, sehingga
-// galatnya hanya muncul di konsol DevTools. Semua yang setelahnya
-// (Ground.render, Models.render, Water.render) tidak pernah berjalan.
-//
-// Gejalanya adalah yang paling menyesatkan: panel log di halaman tetap
-// menampilkan "map termuat" beserta dimensi yang benar, karena keduanya
-// dihitung sebelum crash, sementara kanvas kosong selamanya.
-//
-// MapRenderer.onRender juga membaca Session.Entity.position, jadi entity-nya
-// harus terdaftar di sana. Pola ini disalin dari src/App/MapViewer.js:35.
-const spot = Session.Entity = new Entity();
 
 function log(msg) {
 	logEl.textContent += msg + '\n';
@@ -38,10 +29,17 @@ function log(msg) {
 	console.log('[m2]', msg);
 }
 
-// Urutan ini disalin dari src/App/MapViewer.js jalur "normal access".
-// Thread menjalankan worker pembaca GRF; Renderer menyiapkan konteks WebGL;
-// Intro meminta pemain memilih berkas GRF-nya sendiri (keputusan D2 spec:
-// aset Gravity tidak pernah didistribusikan).
+let schema   = null;
+let goSocket = null;
+
+// WAJIB ADA SEBELUM FRAME PERTAMA DIRENDER. MapRenderer.onRender memanggil
+// Camera.update(tick), yang mendereferensi this.target.position tanpa
+// penjagaan, lalu membaca Session.Entity.position. Bila keduanya null,
+// setiap frame melempar TypeError yang ditelan try/catch di Renderer.js —
+// kanvas kosong selamanya sementara panel log tetap menampilkan
+// "map termuat". Pola ini disalin dari src/App/MapViewer.js:35.
+const spot = Session.Entity = new Entity();
+
 const q = new Queue();
 
 q.add(function () {
@@ -67,31 +65,81 @@ q.add(function () {
 	Intro.append();
 });
 
-q.add(function () {
+q.add(async function () {
 	Intro.remove();
 
-	MapRenderer.onLoad = function () {
-		log(`map termuat: ${MAP_NAME}`);
-		log(`dimensi menurut GRF: ${Altitude.width}x${Altitude.height}`);
+	try {
+		log(`memuat skema dari ${SCHEMA_URL} ...`);
+		schema = await loadSchema(SCHEMA_URL);
+		log('skema termuat.');
+	} catch (err) {
+		log(`! gagal memuat skema: ${err.message}`);
+		return;
+	}
 
-		// Titik tengah map hanya penempatan sementara supaya ada sesuatu
-		// untuk diikuti kamera. Task 3 menggantinya dengan posisi spawn
-		// yang ditentukan server.
-		spot.position[0] = Altitude.width  >> 1;
-		spot.position[1] = Altitude.height >> 1;
-		spot.position[2] = Altitude.getCellHeight(spot.position[0], spot.position[1]);
+	// Titik sisip resmi roBrowserLegacy: transport dialihkan ke server Go
+	// tanpa menyentuh kode upstream. Factory dipanggil dengan tepat
+	// (host, port); NetworkManager sendiri yang menetapkan onComplete dan
+	// onClose, jadi jangan disetel di sini.
+	Network.setSocketFactory((host, port) => {
+		goSocket = new GoSocket(host, port);
+		return goSocket;
+	});
 
-		Camera.setTarget(spot);
-		Camera.init();
+	log(`menyambung ke ws://${SERVER_HOST}:${SERVER_PORT}/ws ...`);
 
-		log(`kamera diarahkan ke (${spot.position[0]},${spot.position[1]}).`);
-	};
+	Network.connect(SERVER_HOST, SERVER_PORT, (success) => {
+		if (!success) {
+			log('! gagal menyambung — apakah roserver sudah berjalan?');
+			return;
+		}
+		log('tersambung.');
 
-	log(`memuat map ${MAP_NAME}.rsw ...`);
-	MapRenderer.setMap(`${MAP_NAME}.rsw`);
+		// TEMUAN M1 — jangan pindahkan blok ini ke dalam factory.
+		// NetworkManager.connect() menjalankan `socket.onMessage = receive`
+		// tepat sebelum memanggil callback ini, mengarahkan seluruh data
+		// masuk ke pengurai paket Gravity. Protokol kita bukan Gravity.
+		goSocket.onMessage = (data) => {
+			const err = decodeServerError(schema.ServerMsg, data);
+			if (err) {
+				log(`! server menolak: ${err}`);
+				return;
+			}
+
+			const info = decodeMapInfo(schema.ServerMsg, data);
+			if (!info) {
+				log(`< pesan tanpa body yang dikenali (${data.byteLength} byte)`);
+				return;
+			}
+
+			log(`< server: map ${info.mapName} ${info.xs}x${info.ys}, spawn (${info.spawnX},${info.spawnY})`);
+
+			MapRenderer.onLoad = function () {
+				log(`map termuat: ${info.mapName}`);
+				log(`dimensi menurut GRF: ${Altitude.width}x${Altitude.height}`);
+
+				// Masih titik tengah map — Task 3 menggantinya dengan posisi
+				// spawn dari server, beserta pemeriksaan validateSpawn.
+				spot.position[0] = Altitude.width  >> 1;
+				spot.position[1] = Altitude.height >> 1;
+				spot.position[2] = Altitude.getCellHeight(spot.position[0], spot.position[1]);
+
+				Camera.setTarget(spot);
+				Camera.init();
+
+				log(`kamera diarahkan ke (${spot.position[0]},${spot.position[1]}).`);
+			};
+
+			const rsw = rswFileName(info.mapName);
+			log(`memuat ${rsw} dari GRF ...`);
+			MapRenderer.setMap(rsw);
+		};
+
+		log(`> minta masuk map: ${MAP_NAME}`);
+		Network.send(encodeEnterMap(schema.ClientMsg, MAP_NAME));
+	}, false);
 });
 
 q.run();
 
-// Dipakai saat verifikasi manual dari konsol DevTools.
-window.__m2 = { Configs, MapRenderer, Altitude, Camera, spot, log };
+window.__m2 = { Configs, MapRenderer, Altitude, log };

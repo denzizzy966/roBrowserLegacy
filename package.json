@@ -10,6 +10,7 @@
 		"m1": "vite --port 3100 --strictPort --open applications/m1-harness/index.html",
 		"m2": "vite --port 3100 --strictPort --open applications/m2-harness/index.html",
 		"test:m1": "vitest run --config applications/m1-harness/vitest.config.js",
+		"test:m2": "vitest run --config applications/m2-harness/vitest.config.js",
 		"build": "node ./applications/tools/builder-web.mjs",
 		"build:online": "npm run build -- -O",
 		"build:mapviewer": "npm run build -- -V",
