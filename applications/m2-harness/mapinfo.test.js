@@ -234,14 +234,15 @@ describe('lompatanTick', () => {
 		expect(lompatanTick(40, 60)).toBe(20);
 	});
 
-	it('memberi angka berbeda saat heartbeat hilang dalam transit', () => {
-		// Delta tick lain daripada 20 menandakan heartbeat message hilang,
-		// bukan zone yang membuang tick. Pesan berikutnya akan datang dengan
-		// tick yang lebih besar dari biasanya karena z.tick naik sesuai tick
-		// yang DITERIMA — jika beberapa tick tidak sampai ke client, delta
-		// ketika message tiba akan lebih besar.
-		expect(lompatanTick(20, 50)).toBe(30);
-		expect(lompatanTick(40, 54)).toBe(14);
+	it('memberi delta bukan 20 saat heartbeat message hilang dalam transit', () => {
+		// Delta tick != 20 berarti heartbeat MESSAGE hilang dalam transit,
+		// bukan zone yang membuang tick (lihat komentar lompatanTick). Nilai
+		// "sekarang" di sini tetap kelipatan 20, karena zone HANYA pernah
+		// menerbitkan heartbeat pada tick kelipatan 20 -- delta yang bukan
+		// kelipatan 20 (mis. 14) tidak pernah bisa terjadi sungguhan, jadi
+		// bukan kasus yang layak diuji.
+		expect(lompatanTick(20, 60)).toBe(40); // satu heartbeat hilang
+		expect(lompatanTick(40, 100)).toBe(60); // dua heartbeat hilang
 	});
 });
 
