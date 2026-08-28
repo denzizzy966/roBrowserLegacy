@@ -19,7 +19,10 @@ import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPla
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
 const SCHEMA_URL  = `http://${SERVER_HOST}:${SERVER_PORT}/proto/ro.proto`;
-const MAP_NAME    = 'geffen';
+// Prontera, kota awal Ragnarok. Sampai sekarang tidak mungkin: cache
+// rAthena tidak memuatnya. Ia datang dari cache hasil bangkitan
+// server/cmd/mapcachegen, langsung dari data.grf milik pemain.
+const MAP_NAME    = 'prontera';
 
 const logEl = document.getElementById('log');
 
