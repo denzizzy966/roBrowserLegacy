@@ -68,3 +68,29 @@ export function validateSpawn(info, altitudeWidth, altitudeHeight) {
 	}
 	return { ok: true };
 }
+
+/**
+ * Menentukan di mana karakter ditempatkan.
+ *
+ * Dipisahkan dari main.js karena main.js membutuhkan WebGL dan karenanya
+ * tidak dapat diuji otomatis sama sekali. Keputusannya sendiri murni:
+ * validasi, lalu pilih spawn server atau titik tengah map sebagai cadangan.
+ * Dengan begini, x dan y yang tertukar — baik di jalur sukses maupun di
+ * jalur cadangan — gagal di CI alih-alih hanya terlihat oleh mata manusia
+ * pada map yang kebetulan tidak persegi.
+ *
+ * ok bernilai false berarti spawn server ditolak; x dan y tetap berisi
+ * posisi cadangan yang aman agar kamera tetap punya target.
+ */
+export function spawnPlacement(info, altitudeWidth, altitudeHeight) {
+	const check = validateSpawn(info, altitudeWidth, altitudeHeight);
+	if (!check.ok) {
+		return {
+			ok:     false,
+			reason: check.reason,
+			x:      altitudeWidth  >> 1,
+			y:      altitudeHeight >> 1
+		};
+	}
+	return { ok: true, x: info.spawnX, y: info.spawnY };
+}

@@ -3,7 +3,7 @@ import protobuf from 'protobufjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement } from './mapinfo.js';
 
 // Membaca skema yang SAMA dengan yang dipakai server. Menyalin isi ro.proto
 // ke dalam test akan membuatnya tetap lulus walau skema aslinya berubah.
@@ -40,11 +40,13 @@ describe('encodeEnterMap', () => {
 	it('menghasilkan ArrayBuffer yang dapat didekode kembali', () => {
 		const { ClientMsg } = types();
 
-		const buf = encodeEnterMap(ClientMsg, 'geffen');
+		// Sengaja BUKAN 'geffen': bila nama map di-hardcode, test dengan
+		// fixture 'geffen' akan lolos karena nilainya kebetulan sama.
+		const buf = encodeEnterMap(ClientMsg, 'payon');
 		expect(buf).toBeInstanceOf(ArrayBuffer);
 
 		const decoded = ClientMsg.decode(new Uint8Array(buf));
-		expect(decoded.enterMap.mapName).toBe('geffen');
+		expect(decoded.enterMap.mapName).toBe('payon');
 	});
 });
 
@@ -154,5 +156,46 @@ describe('validateSpawn', () => {
 		const r = validateSpawn({ ...info, spawnY: -1 }, 240, 240);
 		expect(r.ok).toBe(false);
 		expect(r.reason).toContain('di luar batas');
+	});
+
+	it('menolak bila TINGGI berbeda, bukan hanya lebar', () => {
+		// Setiap fixture ketidakcocokan lain berbeda pada LEBAR, sehingga
+		// menghapus separuh pemeriksaan tinggi lolos seluruh test.
+		const r = validateSpawn(info, 240, 200);
+		expect(r.ok).toBe(false);
+		expect(r.reason).toContain('240x200');
+	});
+
+	it('menolak spawnY yang melampaui tinggi', () => {
+		// Setiap fixture di-luar-batas lain melampaui pada X; satu-satunya
+		// fixture Y bernilai negatif. Tanpa kasus ini, menghapus separuh
+		// pemeriksaan batas Y lolos seluruh test — dan spawnY yang tak
+		// terbatas menghasilkan NaN di spot.position[2], yang ditulis
+		// Camera.init() ke matriks model-view: kanvas kosong.
+		const payon = { mapName: 'payon', xs: 300, ys: 360, spawnX: 100, spawnY: 360 };
+		const r = validateSpawn(payon, 300, 360);
+		expect(r.ok).toBe(false);
+		expect(r.reason).toContain('di luar batas');
+	});
+});
+
+describe('spawnPlacement', () => {
+	it('memakai spawn server bila valid', () => {
+		// payon 300x360 asimetris, spawn (149,179) juga asimetris — x dan y
+		// yang tertukar tidak dapat lolos.
+		const payon = { mapName: 'payon', xs: 300, ys: 360, spawnX: 149, spawnY: 179 };
+		expect(spawnPlacement(payon, 300, 360)).toEqual({ ok: true, x: 149, y: 179 });
+	});
+
+	it('jatuh ke titik tengah pada sumbu yang benar bila spawn ditolak', () => {
+		// Dimensi GRF 300x400 tidak cocok dengan server 300x360, sehingga
+		// spawn ditolak. Titik tengahnya (150,200) — bukan (200,150) — jadi
+		// sumbu cadangan yang tertukar pun tertangkap.
+		const payon = { mapName: 'payon', xs: 300, ys: 360, spawnX: 149, spawnY: 179 };
+		const p = spawnPlacement(payon, 300, 400);
+		expect(p.ok).toBe(false);
+		expect(p.x).toBe(150);
+		expect(p.y).toBe(200);
+		expect(p.reason).toContain('300x360');
 	});
 });
