@@ -41,3 +41,30 @@ export function decodeServerError(ServerMsg, arrayBuffer) {
 	const msg = ServerMsg.decode(new Uint8Array(arrayBuffer));
 	return msg.error ? msg.error.reason : null;
 }
+
+/**
+ * Memeriksa bahwa gambaran server tentang sebuah map cocok dengan GRF pemain,
+ * dan bahwa spawn berada di dalam batas.
+ *
+ * Server membaca dimensi dari map_cache.dat rAthena; client membacanya dari
+ * .gat di dalam GRF pemain. Keduanya diturunkan dari sumber yang sama, tetapi
+ * dari versi client yang mungkin berbeda. Bila keduanya menyimpang, map tetap
+ * tampil dan karakter tetap muncul -- hanya di tempat yang salah. Itu kelas
+ * galat yang paling lama tidak ketahuan, jadi diperiksa keras di sini.
+ */
+export function validateSpawn(info, altitudeWidth, altitudeHeight) {
+	if (info.xs !== altitudeWidth || info.ys !== altitudeHeight) {
+		return {
+			ok: false,
+			reason: `dimensi tidak cocok: server ${info.xs}x${info.ys}, GRF ${altitudeWidth}x${altitudeHeight}`
+		};
+	}
+	if (info.spawnX < 0 || info.spawnY < 0 ||
+	    info.spawnX >= altitudeWidth || info.spawnY >= altitudeHeight) {
+		return {
+			ok: false,
+			reason: `spawn (${info.spawnX},${info.spawnY}) di luar batas ${altitudeWidth}x${altitudeHeight}`
+		};
+	}
+	return { ok: true };
+}

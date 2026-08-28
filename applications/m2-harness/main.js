@@ -14,7 +14,7 @@ import Network     from 'Network/NetworkManager.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
@@ -118,16 +118,21 @@ q.add(async function () {
 				log(`map termuat: ${info.mapName}`);
 				log(`dimensi menurut GRF: ${Altitude.width}x${Altitude.height}`);
 
-				// Masih titik tengah map — Task 3 menggantinya dengan posisi
-				// spawn dari server, beserta pemeriksaan validateSpawn.
-				spot.position[0] = Altitude.width  >> 1;
-				spot.position[1] = Altitude.height >> 1;
-				spot.position[2] = Altitude.getCellHeight(spot.position[0], spot.position[1]);
+				const check = validateSpawn(info, Altitude.width, Altitude.height);
+				if (!check.ok) {
+					log(`! ${check.reason}`);
+					log('! karakter TIDAK ditempatkan — periksa versi client GRF vs map_cache.dat rAthena');
+					return;
+				}
+
+				spot.position[0] = info.spawnX;
+				spot.position[1] = info.spawnY;
+				spot.position[2] = Altitude.getCellHeight(info.spawnX, info.spawnY);
 
 				Camera.setTarget(spot);
 				Camera.init();
 
-				log(`kamera diarahkan ke (${spot.position[0]},${spot.position[1]}).`);
+				log(`karakter di (${info.spawnX},${info.spawnY},${spot.position[2].toFixed(2)}), kamera mengikuti.`);
 			};
 
 			const rsw = rswFileName(info.mapName);
