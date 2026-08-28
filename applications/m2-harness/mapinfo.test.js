@@ -130,6 +130,26 @@ describe('validateSpawn', () => {
 		expect(r.reason).toContain('di luar batas');
 	});
 
+	it('membandingkan xs dengan lebar dan ys dengan tinggi, bukan tertukar', () => {
+		// Seluruh fixture lain memakai 240x240 yang PERSEGI, sehingga
+		// perbandingan tertukar (info.xs vs altitudeHeight) tidak dapat
+		// dibedakan — terbukti lewat mutasi saat Task 3. payon 300x360
+		// asimetris: bila tertukar, 300 != 360 dan validasi menolak map
+		// yang sebenarnya sah.
+		const payon = { mapName: 'payon', xs: 300, ys: 360, spawnX: 149, spawnY: 179 };
+		expect(validateSpawn(payon, 300, 360)).toEqual({ ok: true });
+	});
+
+	it('memeriksa batas spawn pada sumbu yang benar', () => {
+		// spawnX 310 melampaui lebar 300 tetapi masih di bawah tinggi 360.
+		// Dengan pemeriksaan batas yang benar ini ditolak; dengan sumbu
+		// tertukar (spawnX diuji terhadap tinggi) ia keliru diterima.
+		const payon = { mapName: 'payon', xs: 300, ys: 360, spawnX: 310, spawnY: 100 };
+		const r = validateSpawn(payon, 300, 360);
+		expect(r.ok).toBe(false);
+		expect(r.reason).toContain('di luar batas');
+	});
+
 	it('menolak spawn negatif', () => {
 		const r = validateSpawn({ ...info, spawnY: -1 }, 240, 240);
 		expect(r.ok).toBe(false);
