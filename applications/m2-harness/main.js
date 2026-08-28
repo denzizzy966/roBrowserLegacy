@@ -121,10 +121,29 @@ q.add(async function () {
 				const check = validateSpawn(info, Altitude.width, Altitude.height);
 				if (!check.ok) {
 					log(`! ${check.reason}`);
-					log('! karakter TIDAK ditempatkan — periksa versi client GRF vs map_cache.dat rAthena');
+					log('! karakter TIDAK ditempatkan di spawn server — periksa versi client GRF vs map_cache.dat rAthena');
+
+					// Kamera TETAP harus punya target meski spawn ditolak.
+					// MapRenderer.onMapComplete memanggil Renderer.render(onRender)
+					// TANPA SYARAT setelah onLoad selesai, dan onRender
+					// mendereferensi Camera.target.position. Keluar lebih awal
+					// tanpa setTarget membuat setiap frame melempar TypeError
+					// yang ditelan try/catch di Renderer.js — konsol dibanjiri
+					// selamanya dan kanvas tidak pernah menggambar. Itu justru
+					// kegagalan senyap yang Task 1 dibangun untuk menghapus.
+					spot.position[0] = Altitude.width  >> 1;
+					spot.position[1] = Altitude.height >> 1;
+					spot.position[2] = Altitude.getCellHeight(spot.position[0], spot.position[1]);
+					Camera.setTarget(spot);
+					Camera.init();
+					log(`  kamera dijatuhkan ke titik tengah (${spot.position[0]},${spot.position[1]}) agar render tetap jalan.`);
 					return;
 				}
 
+				// CATATAN: urutan argumen di bawah tidak diuji otomatis mana pun.
+				// spawnX/spawnY yang tertukar di sini, atau di getCellHeight,
+				// lolos seluruh 15 test — main.js tidak punya coverage karena
+				// butuh WebGL. Hanya verifikasi visual yang menangkapnya.
 				spot.position[0] = info.spawnX;
 				spot.position[1] = info.spawnY;
 				spot.position[2] = Altitude.getCellHeight(info.spawnX, info.spawnY);
