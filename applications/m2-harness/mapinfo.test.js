@@ -3,7 +3,7 @@ import protobuf from 'protobufjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick } from './mapinfo.js';
 
 // Membaca skema yang SAMA dengan yang dipakai server. Menyalin isi ro.proto
 // ke dalam test akan membuatnya tetap lulus walau skema aslinya berubah.
@@ -197,5 +197,41 @@ describe('spawnPlacement', () => {
 		expect(p.x).toBe(150);
 		expect(p.y).toBe(200);
 		expect(p.reason).toContain('300x360');
+	});
+});
+
+describe('decodeZoneTick', () => {
+	it('membaca tick, entities, dan waktu server', () => {
+		const msg = {
+			zoneTick: { tick: 40, entities: 2, serverTimeMs: 1735689600000 }
+		};
+		expect(decodeZoneTick(msg)).toEqual({
+			tick: 40, entities: 2, serverTimeMs: 1735689600000
+		});
+	});
+
+	it('mengembalikan null untuk pesan lain', () => {
+		expect(decodeZoneTick({ mapInfo: { mapName: 'prontera' } })).toBeNull();
+		expect(decodeZoneTick({})).toBeNull();
+	});
+});
+
+describe('lompatanTick', () => {
+	it('mengembalikan null untuk heartbeat pertama', () => {
+		// Yang pertama tidak punya pembanding.
+		expect(lompatanTick(null, 20)).toBeNull();
+		expect(lompatanTick(undefined, 20)).toBeNull();
+	});
+
+	it('memberi 20 saat zone berdetak penuh', () => {
+		expect(lompatanTick(20, 40)).toBe(20);
+		expect(lompatanTick(40, 60)).toBe(20);
+	});
+
+	it('memberi angka lebih kecil saat zone membuang tick', () => {
+		// Inilah alasan heartbeat membawa hitungan tick sesungguhnya.
+		// Menghitung pesan yang datang tidak akan memperlihatkan apa pun:
+		// pesannya tetap tiba sekali per detik meski zone tersendat.
+		expect(lompatanTick(40, 54)).toBe(14);
 	});
 });

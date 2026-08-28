@@ -94,3 +94,46 @@ export function spawnPlacement(info, altitudeWidth, altitudeHeight) {
 	}
 	return { ok: true, x: info.spawnX, y: info.spawnY };
 }
+
+/**
+ * Membaca EvtZoneTick dari sebuah ServerMsg.
+ *
+ * Menerima pesan yang sudah di-decode, bukan ArrayBuffer — berbeda dari
+ * decodeMapInfo/decodeServerError. Ini karena EvtZoneTick tidak memerlukan
+ * dekode protobuf penuh: ia datang melalui msg.zoneTick yang sudah tersedia
+ * di hasil decode ServerMsg sebelumnya.
+ *
+ * @param {object} msg - ServerMsg hasil decode
+ * @returns {{tick:number, entities:number, serverTimeMs:number}|null}
+ */
+export function decodeZoneTick(msg) {
+	const t = msg && msg.zoneTick;
+	if (!t) {
+		return null;
+	}
+	return {
+		tick:         Number(t.tick),
+		entities:     Number(t.entities),
+		serverTimeMs: Number(t.serverTimeMs)
+	};
+}
+
+/**
+ * Selisih antara dua heartbeat berurutan.
+ *
+ * Inilah yang membuat heartbeat berguna. Server mengirimnya sekali per
+ * detik tetapi membawa hitungan tick SESUNGGUHNYA, jadi lompatan yang
+ * sehat adalah 20. Lompatan yang mengecil berarti zone membuang tick --
+ * sesuatu yang mustahil terlihat bila kita hanya menghitung pesan yang
+ * datang.
+ *
+ * @param {number|null} sebelumnya - tick heartbeat sebelumnya
+ * @param {number} sekarang - tick heartbeat sekarang
+ * @returns {number|null} null bila belum ada pembanding
+ */
+export function lompatanTick(sebelumnya, sekarang) {
+	if (sebelumnya === null || sebelumnya === undefined) {
+		return null;
+	}
+	return sekarang - sebelumnya;
+}
