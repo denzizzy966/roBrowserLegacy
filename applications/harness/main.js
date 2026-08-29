@@ -151,12 +151,14 @@ function spawnkanLain(sp) {
 
 	const lain = new Entity();
 	const unit = { objecttype, GID: sp.entityId, job: sp.job };
-	// head dan sex khusus PC. getBodyPath untuk id non-pemain langsung ke
-	// data/sprite/npc/ lewat MonsterTable, dan memberi head pada mob
-	// membuat UpdateHead mencari sprite kepala untuk id 1002 (keputusan
+	// head dan sex khusus PC. getBodyPath untuk id non-pemain (mob,
+	// 1001-3999) jatuh ke cabang terakhirnya, 'data/sprite/몬스터/' +
+	// MonsterTable[id] -- bukan data/sprite/npc/, itu cabang isNPC (id
+	// 46-129, 401-999) yang tidak pernah disentuh mob. Memberi head pada
+	// mob membuat UpdateHead mencari sprite kepala untuk id 1002 (keputusan
 	// A10). Ini kesalahan M4 yang DIBALIK: bukan field yang hilang,
 	// melainkan field yang tidak semestinya ada.
-	if (sp.type === 1) {
+	if (objecttype === Entity.TYPE_PC) {
 		unit.sex = 1;
 		unit.head = 1;
 	}
