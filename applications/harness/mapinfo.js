@@ -170,6 +170,55 @@ export function decodeDespawn(msg) {
 }
 
 /**
+ * Antrean pesan yang menyentuh entity, ditahan sampai map siap.
+ *
+ * MapRenderer.setMap memuat map secara ASINKRON, dan di dalam callback
+ * itulah EntityManager.free() menghapus seluruh entity. EvtSpawn yang
+ * tiba di antara keduanya membuat entity yang beberapa ratus milidetik
+ * kemudian dihapus -- tanpa galat, tanpa peringatan. Lihat catatan
+ * review akhir M5.
+ *
+ * Urutan yang sesungguhnya terjadi, dan yang tidak satu pun tes dapat
+ * lihat: EvtMapInfo memanggil MapRenderer.setMap, yang menjadwalkan
+ * Background.setLoading(cb) -- asinkron, menunggu Client.loadFile dari
+ * GRF plus transisi 500 ms pada tampilan pertama. EvtSpawn tiba ~1 ms
+ * sesudahnya dan membuat entity. Baru 300-800 ms kemudian callback itu
+ * berjalan dan memanggil MapRenderer.free() -> EntityManager.free(),
+ * yang mengosongkan _list dan _gidMap. Pemain lain lenyap sebelum frame
+ * pertama pernah digambar (src/Renderer/MapRenderer.js:156-167, lalu :194-197).
+ *
+ * Perbaikannya ada DI SINI, bukan di EntityManager.free(): keputusan D3
+ * melarang menyentuh berkas client/src/, dan free() memang bukan milik
+ * kita. Menahan pesan sampai map siap juga yang benar secara semantik --
+ * entity yang dibuat sebelum Altitude dimuat mendapat tinggi 0.0 dari
+ * Altitude.getCellHeight yang diam-diam mengembalikan nol.
+ *
+ * Fungsi murni supaya perilakunya teruji tanpa WebGL.
+ *
+ * @returns {{reset:function, jalankan:function, siapkan:function, jumlahTertunda:function}}
+ */
+export function buatAntrean() {
+	let siap = false;
+	let tertunda = [];
+	return {
+		/** Tandai map belum siap dan buang apa pun yang masih tertahan. */
+		reset() { siap = false; tertunda = []; },
+		/** Jalankan fn sekarang bila map siap, kalau tidak tahan dulu. */
+		jalankan(fn) { if (siap) { fn(); } else { tertunda.push(fn); } },
+		/** Map siap: jalankan semua yang tertahan, dalam urutan tiba. */
+		siapkan() {
+			siap = true;
+			const antre = tertunda;
+			tertunda = [];
+			for (const fn of antre) { fn(); }
+			return antre.length;
+		},
+		/** Jumlah yang sedang tertahan; untuk log dan tes. */
+		jumlahTertunda() { return tertunda.length; }
+	};
+}
+
+/**
  * Meratakan jalur menjadi Int16Array berpasangan x,y.
  *
  * Bentuk ini disamakan dengan walk.path milik client, yang juga memuat

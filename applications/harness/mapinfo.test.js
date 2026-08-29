@@ -3,7 +3,7 @@ import protobuf from 'protobufjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, pathKeInt16, encodeMove, arahLangkah } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, pathKeInt16, encodeMove, arahLangkah, buatAntrean } from './mapinfo.js';
 
 // Membaca skema yang SAMA dengan yang dipakai server. Menyalin isi ro.proto
 // ke dalam test akan membuatnya tetap lulus walau skema aslinya berubah.
@@ -532,5 +532,134 @@ describe('tickTerbuang', () => {
 		expect(tickTerbuang(1000, 2400)).toBe(8);
 		// Gap 1500 ms = 500 ms excess → 500/50 = 10 tick terbuang.
 		expect(tickTerbuang(5000, 6500)).toBe(10);
+	});
+});
+
+describe('buatAntrean', () => {
+	// Bug yang diperbaiki antrean ini tidak terlihat oleh satu tes pun:
+	// MapRenderer.setMap memuat map secara asinkron, dan EntityManager.free()
+	// yang berjalan DI DALAM callback-nya menghapus entity yang dibuat
+	// EvtSpawn beberapa ratus milidetik SEBELUMNYA. Karena itu logikanya
+	// ditaruh di sini -- perbaikan yang sama tak terujinya dengan bugnya
+	// tidak membeli apa-apa.
+
+	it('menahan pesan selama map belum siap', () => {
+		const a = buatAntrean();
+		let jalan = 0;
+
+		a.jalankan(() => jalan++);
+		a.jalankan(() => jalan++);
+
+		expect(jalan).toBe(0);
+		expect(a.jumlahTertunda()).toBe(2);
+	});
+
+	it('menguras dalam urutan tiba, bukan terbalik', () => {
+		// Urutan itu SYARAT KEBENARAN, bukan kerapian: spec 5.4 menuntut
+		// EvtSpawn tiba sebelum EvtMove untuk entity yang sama. Antrean
+		// yang menguras terbalik akan membuang gerak pemain lain persis
+		// seperti bug yang sedang diperbaiki.
+		const a = buatAntrean();
+		const urut = [];
+
+		a.jalankan(() => urut.push('spawn'));
+		a.jalankan(() => urut.push('move'));
+		a.jalankan(() => urut.push('despawn'));
+
+		expect(a.siapkan()).toBe(3);
+		expect(urut).toEqual(['spawn', 'move', 'despawn']);
+	});
+
+	it('menjalankan SEGERA sesudah siapkan, bukan mengantre lagi', () => {
+		// Bila ini gagal, pesan sesudah map termuat akan menumpuk selamanya
+		// dan pemain lain membeku -- kegagalan yang persis sama besarnya
+		// dengan yang sedang diperbaiki, hanya arahnya terbalik.
+		const a = buatAntrean();
+		a.siapkan();
+
+		let jalan = 0;
+		a.jalankan(() => jalan++);
+
+		expect(jalan).toBe(1);
+		expect(a.jumlahTertunda()).toBe(0);
+	});
+
+	it('siapkan dua kali tidak menjalankan ulang apa pun', () => {
+		const a = buatAntrean();
+		let jalan = 0;
+		a.jalankan(() => jalan++);
+
+		expect(a.siapkan()).toBe(1);
+		expect(jalan).toBe(1);
+
+		// Kuras kedua atas antrean yang sudah kosong: 0 pesan, dan yang
+		// pertama TIDAK dijalankan lagi. Antrean yang lupa mengosongkan
+		// `tertunda` akan menggandakan tiap entity di layar.
+		expect(a.siapkan()).toBe(0);
+		expect(jalan).toBe(1);
+	});
+
+	it('siapkan pada antrean kosong mengembalikan 0', () => {
+		expect(buatAntrean().siapkan()).toBe(0);
+	});
+
+	it('reset membuang yang tertahan dan kembali menahan', () => {
+		// Ini yang menutup pergantian map di kemudian hari: EvtMapInfo
+		// kedua memanggil reset() sebelum MapRenderer.setMap, jadi pesan
+		// untuk map LAMA tidak boleh ikut terkuras ke map BARU.
+		const a = buatAntrean();
+		let jalan = 0;
+
+		a.jalankan(() => jalan++);
+		expect(a.jumlahTertunda()).toBe(1);
+
+		a.reset();
+		expect(a.jumlahTertunda()).toBe(0);
+		expect(a.siapkan()).toBe(0);
+		expect(jalan).toBe(0);
+	});
+
+	it('reset sesudah siapkan mengembalikan keadaan menahan', () => {
+		// reset() menyetel siap = false lagi. Tanpa itu, map kedua akan
+		// menerima EvtSpawn saat EntityManager.free()-nya belum berjalan --
+		// bug yang sama persis, hanya pada pergantian map alih-alih pada
+		// masuk pertama.
+		const a = buatAntrean();
+		a.siapkan();
+
+		a.reset();
+
+		let jalan = 0;
+		a.jalankan(() => jalan++);
+		expect(jalan).toBe(0);
+		expect(a.jumlahTertunda()).toBe(1);
+	});
+
+	it('dua antrean tidak berbagi keadaan', () => {
+		// Pabrik, bukan singleton: keadaan hidup di closure. Bila kelak
+		// `siap`/`tertunda` naik ke lingkup modul, tes ini yang jatuh.
+		const a = buatAntrean();
+		const b = buatAntrean();
+
+		a.jalankan(() => {});
+		expect(a.jumlahTertunda()).toBe(1);
+		expect(b.jumlahTertunda()).toBe(0);
+
+		b.siapkan();
+		expect(a.jumlahTertunda()).toBe(1);
+	});
+
+	it('pesan yang diantre membawa datanya sendiri lewat closure', () => {
+		// Cara main.js memakainya: jalankan(() => spawnkanLain(sp)). Bila
+		// nilai yang tertangkap dibagi antar-callback, seluruh entity yang
+		// tertahan akan muncul di posisi entity terakhir.
+		const a = buatAntrean();
+		const hasil = [];
+		for (const id of [7, 8, 9]) {
+			a.jalankan(() => hasil.push(id));
+		}
+
+		a.siapkan();
+		expect(hasil).toEqual([7, 8, 9]);
 	});
 });

@@ -16,7 +16,7 @@ import Mouse         from 'Controls/MouseEventHandler.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, pathKeInt16, encodeMove, arahLangkah } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, pathKeInt16, encodeMove, arahLangkah, buatAntrean } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
@@ -87,23 +87,37 @@ function daftarkanEntity(info) {
 	spot.set({ objecttype: Entity.TYPE_PC, GID: info.entityId, job: 0, sex: 1, head: 1 });
 	EntityManager.add(spot);
 
+	periksaPendaftaran(spot);
+}
+
+// Membuktikan sebuah entity benar-benar akan dirender DAN benar-benar bisa
+// berjalan, lalu mencetak diagnostik keras bila tidak.
+//
+// Diangkat jadi pembantu bersama, bukan disalin: daftarkanEntity (sprite
+// kita) dan spawnkanLain (pemain lain) memanggil set() dengan payload yang
+// SAMA, jadi bila payload itu kelak rusak keduanya rusak berbarengan --
+// tapi sampai review akhir M5 hanya sisi kita yang memeriksanya. Pemain
+// lain akan diam-diam berhenti beranimasi sementara sprite kita berteriak,
+// dan pemeriksaan inilah yang membuat kegagalan render senyap di M4 dapat
+// ditemukan sama sekali.
+function periksaPendaftaran(entity) {
 	// Diperiksa lewat _list yang sesungguhnya, BUKAN EntityManager.get():
 	// get() memotong jalan lewat `Session.Entity.GID === gid` dan akan
 	// mengembalikan spot walau ia tidak pernah masuk render list --
 	// pemeriksaan yang selalu lulus dan karenanya tidak memeriksa apa pun.
 	let diRenderList = false;
 	EntityManager.forEach((e) => {
-		if (e === spot) {
+		if (e === entity) {
 			diRenderList = true;
 			return false;
 		}
 		return true;
 	});
 
-	const walkSah = spot.ACTION.WALK >= 0;
+	const walkSah = entity.ACTION.WALK >= 0;
 	log(diRenderList && walkSah
-		? `entity terdaftar: GID ${spot.GID}, objecttype ${spot.objecttype}, ACTION.WALK ${spot.ACTION.WALK} — walkProcess akan berjalan tiap frame.`
-		: `! PENDAFTARAN GAGAL: diRenderList=${diRenderList}, ACTION.WALK=${spot.ACTION.WALK} — sprite tidak akan berjalan.`);
+		? `entity terdaftar: GID ${entity.GID}, objecttype ${entity.objecttype}, ACTION.WALK ${entity.ACTION.WALK} — walkProcess akan berjalan tiap frame.`
+		: `! PENDAFTARAN GAGAL: diRenderList=${diRenderList}, ACTION.WALK=${entity.ACTION.WALK} — sprite tidak akan berjalan.`);
 	if (diRenderList && !walkSah) {
 		log('! ACTION.WALK masih -1 sementara entity SUDAH dirender: konsol akan dibanjiri CHARACTER STUCK IN WALKING ANIMATION tiap frame.');
 	}
@@ -135,6 +149,7 @@ function spawnkanLain(sp) {
 	lain.position[2] = Altitude.getCellHeight(sp.x, sp.y);
 	EntityManager.add(lain);
 	log(`< spawn entity ${sp.entityId} di (${sp.x},${sp.y})`);
+	periksaPendaftaran(lain);
 	return lain;
 }
 
@@ -218,6 +233,27 @@ function pasangKanvasKlik() {
 
 let schema   = null;
 let goSocket = null;
+
+// Semua pesan yang MENYENTUH entity lewat sini dulu.
+//
+// Zone.enter mengembalikan, dalam SATU Apply:
+// [EvtMapInfo -> B, EvtSpawn(B) -> penonton, EvtSpawn(A) -> B, EvtMove(A) -> B],
+// dan GoSocket meneruskan tiap frame ke onmessage segera tanpa buffering.
+// Jadi EvtSpawn(A) tiba ~1 ms sesudah EvtMapInfo -- sementara
+// MapRenderer.setMap yang baru saja dipanggil masih menunggu GRF, dan
+// EntityManager.free() yang ada DI DALAM callback-nya baru berjalan
+// 300-800 ms kemudian. Entity pemain A dibuat dengan benar, lalu dihapus.
+//
+// Akibatnya persis kriteria M5 yang gagal: browser 1 melihat pemain 2
+// muncul dan berjalan, browser 2 melihat map kosong dan mencetak
+// `! gerak untuk entity N yang tak dikenal` tiap kali pemain 1 bergerak.
+// Karena interest bersifat edge-triggered (keputusan S3), tidak ada
+// EvtSpawn susulan kecuali pemain 1 berjalan keluar radius lalu kembali.
+//
+// Logikanya sendiri ada di mapinfo.js supaya teruji tanpa WebGL; di sini
+// hanya pemasangannya. EntityManager.free() bukan milik kita
+// (keputusan D3), jadi perbaikannya memang harus di harness.
+const antrean = buatAntrean();
 
 // WAJIB ADA SEBELUM FRAME PERTAMA DIRENDER. MapRenderer.onRender memanggil
 // Camera.update(tick), yang mendereferensi this.target.position tanpa
@@ -333,7 +369,38 @@ q.add(async function () {
 							: `  kamera dijatuhkan ke titik tengah (${spot.position[0]},${spot.position[1]}) agar render tetap jalan.`);
 
 						pasangKanvasKlik();
+
+						// Map benar-benar siap: EntityManager.free() sudah
+						// berjalan (MapRenderer.js:194-197), Altitude sudah
+						// dimuat sehingga getCellHeight tidak lagi diam-diam
+						// mengembalikan 0.0, dan sprite kita sendiri sudah
+						// terdaftar. BARU sekarang entity pemain lain aman
+						// dibuat.
+						//
+						// Dibungkus try/catch sendiri, bukan dibiarkan naik:
+						// selama sebuah pesan ditangani langsung di
+						// goSocket.onMessage ia dilindungi try/catch di sana,
+						// tapi badan yang DIANTRE berjalan di sini -- di dalam
+						// callback map loader. Lemparan yang lolos akan
+						// menghentikan onMapComplete di tengah jalan tanpa satu
+						// baris log pun, persis kelas kegagalan senyap yang
+						// perbaikan ini ada untuk menghapus.
+						try {
+							const dikuras = antrean.siapkan();
+							log(`antrean entity dikuras: ${dikuras} pesan yang tertahan dijalankan sekarang.`);
+						} catch (err) {
+							log(`! gagal menjalankan pesan entity yang tertahan: ${err.message}`);
+						}
 					};
+
+					// SEBELUM setMap, bukan sesudah: begitu setMap dipanggil,
+					// EntityManager.free() sudah terjadwal dan setiap entity
+					// yang dibuat sampai onLoad berjalan pasti tersapu.
+					// Ditaruh di sini, bukan sekali di tingkat modul, supaya
+					// pergantian map di kemudian hari ikut tertutup -- pesan
+					// yang tertahan untuk map LAMA dibuang, bukan dikuras ke
+					// map BARU.
+					antrean.reset();
 
 					const rsw = rswFileName(info.mapName);
 					log(`memuat ${rsw} dari GRF ...`);
@@ -367,47 +434,63 @@ q.add(async function () {
 
 				const sp = decodeSpawn(msg);
 				if (sp) {
-					spawnkanLain(sp);
+					// Ditahan sampai map siap. Tanpa ini entity dibuat lalu
+					// dihapus EntityManager.free() beberapa ratus milidetik
+					// kemudian -- lihat buatAntrean di mapinfo.js.
+					antrean.jalankan(() => spawnkanLain(sp));
 					return;
 				}
 
 				const dp = decodeDespawn(msg);
 				if (dp) {
-					// removeEntity, BUKAN removeGID. removeGID hanya
-					// menghapus entri peta dan MEMBIARKAN entity tetap di
-					// _list, sehingga ia terus dirender selamanya. Nama
-					// yang lebih pendek adalah yang salah.
-					if (EntityManager.get(dp.entityId)) {
-						EntityManager.remove(dp.entityId);
-						log(`< despawn entity ${dp.entityId}`);
-					} else {
-						log(`! despawn untuk entity ${dp.entityId} yang tak dikenal — abaikan`);
-					}
+					// Ikut diantre, dan itu WAJIB: despawn yang dijalankan
+					// sekarang sementara spawn-nya masih tertahan akan
+					// menghapus sesuatu yang belum ada, lalu spawn yang
+					// menyusul membuat sprite hantu yang menetap selamanya.
+					// Urutan tiba dipertahankan oleh antrean.
+					antrean.jalankan(() => {
+						// removeEntity, BUKAN removeGID. removeGID hanya
+						// menghapus entri peta dan MEMBIARKAN entity tetap di
+						// _list, sehingga ia terus dirender selamanya. Nama
+						// yang lebih pendek adalah yang salah.
+						if (EntityManager.get(dp.entityId)) {
+							EntityManager.remove(dp.entityId);
+							log(`< despawn entity ${dp.entityId}`);
+						} else {
+							log(`! despawn untuk entity ${dp.entityId} yang tak dikenal — abaikan`);
+						}
+					});
 					return;
 				}
 
 				const mv = decodeMove(msg);
 				if (mv) {
-					// Rute berdasarkan entity_id, bukan saring. Di M4 ini
-					// penjaga yang MEMBUANG gerak yang bukan milik kita;
-					// M5 justru menginginkannya.
-					//
-					// EntityManager.get() memotong jalan lewat
-					// Session.Entity.GID === gid, jadi satu pemanggilan
-					// melayani sprite kita sendiri maupun pemain lain.
-					const e = EntityManager.get(mv.entityId);
-					if (!e) {
-						// BUKAN diabaikan diam-diam: ini satu-satunya
-						// gejala yang terlihat bila urutan EvtSpawn dan
-						// EvtMove kacau, dan menelannya membuat bug urutan
-						// menyamar sebagai "kadang pemain lain tidak
-						// bergerak".
-						log(`! gerak untuk entity ${mv.entityId} yang tak dikenal — abaikan`);
-						return;
-					}
-					log(`< gerak entity ${mv.entityId}: ${mv.path.length - 1} langkah, ${mv.speedMs} ms/cell`);
-					jalankanSepanjang(e, mv.path, mv.speedMs);
-					window.__m2.gerakTerakhir = mv;
+					// Diantre bersama spawn dan despawn, di antrean yang SAMA:
+					// EvtMove(A) yang datang menyusul EvtSpawn(A) dalam satu
+					// Apply harus tetap berjalan SESUDAH spawn-nya, dan itu
+					// hanya terjamin bila keduanya melewati antrean yang sama.
+					antrean.jalankan(() => {
+						// Rute berdasarkan entity_id, bukan saring. Di M4 ini
+						// penjaga yang MEMBUANG gerak yang bukan milik kita;
+						// M5 justru menginginkannya.
+						//
+						// EntityManager.get() memotong jalan lewat
+						// Session.Entity.GID === gid, jadi satu pemanggilan
+						// melayani sprite kita sendiri maupun pemain lain.
+						const e = EntityManager.get(mv.entityId);
+						if (!e) {
+							// BUKAN diabaikan diam-diam: ini satu-satunya
+							// gejala yang terlihat bila urutan EvtSpawn dan
+							// EvtMove kacau, dan menelannya membuat bug urutan
+							// menyamar sebagai "kadang pemain lain tidak
+							// bergerak".
+							log(`! gerak untuk entity ${mv.entityId} yang tak dikenal — abaikan`);
+							return;
+						}
+						log(`< gerak entity ${mv.entityId}: ${mv.path.length - 1} langkah, ${mv.speedMs} ms/cell`);
+						jalankanSepanjang(e, mv.path, mv.speedMs);
+						window.__m2.gerakTerakhir = mv;
+					});
 					return;
 				}
 
@@ -429,4 +512,7 @@ q.run();
 // dapat membuktikan pendaftaran tanpa membaca kode: __m2.spot.ACTION.WALK
 // harus 1, dan __m2.EntityManager.forEach(e => console.log(e === __m2.spot))
 // harus mencetak true tepat sekali.
-window.__m2 = { Configs, MapRenderer, Altitude, Camera, Session, EntityManager, spot, log, tick: null, gerakTerakhir: null };
+// antrean ikut diekspos karena C1 hanya dapat dibuktikan penuh oleh mata
+// manusia: __m2.antrean.jumlahTertunda() harus > 0 selama map masih dimuat
+// pada browser KEDUA, dan 0 sesudah baris "antrean entity dikuras" muncul.
+window.__m2 = { Configs, MapRenderer, Altitude, Camera, Session, EntityManager, antrean, spot, log, tick: null, gerakTerakhir: null };
