@@ -77,7 +77,14 @@ function daftarkanEntity(info) {
 		log('! entity_id dari server 0 — sprite didaftarkan dengan GID 0; periksa EvtMapInfo');
 	}
 
-	spot.set({ objecttype: Entity.TYPE_PC, GID: info.entityId, job: 0, sex: 1 });
+	// head WAJIB disebutkan. Entity.prototype._head bernilai -1
+	// (Entity.js:605), dan UpdateHead keluar lebih awal saat head < 0
+	// (EntityView.js:617-619) -- jadi berkas sprite kepala tidak pernah
+	// dimuat sama sekali dan Novice muncul tanpa kepala. Badan tetap
+	// tergambar karena UpdateBody dipicu terpisah oleh job, sehingga
+	// gejalanya tampak seperti sprite rusak alih-alih field yang hilang.
+	// 1 adalah gaya rambut pertama, ada untuk kedua jenis kelamin.
+	spot.set({ objecttype: Entity.TYPE_PC, GID: info.entityId, job: 0, sex: 1, head: 1 });
 	EntityManager.add(spot);
 
 	// Diperiksa lewat _list yang sesungguhnya, BUKAN EntityManager.get():
