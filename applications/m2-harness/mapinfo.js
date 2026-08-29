@@ -116,6 +116,59 @@ export function decodeZoneTick(ServerMsg, data) {
 }
 
 /**
+ * Membaca EvtMove dari sebuah ServerMsg.
+ *
+ * @param {object} msg - ServerMsg hasil decode
+ * @returns {{entityId:number, path:Array<{x:number,y:number}>, speedMs:number}|null}
+ */
+export function decodeMove(msg) {
+	const m = msg && msg.move;
+	if (!m) {
+		return null;
+	}
+	return {
+		entityId: Number(m.entityId),
+		path: (m.path || []).map((s) => ({ x: Number(s.x), y: Number(s.y) })),
+		speedMs: Number(m.speedMs)
+	};
+}
+
+/**
+ * Meratakan jalur menjadi Int16Array berpasangan x,y.
+ *
+ * Bentuk ini disamakan dengan walk.path milik client, yang juga memuat
+ * cell asal di elemen pertama lalu melewatinya lewat walk.index = 2.
+ *
+ * Panjangnya mengikuti jalur yang datang. MAX_WALKPATH = 32 di upstream
+ * hanya muncul di dua alokasi buffer; walkProcess sendiri cuma membaca
+ * walk.total, jadi buffer yang lebih panjang aman.
+ *
+ * @param {Array<{x:number,y:number}>} path
+ * @returns {Int16Array}
+ */
+export function pathKeInt16(path) {
+	const out = new Int16Array(path.length * 2);
+	for (let i = 0; i < path.length; i++) {
+		out[i * 2] = path[i].x;
+		out[i * 2 + 1] = path[i].y;
+	}
+	return out;
+}
+
+/**
+ * Membangun ClientMsg berisi CmdMove.
+ *
+ * @param {object} ClientMsg - tipe pesan dari skema
+ * @param {number} x
+ * @param {number} y
+ * @returns {ArrayBuffer}
+ */
+export function encodeMove(ClientMsg, x, y) {
+	const pesan = ClientMsg.create({ move: { x, y } });
+	return ClientMsg.encode(pesan).finish();
+}
+
+/**
  * Selisih antara dua heartbeat berurutan.
  *
  * Delta tick selalu 20 secara konstruksi: z.tick naik satu per tick yang

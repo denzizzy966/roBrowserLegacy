@@ -3,7 +3,7 @@ import protobuf from 'protobufjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, pathKeInt16 } from './mapinfo.js';
 
 // Membaca skema yang SAMA dengan yang dipakai server. Menyalin isi ro.proto
 // ke dalam test akan membuatnya tetap lulus walau skema aslinya berubah.
@@ -243,6 +243,80 @@ describe('lompatanTick', () => {
 		// bukan kasus yang layak diuji.
 		expect(lompatanTick(20, 60)).toBe(40); // satu heartbeat hilang
 		expect(lompatanTick(40, 100)).toBe(60); // dua heartbeat hilang
+	});
+});
+
+describe('decodeMove', () => {
+	it('membaca entityId, jalur, dan kecepatan', () => {
+		const msg = {
+			move: {
+				entityId: 7,
+				path: [{ x: 4, y: 4 }, { x: 5, y: 4 }, { x: 6, y: 5 }],
+				speedMs: 150
+			}
+		};
+		expect(decodeMove(msg)).toEqual({
+			entityId: 7,
+			path: [{ x: 4, y: 4 }, { x: 5, y: 4 }, { x: 6, y: 5 }],
+			speedMs: 150
+		});
+	});
+
+	it('mengembalikan null untuk pesan lain', () => {
+		expect(decodeMove({ mapInfo: { mapName: 'prontera' } })).toBeNull();
+		expect(decodeMove({})).toBeNull();
+	});
+});
+
+describe('pathKeInt16', () => {
+	it('meratakan jalur menjadi pasangan x,y', () => {
+		const out = pathKeInt16([{ x: 4, y: 4 }, { x: 5, y: 4 }]);
+		expect(Array.from(out)).toEqual([4, 4, 5, 4]);
+	});
+
+	it('menghasilkan Int16Array, bukan Array biasa', () => {
+		// walk.path milik client adalah Int16Array; memberinya Array biasa
+		// bekerja sampai sesuatu membaca .buffer.
+		expect(pathKeInt16([{ x: 1, y: 2 }])).toBeInstanceOf(Int16Array);
+	});
+
+	it('panjangnya dua kali jumlah langkah, tanpa batas 32', () => {
+		// MAX_WALKPATH = 32 hanya muncul di dua alokasi buffer upstream;
+		// walkProcess sendiri cuma membaca walk.total. Kita memberi buffer
+		// kita sendiri seukuran jalur yang datang.
+		const jalur = Array.from({ length: 50 }, (_, i) => ({ x: i, y: 0 }));
+		expect(pathKeInt16(jalur).length).toBe(100);
+	});
+});
+
+describe('tabel walkable upstream', () => {
+	it('cocok dengan Walkable() di Go', () => {
+		// Server mengikuti TYPE_TABLE upstream (keputusan P1). Bila
+		// git pull upstream mengubah tabel itu, Walkable() di Go
+		// menyimpang DIAM-DIAM dan klik-mati-senyap kembali: pemain
+		// melihat kursor jalan, mengklik, dan tidak terjadi apa-apa.
+		//
+		// Test ini hidup di JS karena yang dibacanya JS.
+		const src = readFileSync(
+			new URL('../../src/Renderer/Map/Altitude.js', import.meta.url),
+			'utf8'
+		);
+		const tabel = src.slice(src.indexOf('const TYPE_TABLE'));
+
+		const walkable = {};
+		for (const m of tabel.matchAll(/^\s*(\d+):\s*([^,\n]+),/gm)) {
+			walkable[Number(m[1])] = m[2].includes('WALKABLE');
+		}
+
+		expect(walkable).toEqual({
+			0: true,   // tanah
+			1: false,  // tembok
+			2: true,
+			3: true,   // air
+			4: true,
+			5: false,  // hanya bisa ditembus panah
+			6: true
+		});
 	});
 });
 

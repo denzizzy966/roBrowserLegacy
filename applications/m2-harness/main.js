@@ -11,10 +11,11 @@ import Entity      from 'Renderer/Entity/Entity.js';
 import Session     from 'Engine/SessionStorage.js';
 import Intro       from 'UI/Components/Intro/Intro.js';
 import Network     from 'Network/NetworkManager.js';
+import Mouse       from 'Controls/MouseEventHandler.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, pathKeInt16, encodeMove } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
@@ -30,6 +31,73 @@ function log(msg) {
 	logEl.textContent += msg + '\n';
 	logEl.scrollTop = logEl.scrollHeight;
 	console.log('[m2]', msg);
+}
+
+// Menyuntikkan jalur dari server ke struktur walk milik roBrowserLegacy.
+//
+// Ini padanan walkTo() yang melakukan semuanya KECUALI memanggil A*
+// client: keputusan D8 menyerahkan pathfinding sepenuhnya ke server,
+// sehingga dua implementasi tidak perlu sepakat sampai ke urutan
+// tie-break.
+//
+// Hanya menyentuh field publik. Nol berkas client/src/ berubah.
+function jalankanSepanjang(entity, jalur, speedMs) {
+	if (jalur.length < 2) {
+		return;
+	}
+
+	const adaRute = entity.walk && entity.walk.total > 0;
+	entity.resetRoute(adaRute);
+
+	entity.walk.path  = pathKeInt16(jalur);
+	entity.walk.index = 2;              // lewati asal, sama seperti walkTo
+	entity.walk.total = jalur.length * 2;
+	entity.walk.speed = speedMs;
+	entity.walk.pos.set(entity.position);
+	entity.walk.lastPos.set(entity.position);
+	entity.walk.tick = entity.walk.prevTick = Date.now();
+
+	const dx = jalur[1].x - jalur[0].x;
+	const dy = jalur[1].y - jalur[0].y;
+	entity.direction = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) & 7;
+	entity.headDir = 0;
+
+	entity.setAction({
+		action: entity.ACTION.WALK,
+		frame: 0,
+		repeat: true,
+		play: true
+	});
+}
+
+// Memasang penangan klik-untuk-berjalan pada kanvas WebGL.
+//
+// Kanvas BELUM ada di DOM saat MapRenderer.onLoad() dipanggil: onMapComplete
+// di src/Renderer/MapRenderer.js memanggil onLoad() lebih dulu, baru
+// Renderer.show() (yang melakukan document.body.appendChild(canvas))
+// sesudahnya -- persis komentar di atas soal onRender yang juga baru
+// berjalan "tanpa syarat setelah onLoad selesai". querySelector('canvas')
+// yang dipanggil langsung di dalam onLoad karena itu akan selalu null;
+// digulir lewat requestAnimationFrame sampai kanvas benar-benar muncul.
+function pasangKanvasKlik() {
+	const kanvas = document.querySelector('canvas');
+	if (!kanvas) {
+		requestAnimationFrame(pasangKanvasKlik);
+		return;
+	}
+	if (kanvas.__m2Klik) {
+		return;
+	}
+	kanvas.__m2Klik = true;
+	kanvas.addEventListener('mousedown', () => {
+		const x = Mouse.world.x | 0;
+		const y = Mouse.world.y | 0;
+		if (x < 0 || y < 0) {
+			return; // kursor tidak menyentuh tanah
+		}
+		log(`> minta gerak ke (${x},${y})`);
+		Network.send(encodeMove(schema.ClientMsg, x, y));
+	});
 }
 
 let schema   = null;
@@ -145,6 +213,8 @@ q.add(async function () {
 						log(p.ok
 							? `karakter di (${spot.position[0]},${spot.position[1]},${spot.position[2].toFixed(2)}), kamera mengikuti.`
 							: `  kamera dijatuhkan ke titik tengah (${spot.position[0]},${spot.position[1]}) agar render tetap jalan.`);
+
+						pasangKanvasKlik();
 					};
 
 					const rsw = rswFileName(info.mapName);
@@ -170,6 +240,18 @@ q.add(async function () {
 					return;
 				}
 
+				// decodeMove menerima ServerMsg yang sudah didekode (lihat JSDoc-nya
+				// di mapinfo.js), berbeda dari decode* lain di atas yang mendekode
+				// dari buffer mentah sendiri-sendiri.
+				const msg = schema.ServerMsg.decode(new Uint8Array(data));
+				const mv = decodeMove(msg);
+				if (mv) {
+					log(`< gerak: ${mv.path.length - 1} langkah, ${mv.speedMs} ms/cell`);
+					jalankanSepanjang(spot, mv.path, mv.speedMs);
+					window.__m2.gerakTerakhir = mv;
+					return;
+				}
+
 				log(`< pesan tanpa body yang dikenali (${data.byteLength} byte)`);
 			} catch (err) {
 				log(`! frame tidak dapat didekode (${data.byteLength} byte): ${err.message}`);
@@ -184,4 +266,4 @@ q.add(async function () {
 
 q.run();
 
-window.__m2 = { Configs, MapRenderer, Altitude, Camera, Session, spot, log, tick: null };
+window.__m2 = { Configs, MapRenderer, Altitude, Camera, Session, spot, log, tick: null, gerakTerakhir: null };
