@@ -4,14 +4,14 @@ import baseConfig from '../../vite.config.js';
 // mergeConfig dipakai agar resolve/alias upstream tetap terwarisi.
 const merged = mergeConfig(baseConfig, defineConfig({
 	test: {
-		include: ['applications/m2-harness/**/*.test.js']
+		include: ['applications/harness/**/*.test.js']
 	}
 }));
 
 // PENTING: mergeConfig MENGGABUNGKAN array (concat), bukan mengganti. Tanpa
 // penimpaan eksplisit ini, include menjadi ['tests/**/*.test.js', ...] dan
-// `npm run test:m2` diam-diam menjalankan seluruh suite upstream.
-merged.test.include = ['applications/m2-harness/**/*.test.js'];
+// `npm run test:harness` diam-diam menjalankan seluruh suite upstream.
+merged.test.include = ['applications/harness/**/*.test.js'];
 
 // protobufjs memakai Uint8Array bertopang Buffer di Node; di bawah jsdom,
 // ArrayBuffer-nya berada di vm realm berbeda sehingga instanceof gagal
