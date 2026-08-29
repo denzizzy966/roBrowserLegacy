@@ -16,7 +16,7 @@ import Mouse         from 'Controls/MouseEventHandler.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, pathKeInt16, encodeMove, arahLangkah, buatAntrean } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, objecttypeDari, pathKeInt16, encodeMove, arahLangkah, buatAntrean } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
@@ -123,13 +123,13 @@ function periksaPendaftaran(entity) {
 	}
 }
 
-// Membuat entity untuk pemain LAIN.
+// Membuat entity untuk pemain LAIN maupun monster.
 //
 // Sama persis dengan daftarkanEntity, minus dua hal: ia tidak pernah
-// menjadi Session.Entity, dan kamera tidak pernah menargetnya. head
-// WAJIB disebutkan -- Entity.prototype._head bernilai -1 dan UpdateHead
-// keluar lebih awal saat head < 0, sehingga sprite kepala tidak pernah
-// dimuat dan Novice muncul tanpa kepala.
+// menjadi Session.Entity, dan kamera tidak pernah menargetnya. objecttype
+// tidak lagi ditulis tetap ke TYPE_PC -- ia ditentukan dari sp.type lewat
+// objecttypeDari, dan head/sex kini hanya diberikan untuk PC (lihat
+// komentar di dalam fungsi ini).
 function spawnkanLain(sp) {
 	if (EntityManager.get(sp.entityId)) {
 		// Sudah ada. Bisa terjadi bila server mengirim spawn dua kali;
@@ -142,8 +142,25 @@ function spawnkanLain(sp) {
 		return ada;
 	}
 
+	const objecttype = objecttypeDari(sp.type);
+	if (objecttype === null) {
+		// Menggambar tebakan lebih buruk daripada tidak menggambar.
+		log(`! spawn entity ${sp.entityId} bertipe ${sp.type} yang tak dikenal — dilewati`);
+		return null;
+	}
+
 	const lain = new Entity();
-	lain.set({ objecttype: Entity.TYPE_PC, GID: sp.entityId, job: 0, sex: 1, head: 1 });
+	const unit = { objecttype, GID: sp.entityId, job: sp.job };
+	// head dan sex khusus PC. getBodyPath untuk id non-pemain langsung ke
+	// data/sprite/npc/ lewat MonsterTable, dan memberi head pada mob
+	// membuat UpdateHead mencari sprite kepala untuk id 1002 (keputusan
+	// A10). Ini kesalahan M4 yang DIBALIK: bukan field yang hilang,
+	// melainkan field yang tidak semestinya ada.
+	if (sp.type === 1) {
+		unit.sex = 1;
+		unit.head = 1;
+	}
+	lain.set(unit);
 	lain.position[0] = sp.x;
 	lain.position[1] = sp.y;
 	lain.position[2] = Altitude.getCellHeight(sp.x, sp.y);
