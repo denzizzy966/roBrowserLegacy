@@ -16,7 +16,7 @@ import Mouse         from 'Controls/MouseEventHandler.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, gerakUntukKita, pathKeInt16, encodeMove, arahLangkah } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, pathKeInt16, encodeMove, arahLangkah } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
@@ -109,6 +109,35 @@ function daftarkanEntity(info) {
 	}
 }
 
+// Membuat entity untuk pemain LAIN.
+//
+// Sama persis dengan daftarkanEntity, minus dua hal: ia tidak pernah
+// menjadi Session.Entity, dan kamera tidak pernah menargetnya. head
+// WAJIB disebutkan -- Entity.prototype._head bernilai -1 dan UpdateHead
+// keluar lebih awal saat head < 0, sehingga sprite kepala tidak pernah
+// dimuat dan Novice muncul tanpa kepala.
+function spawnkanLain(sp) {
+	if (EntityManager.get(sp.entityId)) {
+		// Sudah ada. Bisa terjadi bila server mengirim spawn dua kali;
+		// perbarui posisi alih-alih membuat entity kedua di GID yang sama.
+		const ada = EntityManager.get(sp.entityId);
+		ada.position[0] = sp.x;
+		ada.position[1] = sp.y;
+		ada.position[2] = Altitude.getCellHeight(sp.x, sp.y);
+		log(`< spawn ulang entity ${sp.entityId} di (${sp.x},${sp.y})`);
+		return ada;
+	}
+
+	const lain = new Entity();
+	lain.set({ objecttype: Entity.TYPE_PC, GID: sp.entityId, job: 0, sex: 1, head: 1 });
+	lain.position[0] = sp.x;
+	lain.position[1] = sp.y;
+	lain.position[2] = Altitude.getCellHeight(sp.x, sp.y);
+	EntityManager.add(lain);
+	log(`< spawn entity ${sp.entityId} di (${sp.x},${sp.y})`);
+	return lain;
+}
+
 // Menyuntikkan jalur dari server ke struktur walk milik roBrowserLegacy.
 //
 // Ini padanan walkTo() yang melakukan semuanya KECUALI memanggil A*
@@ -190,15 +219,6 @@ function pasangKanvasKlik() {
 let schema   = null;
 let goSocket = null;
 
-// entity_id milik KITA, dari EvtMapInfo. null berarti belum masuk map.
-//
-// Dipakai menyaring EvtMove. Untuk M4 server hanya menyiarkan gerak kita
-// sendiri, jadi penyaringnya tidak pernah menolak apa pun hari ini -- tapi
-// begitu M5 menyiarkan gerak pemain lain, tanpa ini sprite kita akan
-// diam-diam dikemudikan jalur orang lain, dan gejalanya (karakter meluncur
-// ke tempat yang tak pernah diklik) tidak akan menunjuk ke sini sama sekali.
-let entityIdKita = null;
-
 // WAJIB ADA SEBELUM FRAME PERTAMA DIRENDER. MapRenderer.onRender memanggil
 // Camera.update(tick), yang mendereferensi this.target.position tanpa
 // penjagaan, lalu membaca Session.Entity.position. Bila keduanya null,
@@ -279,7 +299,6 @@ q.add(async function () {
 
 				const info = decodeMapInfo(schema.ServerMsg, data);
 				if (info) {
-					entityIdKita = info.entityId;
 					log(`< server: map ${info.mapName} ${info.xs}x${info.ys}, spawn (${info.spawnX},${info.spawnY}), entity ${info.entityId}`);
 
 					MapRenderer.onLoad = function () {
@@ -339,23 +358,55 @@ q.add(async function () {
 					return;
 				}
 
-				// decodeMove menerima ServerMsg yang sudah didekode (lihat JSDoc-nya
-				// di mapinfo.js), berbeda dari decode* lain di atas yang mendekode
-				// dari buffer mentah sendiri-sendiri.
+				// decodeMove, decodeSpawn, dan decodeDespawn menerima ServerMsg yang
+				// sudah didekode (lihat JSDoc masing-masing di mapinfo.js), berbeda
+				// dari decode* lain di atas yang mendekode dari buffer mentah
+				// sendiri-sendiri. msg didekode SEKALI di sini, di atas ketiga
+				// cabang yang memakainya.
 				const msg = schema.ServerMsg.decode(new Uint8Array(data));
+
+				const sp = decodeSpawn(msg);
+				if (sp) {
+					spawnkanLain(sp);
+					return;
+				}
+
+				const dp = decodeDespawn(msg);
+				if (dp) {
+					// removeEntity, BUKAN removeGID. removeGID hanya
+					// menghapus entri peta dan MEMBIARKAN entity tetap di
+					// _list, sehingga ia terus dirender selamanya. Nama
+					// yang lebih pendek adalah yang salah.
+					if (EntityManager.get(dp.entityId)) {
+						EntityManager.remove(dp.entityId);
+						log(`< despawn entity ${dp.entityId}`);
+					} else {
+						log(`! despawn untuk entity ${dp.entityId} yang tak dikenal — abaikan`);
+					}
+					return;
+				}
+
 				const mv = decodeMove(msg);
 				if (mv) {
-					// Penjaga untuk M5. decodeMove sudah selalu mengembalikan
-					// entityId; sebelum ini ia diabaikan, dan SETIAP EvtMove
-					// dikemudikan ke sprite kita sendiri. Keputusannya sendiri
-					// tinggal di mapinfo.js supaya teruji di CI -- di sini ia
-					// terkurung dalam handler yang butuh WebGL.
-					if (!gerakUntukKita(mv, entityIdKita)) {
-						log(`< gerak milik entity ${mv.entityId} diabaikan (kita entity ${entityIdKita})`);
+					// Rute berdasarkan entity_id, bukan saring. Di M4 ini
+					// penjaga yang MEMBUANG gerak yang bukan milik kita;
+					// M5 justru menginginkannya.
+					//
+					// EntityManager.get() memotong jalan lewat
+					// Session.Entity.GID === gid, jadi satu pemanggilan
+					// melayani sprite kita sendiri maupun pemain lain.
+					const e = EntityManager.get(mv.entityId);
+					if (!e) {
+						// BUKAN diabaikan diam-diam: ini satu-satunya
+						// gejala yang terlihat bila urutan EvtSpawn dan
+						// EvtMove kacau, dan menelannya membuat bug urutan
+						// menyamar sebagai "kadang pemain lain tidak
+						// bergerak".
+						log(`! gerak untuk entity ${mv.entityId} yang tak dikenal — abaikan`);
 						return;
 					}
-					log(`< gerak: ${mv.path.length - 1} langkah, ${mv.speedMs} ms/cell`);
-					jalankanSepanjang(spot, mv.path, mv.speedMs);
+					log(`< gerak entity ${mv.entityId}: ${mv.path.length - 1} langkah, ${mv.speedMs} ms/cell`);
+					jalankanSepanjang(e, mv.path, mv.speedMs);
 					window.__m2.gerakTerakhir = mv;
 					return;
 				}
