@@ -165,7 +165,37 @@ export function pathKeInt16(path) {
  */
 export function encodeMove(ClientMsg, x, y) {
 	const pesan = ClientMsg.create({ move: { x, y } });
-	return ClientMsg.encode(pesan).finish();
+	return toArrayBuffer(ClientMsg.encode(pesan).finish());
+}
+
+// Tabel arah roBrowserLegacy, disalin dari src/Renderer/Entity/EntityWalk.js:17.
+// Disalin, bukan diimpor: ia `const` tingkat modul yang tidak diekspor,
+// dan keputusan D3 melarang menyentuh berkas client/src/ untuk
+// mengekspornya. Diindeks [dx+1][dy+1]; 0=selatan, 2=barat, 4=utara,
+// 6=timur.
+const ARAH = [
+	[1, 2, 3],
+	[0, 0, 4],
+	[7, 6, 5]
+];
+
+/**
+ * Arah hadap untuk satu langkah petak.
+ *
+ * Hanya sah untuk langkah satu petak (dx, dy di {-1,0,1}) -- yang
+ * selalu benar untuk jalur A* server. Mengembalikan 0 untuk offset di
+ * luar itu, sama seperti sel tengah tabel untuk (0,0).
+ *
+ * @param {number} dx
+ * @param {number} dy
+ * @returns {number} arah 0..7
+ */
+export function arahLangkah(dx, dy) {
+	const baris = ARAH[dx + 1];
+	if (!baris || typeof baris[dy + 1] === 'undefined') {
+		return 0;
+	}
+	return baris[dy + 1];
 }
 
 /**

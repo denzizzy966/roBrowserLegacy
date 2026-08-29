@@ -3,7 +3,7 @@ import protobuf from 'protobufjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, pathKeInt16 } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, pathKeInt16, encodeMove, arahLangkah } from './mapinfo.js';
 
 // Membaca skema yang SAMA dengan yang dipakai server. Menyalin isi ro.proto
 // ke dalam test akan membuatnya tetap lulus walau skema aslinya berubah.
@@ -47,6 +47,22 @@ describe('encodeEnterMap', () => {
 
 		const decoded = ClientMsg.decode(new Uint8Array(buf));
 		expect(decoded.enterMap.mapName).toBe('payon');
+	});
+});
+
+describe('encodeMove', () => {
+	it('menghasilkan ArrayBuffer, sesuai JSDoc dan kontrak GoSocket.send', () => {
+		// encodeEnterMap membungkus dengan toArrayBuffer(); encodeMove harus
+		// mengikuti pola yang sama, bukan mengembalikan Uint8Array telanjang
+		// dari ClientMsg.encode(...).finish().
+		const { ClientMsg } = types();
+
+		const buf = encodeMove(ClientMsg, 118, 115);
+		expect(buf).toBeInstanceOf(ArrayBuffer);
+
+		const decoded = ClientMsg.decode(new Uint8Array(buf));
+		expect(decoded.move.x).toBe(118);
+		expect(decoded.move.y).toBe(115);
 	});
 });
 
@@ -286,6 +302,31 @@ describe('pathKeInt16', () => {
 		// kita sendiri seukuran jalur yang datang.
 		const jalur = Array.from({ length: 50 }, (_, i) => ({ x: i, y: 0 }));
 		expect(pathKeInt16(jalur).length).toBe(100);
+	});
+});
+
+describe('arahLangkah', () => {
+	it('memetakan kedelapan offset satu-petak ke arah roBrowserLegacy yang benar', () => {
+		// Konvensi arah roBrowserLegacy: 0=selatan, 2=barat, 4=utara, 6=timur
+		// (EntityWalk.js:131), dengan +Y=utara dan +X=timur. Kedelapan arah
+		// diuji sekaligus dengan namanya tertulis supaya tabel yang
+		// salah-transpose (baris/kolom tertukar) atau salah-cermin (tanda
+		// dx/dy terbalik) gagal -- bukan cuma lolos kebetulan pada satu dua
+		// arah yang simetris.
+		expect(arahLangkah(0, -1)).toBe(0); // selatan
+		expect(arahLangkah(-1, -1)).toBe(1); // barat daya
+		expect(arahLangkah(-1, 0)).toBe(2); // barat
+		expect(arahLangkah(-1, 1)).toBe(3); // barat laut
+		expect(arahLangkah(0, 1)).toBe(4); // utara
+		expect(arahLangkah(1, 1)).toBe(5); // timur laut
+		expect(arahLangkah(1, 0)).toBe(6); // timur
+		expect(arahLangkah(1, -1)).toBe(7); // tenggara
+	});
+
+	it('mengembalikan 0 untuk offset di luar satu petak', () => {
+		expect(arahLangkah(2, 0)).toBe(0);
+		expect(arahLangkah(0, -2)).toBe(0);
+		expect(arahLangkah(3, 3)).toBe(0);
 	});
 });
 

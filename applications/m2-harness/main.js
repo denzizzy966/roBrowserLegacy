@@ -15,7 +15,7 @@ import Mouse       from 'Controls/MouseEventHandler.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, pathKeInt16, encodeMove } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, pathKeInt16, encodeMove, arahLangkah } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
@@ -47,6 +47,10 @@ function jalankanSepanjang(entity, jalur, speedMs) {
 	}
 
 	const adaRute = entity.walk && entity.walk.total > 0;
+	// Dibaca SEBELUM resetRoute, sama seperti walkTo asli (EntityWalk.js:335):
+	// resetRoute tidak menyentuh entity.action, tapi urutan ini menjaga
+	// niatnya tetap jelas bagi pembaca berikutnya.
+	const sudahBerjalan = entity.action === entity.ACTION.WALK;
 	entity.resetRoute(adaRute);
 
 	entity.walk.path  = pathKeInt16(jalur);
@@ -57,17 +61,24 @@ function jalankanSepanjang(entity, jalur, speedMs) {
 	entity.walk.lastPos.set(entity.position);
 	entity.walk.tick = entity.walk.prevTick = Date.now();
 
+	// Langkah dari A* server selalu satu petak, jadi dx/dy selalu di
+	// {-1,0,1} dan tabel arahLangkah cukup -- tidak perlu trigonometri.
 	const dx = jalur[1].x - jalur[0].x;
 	const dy = jalur[1].y - jalur[0].y;
-	entity.direction = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) & 7;
+	entity.direction = arahLangkah(dx, dy);
 	entity.headDir = 0;
 
-	entity.setAction({
-		action: entity.ACTION.WALK,
-		frame: 0,
-		repeat: true,
-		play: true
-	});
+	// Klik ulang saat sprite SEDANG berjalan adalah kejadian normal;
+	// setAction tanpa syarat akan menyentak animasi balik ke frame 0
+	// tiap klik. walkTo asli membungkusnya sama persis (EntityWalk.js:374).
+	if (!sudahBerjalan) {
+		entity.setAction({
+			action: entity.ACTION.WALK,
+			frame: 0,
+			repeat: true,
+			play: true
+		});
+	}
 }
 
 // Memasang penangan klik-untuk-berjalan pada kanvas WebGL.
