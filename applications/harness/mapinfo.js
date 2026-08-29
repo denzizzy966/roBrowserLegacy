@@ -145,14 +145,47 @@ export function decodeMove(msg) {
  * Membaca EvtSpawn dari sebuah ServerMsg.
  *
  * @param {object} msg - ServerMsg hasil decode
- * @returns {{entityId:number, x:number, y:number}|null}
+ * @returns {{entityId:number, x:number, y:number, type:number, job:number}|null}
  */
 export function decodeSpawn(msg) {
 	const s = msg && msg.spawn;
 	if (!s) {
 		return null;
 	}
-	return { entityId: Number(s.entityId), x: Number(s.x), y: Number(s.y) };
+	return {
+		entityId: Number(s.entityId),
+		x:        Number(s.x),
+		y:        Number(s.y),
+		type:     Number(s.type),
+		job:      Number(s.job)
+	};
+}
+
+// Enum EntityType protokol kita -> konstanta objecttype
+// roBrowserLegacy (Entity.TYPE_PC = 0, Entity.TYPE_MOB = 5).
+//
+// Disalin, BUKAN diimpor: Entity.TYPE_* adalah static class field di
+// client/src/, dan menyalinnya menjaga protokol wire kita tidak terikat
+// pada penomoran internal sebuah fork client (keputusan A5). Pola yang
+// sama dengan tabel ARAH di M4.
+const TIPE_KE_OBJECTTYPE = {
+	1: 0, // ENTITY_TYPE_PC  -> Entity.TYPE_PC
+	2: 5  // ENTITY_TYPE_MOB -> Entity.TYPE_MOB
+};
+
+/**
+ * Menerjemahkan EntityType protokol ke objecttype roBrowserLegacy.
+ *
+ * Mengembalikan null untuk tipe yang tidak dikenal, TERMASUK nilai nol
+ * proto3 (ENTITY_TYPE_TIDAK_DIKENAL). Pemanggil harus melewatinya, bukan
+ * menebak: sprite yang salah digambar tidak menunjuk sebabnya.
+ *
+ * @param {number} type
+ * @returns {number|null}
+ */
+export function objecttypeDari(type) {
+	const o = TIPE_KE_OBJECTTYPE[type];
+	return typeof o === 'undefined' ? null : o;
 }
 
 /**

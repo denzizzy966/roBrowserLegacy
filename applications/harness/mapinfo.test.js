@@ -3,7 +3,7 @@ import protobuf from 'protobufjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, pathKeInt16, encodeMove, arahLangkah, buatAntrean } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, pathKeInt16, encodeMove, arahLangkah, buatAntrean, objecttypeDari } from './mapinfo.js';
 
 // Membaca skema yang SAMA dengan yang dipakai server. Menyalin isi ro.proto
 // ke dalam test akan membuatnya tetap lulus walau skema aslinya berubah.
@@ -375,7 +375,11 @@ describe('decodeSpawn', () => {
 		);
 		// Nilai sengaja berbeda satu sama lain: field yang tertukar harus
 		// gagal, bukan lolos karena kebetulan sama.
-		expect(decodeSpawn(msg)).toEqual({ entityId: 7, x: 123, y: 45 });
+		//
+		// type dan job tidak diisi di sini, jadi keduanya bawaan proto3
+		// (0) -- lihat describe 'decodeSpawn membawa tipe dan job' di
+		// bawah untuk kasus di mana keduanya diisi.
+		expect(decodeSpawn(msg)).toEqual({ entityId: 7, x: 123, y: 45, type: 0, job: 0 });
 	});
 
 	it('mengembalikan null untuk pesan yang bukan spawn', () => {
@@ -396,7 +400,41 @@ describe('decodeSpawn', () => {
 				ServerMsg.create({ spawn: { entityId: 3 } })
 			).finish()
 		);
-		expect(decodeSpawn(msg)).toEqual({ entityId: 3, x: 0, y: 0 });
+		expect(decodeSpawn(msg)).toEqual({ entityId: 3, x: 0, y: 0, type: 0, job: 0 });
+	});
+});
+
+describe('decodeSpawn membawa tipe dan job', () => {
+	it('membaca kelima field', () => {
+		const { ServerMsg } = types();
+		const msg = ServerMsg.decode(ServerMsg.encode(ServerMsg.create({
+			spawn: { entityId: 7, x: 123, y: 45, type: 2, job: 1002 }
+		})).finish());
+		expect(decodeSpawn(msg)).toEqual({ entityId: 7, x: 123, y: 45, type: 2, job: 1002 });
+	});
+
+	it('bawaan proto3 adalah angka 0, bukan undefined', () => {
+		// Penjaga di main.js memakai ===, dan undefined !== 0.
+		const { ServerMsg } = types();
+		const msg = ServerMsg.decode(ServerMsg.encode(ServerMsg.create({
+			spawn: { entityId: 3 }
+		})).finish());
+		expect(decodeSpawn(msg)).toEqual({ entityId: 3, x: 0, y: 0, type: 0, job: 0 });
+	});
+});
+
+describe('objecttypeDari', () => {
+	it('memetakan PC dan MOB ke konstanta roBrowserLegacy', () => {
+		expect(objecttypeDari(1)).toBe(0); // PC
+		expect(objecttypeDari(2)).toBe(5); // MOB
+	});
+
+	it('mengembalikan null untuk tipe yang tidak dikenal', () => {
+		// Termasuk nilai nol proto3. Menggambar tebakan lebih buruk
+		// daripada tidak menggambar: sprite yang salah tidak menunjuk
+		// sebabnya.
+		expect(objecttypeDari(0)).toBeNull();
+		expect(objecttypeDari(99)).toBeNull();
 	});
 });
 
