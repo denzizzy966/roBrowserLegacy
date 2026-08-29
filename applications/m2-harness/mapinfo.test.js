@@ -3,7 +3,7 @@ import protobuf from 'protobufjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, pathKeInt16, encodeMove, arahLangkah } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, gerakUntukKita, pathKeInt16, encodeMove, arahLangkah } from './mapinfo.js';
 
 // Membaca skema yang SAMA dengan yang dipakai server. Menyalin isi ro.proto
 // ke dalam test akan membuatnya tetap lulus walau skema aslinya berubah.
@@ -70,12 +70,47 @@ describe('decodeMapInfo', () => {
 	it('membaca EvtMapInfo menjadi objek biasa', () => {
 		const { ServerMsg } = types();
 		const raw = ServerMsg.encode(ServerMsg.create({
+			mapInfo: { mapName: 'geffen', xs: 240, ys: 240, spawnX: 118, spawnY: 115, entityId: 7 }
+		})).finish();
+
+		// toEqual, bukan toMatchObject: field yang DIBUANG dekoder harus
+		// gagal di sini. entityId sempat hilang justru karena assertion
+		// yang longgar tidak akan pernah menyadarinya.
+		expect(decodeMapInfo(ServerMsg, toArrayBuffer(raw))).toEqual({
+			mapName: 'geffen', xs: 240, ys: 240, spawnX: 118, spawnY: 115, entityId: 7
+		});
+	});
+
+	it('meneruskan entity_id, yang M4 pakai untuk mencocokkan EvtMove', () => {
+		// proto/ro.proto:47-48 menyatakan tujuannya secara eksplisit.
+		// Tanpa ini harness tidak bisa membedakan gerak miliknya dari
+		// gerak pemain lain, dan tidak punya GID untuk mendaftarkan
+		// sprite-nya ke EntityManager.
+		//
+		// Nilainya sengaja BUKAN 0 dan bukan sama dengan field lain mana
+		// pun di pesan ini: entityId yang tertukar dengan spawnX harus
+		// gagal, bukan lolos kebetulan.
+		const { ServerMsg } = types();
+		const raw = ServerMsg.encode(ServerMsg.create({
+			mapInfo: { mapName: 'prontera', xs: 200, ys: 200, spawnX: 150, spawnY: 150, entityId: 42 }
+		})).finish();
+
+		expect(decodeMapInfo(ServerMsg, toArrayBuffer(raw)).entityId).toBe(42);
+	});
+
+	it('memberi entityId 0 bila server tidak mengirimnya', () => {
+		// proto3 tidak membedakan "tidak dikirim" dari nol. Yang penting
+		// di sini: hasilnya angka, bukan undefined -- penjaga di main.js
+		// membandingkannya dengan ===, dan undefined === undefined akan
+		// membuat SETIAP EvtMove diterima.
+		const { ServerMsg } = types();
+		const raw = ServerMsg.encode(ServerMsg.create({
 			mapInfo: { mapName: 'geffen', xs: 240, ys: 240, spawnX: 118, spawnY: 115 }
 		})).finish();
 
-		expect(decodeMapInfo(ServerMsg, toArrayBuffer(raw))).toEqual({
-			mapName: 'geffen', xs: 240, ys: 240, spawnX: 118, spawnY: 115
-		});
+		const info = decodeMapInfo(ServerMsg, toArrayBuffer(raw));
+		expect(info.entityId).toBe(0);
+		expect(typeof info.entityId).toBe('number');
 	});
 
 	it('mengembalikan null bila body bukan EvtMapInfo', () => {
@@ -117,11 +152,11 @@ describe('decodeMapInfo — dimensi tidak simetris', () => {
 		// baik dimensi maupun koordinat yang tertukar akan tertangkap.
 		const { ServerMsg } = types();
 		const raw = ServerMsg.encode(ServerMsg.create({
-			mapInfo: { mapName: 'payon', xs: 300, ys: 360, spawnX: 149, spawnY: 179 }
+			mapInfo: { mapName: 'payon', xs: 300, ys: 360, spawnX: 149, spawnY: 179, entityId: 11 }
 		})).finish();
 
 		expect(decodeMapInfo(ServerMsg, toArrayBuffer(raw))).toEqual({
-			mapName: 'payon', xs: 300, ys: 360, spawnX: 149, spawnY: 179
+			mapName: 'payon', xs: 300, ys: 360, spawnX: 149, spawnY: 179, entityId: 11
 		});
 	});
 });
@@ -330,34 +365,126 @@ describe('arahLangkah', () => {
 	});
 });
 
+describe('gerakUntukKita', () => {
+	it('menerima EvtMove yang entityId-nya milik kita', () => {
+		expect(gerakUntukKita({ entityId: 7 }, 7)).toBe(true);
+	});
+
+	it('menolak EvtMove milik entity lain', () => {
+		// Inilah kasus M5. Sebelum penjaga ini ada, decodeMove sudah
+		// mengembalikan entityId dan main.js membuangnya, sehingga jalur
+		// pemain lain mengemudikan sprite kita.
+		expect(gerakUntukKita({ entityId: 8 }, 7)).toBe(false);
+	});
+
+	it('menolak apa pun selama kita belum punya entity_id', () => {
+		// "Belum tahu" bukan alasan untuk menerima semua. Sengaja bukan
+		// fail-open: fail-open adalah bug yang sama, hanya lebih jarang
+		// terjadi sehingga lebih lama tidak ketahuan.
+		expect(gerakUntukKita({ entityId: 7 }, null)).toBe(false);
+		expect(gerakUntukKita({ entityId: 7 }, undefined)).toBe(false);
+	});
+
+	it('menolak mv yang kosong', () => {
+		expect(gerakUntukKita(null, 7)).toBe(false);
+		expect(gerakUntukKita(undefined, 7)).toBe(false);
+	});
+
+	it('membandingkan dengan ===, sehingga 0 dan null tidak dianggap sama', () => {
+		// entityId 0 adalah nilai bawaan proto3 saat server tidak
+		// mengirimnya. Bila perbandingannya longgar, entity 0 akan cocok
+		// dengan null dan penjaganya lumpuh persis di kasus yang paling
+		// mungkin salah.
+		expect(gerakUntukKita({ entityId: 0 }, null)).toBe(false);
+		expect(gerakUntukKita({ entityId: 0 }, 0)).toBe(true);
+	});
+});
+
+
+/**
+ * Mengambil peta "tipe cell -> bisa dilewati?" dari sebuah berkas upstream.
+ *
+ * Anchor-nya regex DEKLARASI, bukan indexOf('TYPE_TABLE'): di
+ * Renderer/Map/Altitude.js nama itu muncul lebih dulu sebagai PEMAKAIAN di
+ * setCellType (baris 131-132), jauh sebelum deklarasinya di baris 328.
+ * indexOf akan berhenti di sana dan menyaring badan fungsi, bukan tabel.
+ *
+ * Blok literalnya dibatasi sampai `};` terdekat supaya scraper tidak
+ * meneruskan ke sisa berkas dan menangkap pola `angka:` yang bukan entri
+ * tabel.
+ */
+function tabelWalkable(relPath) {
+	const src = readFileSync(new URL(relPath, import.meta.url), 'utf8');
+	const deklarasi = /TYPE_TABLE\s*=\s*\{/.exec(src);
+	if (!deklarasi) {
+		throw new Error(`TYPE_TABLE tidak ditemukan di ${relPath} — upstream memindahkan atau mengganti namanya`);
+	}
+	const blok = /\{[\s\S]*?\n\s*\};/.exec(src.slice(deklarasi.index));
+	if (!blok) {
+		throw new Error(`literal TYPE_TABLE di ${relPath} tidak berbentuk seperti dugaan scraper`);
+	}
+
+	const walkable = {};
+	for (const m of blok[0].matchAll(/^\s*(\d+):\s*([^,\n]+),/gm)) {
+		walkable[Number(m[1])] = m[2].includes('WALKABLE');
+	}
+	if (Object.keys(walkable).length === 0) {
+		throw new Error(`tidak satu entri pun terbaca dari TYPE_TABLE di ${relPath} — scraper-nya yang rusak, bukan tabelnya`);
+	}
+	return walkable;
+}
+
+// Tabel yang SESUNGGUHNYA MENDEKODE cell GAT saat runtime: dipakai di
+// Loaders/Altitude.js:91, di dalam load(), untuk tiap cell yang diurai
+// dari berkas .gat.
+const TABEL_RUNTIME = '../../src/Loaders/Altitude.js';
+
+// Salinan kedua, yang HANYA dipakai setCellType (Renderer/Map/Altitude.js:131-132)
+// untuk mengubah satu cell setelah map termuat. Ia tidak pernah mendekode
+// apa pun dari berkas.
+const TABEL_SETCELL = '../../src/Renderer/Map/Altitude.js';
+
+// Server mengikuti TYPE_TABLE upstream (keputusan P1). Bila git pull
+// upstream mengubah tabel itu, Walkable() di Go menyimpang DIAM-DIAM dan
+// klik-mati-senyap kembali: pemain melihat kursor jalan, mengklik, dan
+// tidak terjadi apa-apa (§6.3).
+const WALKABLE_MENURUT_GO = {
+	0: true,   // tanah
+	1: false,  // tembok
+	2: true,
+	3: true,   // air
+	4: true,
+	5: false,  // hanya bisa ditembus panah
+	6: true
+};
+
 describe('tabel walkable upstream', () => {
-	it('cocok dengan Walkable() di Go', () => {
-		// Server mengikuti TYPE_TABLE upstream (keputusan P1). Bila
-		// git pull upstream mengubah tabel itu, Walkable() di Go
-		// menyimpang DIAM-DIAM dan klik-mati-senyap kembali: pemain
-		// melihat kursor jalan, mengklik, dan tidak terjadi apa-apa.
-		//
-		// Test ini hidup di JS karena yang dibacanya JS.
-		const src = readFileSync(
-			new URL('../../src/Renderer/Map/Altitude.js', import.meta.url),
-			'utf8'
-		);
-		const tabel = src.slice(src.indexOf('const TYPE_TABLE'));
+	// Penjaga ini dulu HANYA mengintai Renderer/Map/Altitude.js, dan itu
+	// berkas yang salah. Reviewer membuktikannya dengan mutasi: mengubah
+	// tipe 6 menjadi NONE di tabel RUNTIME membuat 3.891 cell nyata jadi
+	// tidak bisa dilewati di client sementara server masih menganggapnya
+	// bisa -- dan suite tetap hijau seluruhnya. Mutasi yang sama pada
+	// salinan setCellType menjatuhkan satu tes. Jadi penjaganya bekerja;
+	// ia hanya diarahkan ke salinan yang tidak mendekode apa pun.
+	//
+	// Sekarang KEDUANYA diintai. Test ini hidup di JS karena yang
+	// dibacanya JS.
+	it('tabel runtime Loaders/Altitude.js cocok dengan Walkable() di Go', () => {
+		expect(tabelWalkable(TABEL_RUNTIME)).toEqual(WALKABLE_MENURUT_GO);
+	});
 
-		const walkable = {};
-		for (const m of tabel.matchAll(/^\s*(\d+):\s*([^,\n]+),/gm)) {
-			walkable[Number(m[1])] = m[2].includes('WALKABLE');
-		}
+	it('salinan setCellType Renderer/Map/Altitude.js cocok dengan Walkable() di Go', () => {
+		expect(tabelWalkable(TABEL_SETCELL)).toEqual(WALKABLE_MENURUT_GO);
+	});
 
-		expect(walkable).toEqual({
-			0: true,   // tanah
-			1: false,  // tembok
-			2: true,
-			3: true,   // air
-			4: true,
-			5: false,  // hanya bisa ditembus panah
-			6: true
-		});
+	it('kedua salinan upstream sepakat satu sama lain', () => {
+		// Satu peta harapan melayani keduanya karena hari ini keduanya
+		// identik untuk tipe 0-6. Bila upstream membuat keduanya
+		// menyimpang, ITU SENDIRI temuan: satu berkas akan mendekode cell
+		// dengan aturan yang berbeda dari yang dipakai setCellType untuk
+		// menimpanya, dan cell yang sama punya dua jawaban di dalam satu
+		// client.
+		expect(tabelWalkable(TABEL_RUNTIME)).toEqual(tabelWalkable(TABEL_SETCELL));
 	});
 });
 

@@ -29,11 +29,19 @@ export function decodeMapInfo(ServerMsg, arrayBuffer) {
 		return null;
 	}
 	return {
-		mapName: msg.mapInfo.mapName,
-		xs:      Number(msg.mapInfo.xs),
-		ys:      Number(msg.mapInfo.ys),
-		spawnX:  Number(msg.mapInfo.spawnX),
-		spawnY:  Number(msg.mapInfo.spawnY)
+		mapName:  msg.mapInfo.mapName,
+		xs:       Number(msg.mapInfo.xs),
+		ys:       Number(msg.mapInfo.ys),
+		spawnX:   Number(msg.mapInfo.spawnX),
+		spawnY:   Number(msg.mapInfo.spawnY),
+		// entityId memberi tahu client entity mana DIRINYA. Komentar di
+		// proto/ro.proto:47-48 menyatakan M4 memerlukannya untuk
+		// mencocokkan EvtMove dengan sprite yang benar; dekoder ini dulu
+		// membuangnya, sehingga harness tidak punya cara membedakan gerak
+		// miliknya dari gerak pemain lain (lihat penjaga di main.js).
+		// Dipakai juga sebagai GID saat entity didaftarkan ke
+		// EntityManager.
+		entityId: Number(msg.mapInfo.entityId)
 	};
 }
 
@@ -131,6 +139,35 @@ export function decodeMove(msg) {
 		path: (m.path || []).map((s) => ({ x: Number(s.x), y: Number(s.y) })),
 		speedMs: Number(m.speedMs)
 	};
+}
+
+/**
+ * Apakah sebuah EvtMove ditujukan untuk sprite KITA?
+ *
+ * Untuk M4 server hanya menyiarkan gerak kita sendiri, jadi penyaring ini
+ * tidak pernah menolak apa pun hari ini. Ia ada untuk M5: begitu server
+ * menyiarkan gerak pemain lain, tanpa penyaring ini sprite kita akan
+ * diam-diam dikemudikan jalur orang lain -- dan gejalanya (karakter
+ * meluncur ke tempat yang tak pernah diklik) tidak menunjuk ke penyebabnya
+ * sama sekali.
+ *
+ * Fungsi murni supaya keputusannya teruji di CI. Di main.js keputusan ini
+ * duduk di dalam handler WebSocket yang butuh WebGL, dan karena itu
+ * mustahil diuji di tempatnya.
+ *
+ * @param {{entityId:number}|null} mv - hasil decodeMove
+ * @param {number|null} entityIdKita - entity_id dari EvtMapInfo
+ * @returns {boolean}
+ */
+export function gerakUntukKita(mv, entityIdKita) {
+	// Belum masuk map berarti belum punya identitas: tidak ada dasar untuk
+	// mengaku gerak siapa pun sebagai milik kita. Sengaja BUKAN "terima
+	// semua bila belum tahu" -- itu justru bug yang sama, hanya lebih
+	// jarang.
+	if (mv === null || mv === undefined || entityIdKita === null || entityIdKita === undefined) {
+		return false;
+	}
+	return mv.entityId === entityIdKita;
 }
 
 /**

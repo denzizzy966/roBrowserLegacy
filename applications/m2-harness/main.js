@@ -1,21 +1,22 @@
-import Queue       from 'Utils/Queue.js';
-import Configs     from 'Core/Configs.js';
-import Client      from 'Core/Client.js';
-import Thread      from 'Core/Thread.js';
-import BGM         from 'Audio/BGM.js';
-import Renderer    from 'Renderer/Renderer.js';
-import MapRenderer from 'Renderer/MapRenderer.js';
-import Altitude    from 'Renderer/Map/Altitude.js';
-import Camera      from 'Renderer/Camera.js';
-import Entity      from 'Renderer/Entity/Entity.js';
-import Session     from 'Engine/SessionStorage.js';
-import Intro       from 'UI/Components/Intro/Intro.js';
-import Network     from 'Network/NetworkManager.js';
-import Mouse       from 'Controls/MouseEventHandler.js';
+import Queue         from 'Utils/Queue.js';
+import Configs       from 'Core/Configs.js';
+import Client        from 'Core/Client.js';
+import Thread        from 'Core/Thread.js';
+import BGM           from 'Audio/BGM.js';
+import Renderer      from 'Renderer/Renderer.js';
+import MapRenderer   from 'Renderer/MapRenderer.js';
+import Altitude      from 'Renderer/Map/Altitude.js';
+import Camera        from 'Renderer/Camera.js';
+import Entity        from 'Renderer/Entity/Entity.js';
+import EntityManager from 'Renderer/EntityManager.js';
+import Session       from 'Engine/SessionStorage.js';
+import Intro         from 'UI/Components/Intro/Intro.js';
+import Network       from 'Network/NetworkManager.js';
+import Mouse         from 'Controls/MouseEventHandler.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, pathKeInt16, encodeMove, arahLangkah } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, gerakUntukKita, pathKeInt16, encodeMove, arahLangkah } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
@@ -31,6 +32,74 @@ function log(msg) {
 	logEl.textContent += msg + '\n';
 	logEl.scrollTop = logEl.scrollHeight;
 	console.log('[m2]', msg);
+}
+
+// Mendaftarkan spot ke EntityManager, dan memberinya identitas yang cukup
+// agar cabang jalan di walkProcess benar-benar bisa dimasuki.
+//
+// Dua hal yang HARUS terjadi, dan keduanya dulu tidak terjadi sama sekali;
+// tanpa keduanya jalur yang disuntikkan jalankanSepanjang tidak pernah
+// dibaca oleh apa pun, dan sprite mustahil berjalan:
+//
+// 1. spot masuk render list. walkProcess() punya tepat SATU pemanggil di
+//    seluruh pohon client (Renderer/Entity/EntityRender.js:85), dan render()
+//    itu hanya tercapai lewat loop EntityManager.render() atas _list --
+//    yang cuma diisi addEntity (EntityManager.js:157). Harness tidak pernah
+//    mengimpor EntityManager, jadi spot.position tak pernah berubah, dan
+//    karena Camera.setTarget(spot) adalah satu-satunya target kamera,
+//    pandangan pun tidak ikut bergerak. Satu-satunya efek klik yang teramati
+//    adalah baris log.
+//
+// 2. objecttype disetel lewat set(), bukan ditugaskan langsung. `new Entity()`
+//    tanpa data memakai bawaan prototype TYPE_UNKNOWN (Entity.js:596); Init
+//    di EntityAction.js melakukan switch atas objecttype dan tidak cocok satu
+//    case pun, sehingga ACTION.WALK tetap -1 (nilai awal di konstruktor
+//    Action()). setAction({action: -1}) lalu dipaksa jadi IDLE, jadi
+//    entity.action TIDAK PERNAH bisa sama dengan ACTION.WALK dan cabang gerak
+//    di walkProcess tak pernah dimasuki -- gantinya walkProcess mencetak
+//    peringatan CHARACTER STUCK IN WALKING ANIMATION plus console.trace TIAP
+//    FRAME (EntityWalk.js:400-412). `case 'objecttype'` di Entity.js:278-281
+//    memanggil entityAction.call(this), DAN ITULAH yang memberi ACTION.WALK = 1
+//    untuk TYPE_PC. Menugaskan field-nya saja tidak memicu apa pun.
+//
+// job 0 (Novice) / sex 1 (pria) sengaja dipilih sebagai kombinasi paling
+// aman: DB.isPlayer(0) benar (DBManager.js:926 -- rentangnya 0..44), dan
+// DB.getBodyPath(0, 1) menyusun path dari ClassTable[JobId.NOVICE] yang ada
+// dan SexTable[1] yang ada, jadi tidak ada indeks tabel yang meleset.
+//
+// Nol berkas client/src/ berubah: semuanya lewat API publik.
+function daftarkanEntity(info) {
+	// EntityManager.free() sudah berjalan sebelum onLoad ini
+	// (MapRenderer.js:175 lalu :183), dan free() memanggil clean() yang
+	// menyetel GID = -1. Jadi identitas WAJIB dipasang ulang di sini, dan
+	// entity yang ditambahkan di sini tidak akan tersapu.
+	if (!info.entityId) {
+		log('! entity_id dari server 0 — sprite didaftarkan dengan GID 0; periksa EvtMapInfo');
+	}
+
+	spot.set({ objecttype: Entity.TYPE_PC, GID: info.entityId, job: 0, sex: 1 });
+	EntityManager.add(spot);
+
+	// Diperiksa lewat _list yang sesungguhnya, BUKAN EntityManager.get():
+	// get() memotong jalan lewat `Session.Entity.GID === gid` dan akan
+	// mengembalikan spot walau ia tidak pernah masuk render list --
+	// pemeriksaan yang selalu lulus dan karenanya tidak memeriksa apa pun.
+	let diRenderList = false;
+	EntityManager.forEach((e) => {
+		if (e === spot) {
+			diRenderList = true;
+			return false;
+		}
+		return true;
+	});
+
+	const walkSah = spot.ACTION.WALK >= 0;
+	log(diRenderList && walkSah
+		? `entity terdaftar: GID ${spot.GID}, objecttype ${spot.objecttype}, ACTION.WALK ${spot.ACTION.WALK} — walkProcess akan berjalan tiap frame.`
+		: `! PENDAFTARAN GAGAL: diRenderList=${diRenderList}, ACTION.WALK=${spot.ACTION.WALK} — sprite tidak akan berjalan.`);
+	if (diRenderList && !walkSah) {
+		log('! ACTION.WALK masih -1 sementara entity SUDAH dirender: konsol akan dibanjiri CHARACTER STUCK IN WALKING ANIMATION tiap frame.');
+	}
 }
 
 // Menyuntikkan jalur dari server ke struktur walk milik roBrowserLegacy.
@@ -114,6 +183,15 @@ function pasangKanvasKlik() {
 let schema   = null;
 let goSocket = null;
 
+// entity_id milik KITA, dari EvtMapInfo. null berarti belum masuk map.
+//
+// Dipakai menyaring EvtMove. Untuk M4 server hanya menyiarkan gerak kita
+// sendiri, jadi penyaringnya tidak pernah menolak apa pun hari ini -- tapi
+// begitu M5 menyiarkan gerak pemain lain, tanpa ini sprite kita akan
+// diam-diam dikemudikan jalur orang lain, dan gejalanya (karakter meluncur
+// ke tempat yang tak pernah diklik) tidak akan menunjuk ke sini sama sekali.
+let entityIdKita = null;
+
 // WAJIB ADA SEBELUM FRAME PERTAMA DIRENDER. MapRenderer.onRender memanggil
 // Camera.update(tick), yang mendereferensi this.target.position tanpa
 // penjagaan, lalu membaca Session.Entity.position. Bila keduanya null,
@@ -194,7 +272,8 @@ q.add(async function () {
 
 				const info = decodeMapInfo(schema.ServerMsg, data);
 				if (info) {
-					log(`< server: map ${info.mapName} ${info.xs}x${info.ys}, spawn (${info.spawnX},${info.spawnY})`);
+					entityIdKita = info.entityId;
+					log(`< server: map ${info.mapName} ${info.xs}x${info.ys}, spawn (${info.spawnX},${info.spawnY}), entity ${info.entityId}`);
 
 					MapRenderer.onLoad = function () {
 						log(`map termuat: ${info.mapName}`);
@@ -217,6 +296,8 @@ q.add(async function () {
 						spot.position[0] = p.x;
 						spot.position[1] = p.y;
 						spot.position[2] = Altitude.getCellHeight(p.x, p.y);
+
+						daftarkanEntity(info);
 
 						Camera.setTarget(spot);
 						Camera.init();
@@ -257,6 +338,15 @@ q.add(async function () {
 				const msg = schema.ServerMsg.decode(new Uint8Array(data));
 				const mv = decodeMove(msg);
 				if (mv) {
+					// Penjaga untuk M5. decodeMove sudah selalu mengembalikan
+					// entityId; sebelum ini ia diabaikan, dan SETIAP EvtMove
+					// dikemudikan ke sprite kita sendiri. Keputusannya sendiri
+					// tinggal di mapinfo.js supaya teruji di CI -- di sini ia
+					// terkurung dalam handler yang butuh WebGL.
+					if (!gerakUntukKita(mv, entityIdKita)) {
+						log(`< gerak milik entity ${mv.entityId} diabaikan (kita entity ${entityIdKita})`);
+						return;
+					}
 					log(`< gerak: ${mv.path.length - 1} langkah, ${mv.speedMs} ms/cell`);
 					jalankanSepanjang(spot, mv.path, mv.speedMs);
 					window.__m2.gerakTerakhir = mv;
@@ -277,4 +367,8 @@ q.add(async function () {
 
 q.run();
 
-window.__m2 = { Configs, MapRenderer, Altitude, Camera, Session, spot, log, tick: null, gerakTerakhir: null };
+// EntityManager ikut diekspos supaya verifikasi manusia di konsol browser
+// dapat membuktikan pendaftaran tanpa membaca kode: __m2.spot.ACTION.WALK
+// harus 1, dan __m2.EntityManager.forEach(e => console.log(e === __m2.spot))
+// harus mencetak true tepat sekali.
+window.__m2 = { Configs, MapRenderer, Altitude, Camera, Session, EntityManager, spot, log, tick: null, gerakTerakhir: null };
