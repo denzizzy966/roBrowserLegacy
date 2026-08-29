@@ -3,7 +3,7 @@ import protobuf from 'protobufjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, gerakUntukKita, pathKeInt16, encodeMove, arahLangkah } from './mapinfo.js';
+import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, validateSpawn, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, pathKeInt16, encodeMove, arahLangkah } from './mapinfo.js';
 
 // Membaca skema yang SAMA dengan yang dipakai server. Menyalin isi ro.proto
 // ke dalam test akan membuatnya tetap lulus walau skema aslinya berubah.
@@ -365,38 +365,60 @@ describe('arahLangkah', () => {
 	});
 });
 
-describe('gerakUntukKita', () => {
-	it('menerima EvtMove yang entityId-nya milik kita', () => {
-		expect(gerakUntukKita({ entityId: 7 }, 7)).toBe(true);
+describe('decodeSpawn', () => {
+	it('membaca entityId, x, dan y', () => {
+		const { ServerMsg } = types();
+		const msg = ServerMsg.decode(
+			ServerMsg.encode(
+				ServerMsg.create({ spawn: { entityId: 7, x: 123, y: 45 } })
+			).finish()
+		);
+		// Nilai sengaja berbeda satu sama lain: field yang tertukar harus
+		// gagal, bukan lolos karena kebetulan sama.
+		expect(decodeSpawn(msg)).toEqual({ entityId: 7, x: 123, y: 45 });
 	});
 
-	it('menolak EvtMove milik entity lain', () => {
-		// Inilah kasus M5. Sebelum penjaga ini ada, decodeMove sudah
-		// mengembalikan entityId dan main.js membuangnya, sehingga jalur
-		// pemain lain mengemudikan sprite kita.
-		expect(gerakUntukKita({ entityId: 8 }, 7)).toBe(false);
+	it('mengembalikan null untuk pesan yang bukan spawn', () => {
+		const { ServerMsg } = types();
+		const msg = ServerMsg.decode(
+			ServerMsg.encode(
+				ServerMsg.create({ despawn: { entityId: 7 } })
+			).finish()
+		);
+		expect(decodeSpawn(msg)).toBeNull();
 	});
 
-	it('menolak apa pun selama kita belum punya entity_id', () => {
-		// "Belum tahu" bukan alasan untuk menerima semua. Sengaja bukan
-		// fail-open: fail-open adalah bug yang sama, hanya lebih jarang
-		// terjadi sehingga lebih lama tidak ketahuan.
-		expect(gerakUntukKita({ entityId: 7 }, null)).toBe(false);
-		expect(gerakUntukKita({ entityId: 7 }, undefined)).toBe(false);
+	it('mengembalikan angka 0, bukan undefined, untuk bawaan proto3', () => {
+		// Penting: penjaga di main.js memakai ===, dan undefined !== 0.
+		const { ServerMsg } = types();
+		const msg = ServerMsg.decode(
+			ServerMsg.encode(
+				ServerMsg.create({ spawn: { entityId: 3 } })
+			).finish()
+		);
+		expect(decodeSpawn(msg)).toEqual({ entityId: 3, x: 0, y: 0 });
+	});
+});
+
+describe('decodeDespawn', () => {
+	it('membaca entityId', () => {
+		const { ServerMsg } = types();
+		const msg = ServerMsg.decode(
+			ServerMsg.encode(
+				ServerMsg.create({ despawn: { entityId: 9 } })
+			).finish()
+		);
+		expect(decodeDespawn(msg)).toEqual({ entityId: 9 });
 	});
 
-	it('menolak mv yang kosong', () => {
-		expect(gerakUntukKita(null, 7)).toBe(false);
-		expect(gerakUntukKita(undefined, 7)).toBe(false);
-	});
-
-	it('membandingkan dengan ===, sehingga 0 dan null tidak dianggap sama', () => {
-		// entityId 0 adalah nilai bawaan proto3 saat server tidak
-		// mengirimnya. Bila perbandingannya longgar, entity 0 akan cocok
-		// dengan null dan penjaganya lumpuh persis di kasus yang paling
-		// mungkin salah.
-		expect(gerakUntukKita({ entityId: 0 }, null)).toBe(false);
-		expect(gerakUntukKita({ entityId: 0 }, 0)).toBe(true);
+	it('mengembalikan null untuk pesan yang bukan despawn', () => {
+		const { ServerMsg } = types();
+		const msg = ServerMsg.decode(
+			ServerMsg.encode(
+				ServerMsg.create({ spawn: { entityId: 9, x: 1, y: 2 } })
+			).finish()
+		);
+		expect(decodeDespawn(msg)).toBeNull();
 	});
 });
 

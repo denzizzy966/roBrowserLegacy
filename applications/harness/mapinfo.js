@@ -142,32 +142,31 @@ export function decodeMove(msg) {
 }
 
 /**
- * Apakah sebuah EvtMove ditujukan untuk sprite KITA?
+ * Membaca EvtSpawn dari sebuah ServerMsg.
  *
- * Untuk M4 server hanya menyiarkan gerak kita sendiri, jadi penyaring ini
- * tidak pernah menolak apa pun hari ini. Ia ada untuk M5: begitu server
- * menyiarkan gerak pemain lain, tanpa penyaring ini sprite kita akan
- * diam-diam dikemudikan jalur orang lain -- dan gejalanya (karakter
- * meluncur ke tempat yang tak pernah diklik) tidak menunjuk ke penyebabnya
- * sama sekali.
- *
- * Fungsi murni supaya keputusannya teruji di CI. Di main.js keputusan ini
- * duduk di dalam handler WebSocket yang butuh WebGL, dan karena itu
- * mustahil diuji di tempatnya.
- *
- * @param {{entityId:number}|null} mv - hasil decodeMove
- * @param {number|null} entityIdKita - entity_id dari EvtMapInfo
- * @returns {boolean}
+ * @param {object} msg - ServerMsg hasil decode
+ * @returns {{entityId:number, x:number, y:number}|null}
  */
-export function gerakUntukKita(mv, entityIdKita) {
-	// Belum masuk map berarti belum punya identitas: tidak ada dasar untuk
-	// mengaku gerak siapa pun sebagai milik kita. Sengaja BUKAN "terima
-	// semua bila belum tahu" -- itu justru bug yang sama, hanya lebih
-	// jarang.
-	if (mv === null || mv === undefined || entityIdKita === null || entityIdKita === undefined) {
-		return false;
+export function decodeSpawn(msg) {
+	const s = msg && msg.spawn;
+	if (!s) {
+		return null;
 	}
-	return mv.entityId === entityIdKita;
+	return { entityId: Number(s.entityId), x: Number(s.x), y: Number(s.y) };
+}
+
+/**
+ * Membaca EvtDespawn dari sebuah ServerMsg.
+ *
+ * @param {object} msg - ServerMsg hasil decode
+ * @returns {{entityId:number}|null}
+ */
+export function decodeDespawn(msg) {
+	const d = msg && msg.despawn;
+	if (!d) {
+		return null;
+	}
+	return { entityId: Number(d.entityId) };
 }
 
 /**
