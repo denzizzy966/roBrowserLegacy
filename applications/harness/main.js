@@ -13,9 +13,11 @@ import Session       from 'Engine/SessionStorage.js';
 import Intro         from 'UI/Components/Intro/Intro.js';
 import Network       from 'Network/NetworkManager.js';
 import Mouse         from 'Controls/MouseEventHandler.js';
+import Damage        from 'Renderer/Effects/Damage.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
+import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah } from './tempur.js';
 import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, objecttypeDari, pathKeInt16, encodeMove, arahLangkah, buatAntrean } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
@@ -166,6 +168,10 @@ function spawnkanLain(sp) {
 	lain.position[0] = sp.x;
 	lain.position[1] = sp.y;
 	lain.position[2] = Altitude.getCellHeight(sp.x, sp.y);
+	// __m2MaxHP disimpan di entity supaya EvtDamage -- yang hanya membawa
+	// hp_sisa -- dapat dihitung jadi persen. Prefiks __m2 menandai ia
+	// milik harness, bukan field roBrowserLegacy.
+	lain.__m2MaxHP = sp.maxHp;
 	EntityManager.add(lain);
 	log(`< spawn entity ${sp.entityId} di (${sp.x},${sp.y})`);
 	periksaPendaftaran(lain);
@@ -245,9 +251,151 @@ function pasangKanvasKlik() {
 		if (x < 0 || y < 0) {
 			return; // kursor tidak menyentuh tanah
 		}
+
+		// Urutan prioritas klik: mob mengalahkan item, item mengalahkan
+		// gerak. Mob lebih dulu karena mob yang berdiri di atas item yang
+		// baru ia jatuhkan adalah keadaan yang SERING terjadi, dan tidak
+		// bisa diserang kalau item menang.
+		const gidMob = mobDiPetak(x, y);
+		if (gidMob !== null) {
+			log(`> attack ${gidMob}`);
+			Network.send(encodeSederhana('attack', { targetId: gidMob }));
+			return;
+		}
+
+		const groundId = itemDiPetak(x, y);
+		if (groundId !== null) {
+			log(`> pickup ${groundId}`);
+			Network.send(encodeSederhana('pickup', { groundId }));
+			return;
+		}
+
 		log(`> minta gerak ke (${x},${y})`);
 		Network.send(encodeMove(schema.ClientMsg, x, y));
 	});
+}
+
+// ---------------------------------------------------------------------
+// M6c -- tampilan combat.
+//
+// Ketiga mekanisme di bawah dipilih berdasarkan investigasi Task 1
+// (docs/superpowers/notes/2026-08-30-m6c-permukaan-client.md), yang
+// menjawab satu pertanyaan untuk masing-masing: apakah ada yang MEMBACA
+// KEMBALI apa yang kita tulis. Itu pertanyaan yang menjatuhkan M4.
+// ---------------------------------------------------------------------
+
+// itemTanah memetakan groundId ke penanda yang digambar harness sendiri.
+//
+// Item lantai TIDAK memakai Entity.TYPE_ITEM roBrowserLegacy, dan itu
+// temuan Task 1, bukan kemalasan: DB.getItemInfo dan ItemTable keduanya
+// berkunci id NUMERIK, sementara server mengirim AegisName dari tabel
+// drop mob_db. Tidak ada indeks nama->id di client. Jalur peningkatannya
+// tercatat di EvtItemTanah pada proto.
+const itemTanah = new Map();
+
+/**
+ * Menampilkan satu angka damage di atas korban, dan memainkan animasi
+ * serang pada penyerang.
+ *
+ * Damage.add TERJANGKAU tanpa menyentuh client/src: ia statis pada
+ * default export Renderer/Effects/Damage.js, dan seluruh siklus hidupnya
+ * digerakkan MapRenderer -- Damage.init di onMapComplete (jalur setMap
+ * yang harness pakai) dan Damage.render di loop render tiap frame.
+ * Karena itu Damage.add akan benar-benar tergambar; tidak seperti
+ * entity.walk di M4, yang diisi dengan benar dan tak pernah dibaca.
+ */
+function tampilkanDamage(d) {
+	const korban = EntityManager.get(d.dst);
+	if (!korban) {
+		// BUKAN diabaikan diam-diam: ini gejala yang terlihat bila urutan
+		// EvtSpawn dan EvtDamage kacau.
+		log(`! damage untuk entity ${d.dst} yang tak dikenal -- abaikan`);
+		return;
+	}
+	log(`< damage ${d.src} -> ${d.dst}: ${d.amount} (sisa ${d.hpSisa} = ${persenDarah(d.hpSisa, korban.__m2MaxHP)}%)`);
+
+	Damage.add(d.amount, korban, Renderer.tick,
+		null, Damage.TYPE.DAMAGE | Damage.TYPE.ENEMY);
+
+	// Animasi serang pada PENYERANG. setAction dipasang ke tiap instance
+	// Entity (EntityAction.js), jadi terjangkau dari luar. ACTION.ATTACK
+	// bernilai -2 dan diterjemahkan sendiri ke ATTACK1/2/3 menurut senjata.
+	const penyerang = EntityManager.get(d.src);
+	if (penyerang && penyerang.setAction) {
+		penyerang.setAction({
+			action: penyerang.ACTION.ATTACK,
+			frame: 0,
+			repeat: false,
+			play: true,
+			next: { action: penyerang.ACTION.IDLE, frame: 0, repeat: true, play: true, next: false },
+		});
+	}
+}
+
+/** Menggambar penanda item di tanah. */
+function gambarItem(it) {
+	itemTanah.set(it.groundId, it);
+	log(`< item ${it.namaItem} di (${it.x},${it.y}) id ${it.groundId} -- klik petaknya untuk memungut`);
+}
+
+/** Menghapus penanda item. */
+function hapusItem(groundId) {
+	if (itemTanah.delete(groundId)) {
+		log(`< item hilang: ${groundId}`);
+	}
+}
+
+/**
+ * Mencari item tanah di sebuah petak, untuk merutekan klik.
+ *
+ * Mengembalikan groundId, atau null. Bila dua item menumpuk di petak yang
+ * sama, yang ber-id TERKECIL menang -- deterministik, dan itu id yang
+ * jatuh lebih dulu.
+ */
+function itemDiPetak(x, y) {
+	let pilih = null;
+	for (const [id, it] of itemTanah) {
+		if (it.x === x && it.y === y && (pilih === null || id < pilih)) {
+			pilih = id;
+		}
+	}
+	return pilih;
+}
+
+/**
+ * Mencari mob di sebuah petak, untuk merutekan klik menjadi CmdAttack.
+ *
+ * objecttype 5 adalah Entity.TYPE_MOB. Perbandingan dilakukan dengan ===
+ * terhadap angka, bukan truthiness: TYPE_PC bernilai NOL, dan
+ * `if (e.objecttype)` akan menganggap setiap pemain bukan-entity.
+ */
+function mobDiPetak(x, y) {
+	let pilih = null;
+	EntityManager.forEach((e) => {
+		if (e.objecttype !== 5 || !e.position) {
+			return;
+		}
+		if (Math.round(e.position[0]) === x && Math.round(e.position[1]) === y) {
+			if (pilih === null || e.GID < pilih) {
+				pilih = e.GID;
+			}
+		}
+	});
+	return pilih;
+}
+
+/**
+ * Meng-encode ClientMsg satu-field.
+ *
+ * Client TIDAK pernah mengirim damage, posisi target, atau apa pun yang
+ * server dapat tentukan sendiri: spec induk Bagian 8.3 mengunci "client
+ * tidak pernah dipercaya". CmdAttack hanya membawa target; CmdPickup
+ * hanya membawa id item.
+ */
+function encodeSederhana(namaField, isi) {
+	return schema.ClientMsg.encode(
+		schema.ClientMsg.create({ [namaField]: isi })
+	).finish();
 }
 
 let schema   = null;
@@ -510,6 +658,43 @@ q.add(async function () {
 						jalankanSepanjang(e, mv.path, mv.speedMs);
 						window.__m2.gerakTerakhir = mv;
 					});
+					return;
+				}
+
+				if (msg.damage) {
+					const d = decodeDamage(msg.damage);
+					// Diantre bersama spawn/despawn/move: angka damage yang
+					// digambar sebelum spawn korbannya berjalan akan mencari
+					// entity yang belum ada.
+					antrean.jalankan(() => tampilkanDamage(d));
+					return;
+				}
+
+				if (msg.death) {
+					const dt = decodeDeath(msg.death);
+					antrean.jalankan(() => {
+						log(`< mati: entity ${dt.entityId}`);
+						// Dihapus DI SINI, bukan menunggu EvtDespawn: mob mati
+						// dihapus dari zone, jadi tidak akan pernah ada despawn
+						// untuknya. Pemain yang mati justru TIDAK dihapus --
+						// EvtSpawn menyusul di titik spawn -- jadi menghapusnya
+						// di sini pun aman: spawn berikutnya membuatnya lagi.
+						if (EntityManager.get(dt.entityId)) {
+							EntityManager.remove(dt.entityId);
+						}
+					});
+					return;
+				}
+
+				if (msg.itemTanah) {
+					const it = decodeItemTanah(msg.itemTanah);
+					antrean.jalankan(() => gambarItem(it));
+					return;
+				}
+
+				if (msg.itemHilang) {
+					const h = decodeItemHilang(msg.itemHilang);
+					antrean.jalankan(() => hapusItem(h.groundId));
 					return;
 				}
 

@@ -157,7 +157,14 @@ export function decodeSpawn(msg) {
 		x:        Number(s.x),
 		y:        Number(s.y),
 		type:     Number(s.type),
-		job:      Number(s.job)
+		job:      Number(s.job),
+		// hp dan maxHp ditambahkan M6c. Number(undefined) adalah NaN,
+		// bukan nol -- protobuf menghilangkan field bernilai nol dari
+		// kawat, jadi mob ber-HP nol dan mob dari server lama tiba
+		// dengan byte yang sama. Nol adalah jawaban yang benar untuk
+		// keduanya.
+		hp:       s.hp === undefined || s.hp === null ? 0 : Number(s.hp),
+		maxHp:    s.maxHp === undefined || s.maxHp === null ? 0 : Number(s.maxHp)
 	};
 }
 

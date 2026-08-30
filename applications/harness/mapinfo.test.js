@@ -379,7 +379,7 @@ describe('decodeSpawn', () => {
 		// type dan job tidak diisi di sini, jadi keduanya bawaan proto3
 		// (0) -- lihat describe 'decodeSpawn membawa tipe dan job' di
 		// bawah untuk kasus di mana keduanya diisi.
-		expect(decodeSpawn(msg)).toEqual({ entityId: 7, x: 123, y: 45, type: 0, job: 0 });
+		expect(decodeSpawn(msg)).toEqual({ entityId: 7, x: 123, y: 45, type: 0, job: 0, hp: 0, maxHp: 0 });
 	});
 
 	it('mengembalikan null untuk pesan yang bukan spawn', () => {
@@ -400,7 +400,7 @@ describe('decodeSpawn', () => {
 				ServerMsg.create({ spawn: { entityId: 3 } })
 			).finish()
 		);
-		expect(decodeSpawn(msg)).toEqual({ entityId: 3, x: 0, y: 0, type: 0, job: 0 });
+		expect(decodeSpawn(msg)).toEqual({ entityId: 3, x: 0, y: 0, type: 0, job: 0, hp: 0, maxHp: 0 });
 	});
 });
 
@@ -410,7 +410,7 @@ describe('decodeSpawn membawa tipe dan job', () => {
 		const msg = ServerMsg.decode(ServerMsg.encode(ServerMsg.create({
 			spawn: { entityId: 7, x: 123, y: 45, type: 2, job: 1002 }
 		})).finish());
-		expect(decodeSpawn(msg)).toEqual({ entityId: 7, x: 123, y: 45, type: 2, job: 1002 });
+		expect(decodeSpawn(msg)).toEqual({ entityId: 7, x: 123, y: 45, type: 2, job: 1002, hp: 0, maxHp: 0 });
 	});
 
 	it('bawaan proto3 adalah angka 0, bukan undefined', () => {
@@ -419,7 +419,7 @@ describe('decodeSpawn membawa tipe dan job', () => {
 		const msg = ServerMsg.decode(ServerMsg.encode(ServerMsg.create({
 			spawn: { entityId: 3 }
 		})).finish());
-		expect(decodeSpawn(msg)).toEqual({ entityId: 3, x: 0, y: 0, type: 0, job: 0 });
+		expect(decodeSpawn(msg)).toEqual({ entityId: 3, x: 0, y: 0, type: 0, job: 0, hp: 0, maxHp: 0 });
 	});
 });
 
@@ -699,5 +699,27 @@ describe('buatAntrean', () => {
 
 		a.siapkan();
 		expect(hasil).toEqual([7, 8, 9]);
+	});
+});
+
+// M6c: EvtSpawn kini membawa hp dan max_hp. Tanpa keduanya, client yang
+// baru melihat mob tidak tahu bar darahnya, dan mob yang sudah terluka
+// tampak penuh sampai pukulan berikutnya.
+describe('decodeSpawn membawa hp', () => {
+	it('membaca hp dan maxHp', () => {
+		const msg = { spawn: { entityId: 7, x: 1, y: 2, type: 2, job: 1184, hp: 12, maxHp: 30 } };
+		const sp = decodeSpawn(msg);
+		expect(sp.hp).toBe(12);
+		expect(sp.maxHp).toBe(30);
+	});
+
+	// Mob ber-HP nol dan mob dari server lama tiba dengan byte yang SAMA:
+	// protobuf menghilangkan field bernilai nol dari kawat. Nol adalah
+	// jawaban yang benar untuk keduanya, dan Number(undefined) adalah NaN.
+	it('hp absen jadi nol, bukan NaN', () => {
+		const sp = decodeSpawn({ spawn: { entityId: 7, x: 1, y: 2, type: 2, job: 1184 } });
+		expect(sp.hp).toBe(0);
+		expect(sp.maxHp).toBe(0);
+		expect(Number.isNaN(sp.hp)).toBe(false);
 	});
 });
