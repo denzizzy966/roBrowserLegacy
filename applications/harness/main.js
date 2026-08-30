@@ -17,7 +17,7 @@ import Damage        from 'Renderer/Effects/Damage.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah } from './tempur.js';
+import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat } from './tempur.js';
 import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, objecttypeDari, pathKeInt16, encodeMove, arahLangkah, buatAntrean } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
@@ -259,14 +259,14 @@ function pasangKanvasKlik() {
 		const gidMob = mobDiPetak(x, y);
 		if (gidMob !== null) {
 			log(`> attack ${gidMob}`);
-			Network.send(encodeSederhana('attack', { targetId: gidMob }));
+			Network.send(encodeSatuField(schema.ClientMsg, 'attack', { targetId: gidMob }));
 			return;
 		}
 
 		const groundId = itemDiPetak(x, y);
 		if (groundId !== null) {
 			log(`> pickup ${groundId}`);
-			Network.send(encodeSederhana('pickup', { groundId }));
+			Network.send(encodeSatuField(schema.ClientMsg, 'pickup', { groundId }));
 			return;
 		}
 
@@ -345,65 +345,28 @@ function hapusItem(groundId) {
 	}
 }
 
-/**
- * Mencari item tanah di sebuah petak, untuk merutekan klik.
- *
- * Mengembalikan groundId, atau null. Bila dua item menumpuk di petak yang
- * sama, yang ber-id TERKECIL menang -- deterministik, dan itu id yang
- * jatuh lebih dulu.
- */
+/** Mencari item tanah di dekat petak yang diklik, untuk CmdPickup. */
 function itemDiPetak(x, y) {
-	let pilih = null;
+	const daftar = [];
 	for (const [id, it] of itemTanah) {
-		if (it.x === x && it.y === y && (pilih === null || id < pilih)) {
-			pilih = id;
-		}
+		daftar.push({ id, x: it.x, y: it.y });
 	}
-	return pilih;
+	return pilihTerdekat(daftar, x, y);
 }
 
-/**
- * Mencari mob di sebuah petak, untuk merutekan klik menjadi CmdAttack.
- *
- * objecttype 5 adalah Entity.TYPE_MOB. Perbandingan dilakukan dengan ===
- * terhadap angka, bukan truthiness: TYPE_PC bernilai NOL, dan
- * `if (e.objecttype)` akan menganggap setiap pemain bukan-entity.
- */
+/** Mencari mob di dekat petak yang diklik, untuk CmdAttack. */
 function mobDiPetak(x, y) {
-	let pilih = null;
+	const daftar = [];
 	EntityManager.forEach((e) => {
+		// === terhadap angka, BUKAN truthiness: TYPE_PC bernilai NOL,
+		// dan `if (e.objecttype)` akan menganggap setiap pemain
+		// bukan-entity.
 		if (e.objecttype !== 5 || !e.position) {
 			return;
 		}
-		if (Math.round(e.position[0]) === x && Math.round(e.position[1]) === y) {
-			if (pilih === null || e.GID < pilih) {
-				pilih = e.GID;
-			}
-		}
+		daftar.push({ id: e.GID, x: Math.round(e.position[0]), y: Math.round(e.position[1]) });
 	});
-	return pilih;
-}
-
-/**
- * Meng-encode ClientMsg satu-field.
- *
- * Client TIDAK pernah mengirim damage, posisi target, atau apa pun yang
- * server dapat tentukan sendiri: spec induk Bagian 8.3 mengunci "client
- * tidak pernah dipercaya". CmdAttack hanya membawa target; CmdPickup
- * hanya membawa id item.
- */
-function encodeSederhana(namaField, isi) {
-	// .finish() mengembalikan Uint8Array yang menunjuk ke buffer BERSAMA
-	// milik protobufjs, bukan buffer miliknya sendiri. Mengirimkannya apa
-	// adanya mengirim seluruh kolam itu -- server melihat byte tambahan
-	// dan menolaknya dengan "cannot parse invalid wire-format data".
-	//
-	// encodeMove dan encodeEnterMap sudah memakai toArrayBuffer sejak M1
-	// karena alasan yang sama; berkas ini melewatkannya.
-	const u8 = schema.ClientMsg.encode(
-		schema.ClientMsg.create({ [namaField]: isi })
-	).finish();
-	return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+	return pilihTerdekat(daftar, x, y);
 }
 
 let schema   = null;
