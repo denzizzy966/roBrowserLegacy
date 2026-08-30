@@ -17,7 +17,7 @@ import Damage        from 'Renderer/Effects/Damage.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, BERKAS_SKIN_DAMAGE, ringkasProbeSkin, barisHUD } from './tempur.js';
+import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, BERKAS_SKIN_DAMAGE, ringkasProbeSkin, barisHUD, JENIS_MISS, JENIS_KRITIKAL } from './tempur.js';
 import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, objecttypeDari, pathKeInt16, encodeMove, arahLangkah, buatAntrean } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
@@ -383,8 +383,18 @@ function tampilkanDamage(d) {
 	// menjamin milestone dapat diamati, dan angka bawaan adalah bonus.
 	catatHUD(barisHUD(d, korban.__m2MaxHP));
 
-	Damage.add(d.amount, korban, Renderer.tick,
-		null, Damage.TYPE.DAMAGE | Damage.TYPE.ENEMY);
+	// Jenis diteruskan ke tampilan bawaan roBrowserLegacy juga.
+	// Damage.TYPE punya MISS dan CRIT sejak lama (Damage.js:680).
+	//
+	// Ini BONUS, bukan tumpuan: skinnya bisa diam tanpa galat, dan panel
+	// HUD di atas yang menjamin milestone dapat diamati.
+	let tipe = Damage.TYPE.DAMAGE | Damage.TYPE.ENEMY;
+	if (d.jenis === JENIS_MISS) {
+		tipe = Damage.TYPE.MISS;
+	} else if (d.jenis === JENIS_KRITIKAL) {
+		tipe |= Damage.TYPE.CRIT;
+	}
+	Damage.add(d.amount, korban, Renderer.tick, null, tipe);
 
 	// Animasi serang pada PENYERANG. setAction dipasang ke tiap instance
 	// Entity (EntityAction.js), jadi terjangkau dari luar. ACTION.ATTACK

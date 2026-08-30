@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, ringkasProbeSkin, BERKAS_SKIN_DAMAGE, barisHUD } from './tempur.js';
+import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, ringkasProbeSkin, BERKAS_SKIN_DAMAGE, barisHUD, JENIS_NORMAL, JENIS_MISS, JENIS_KRITIKAL } from './tempur.js';
 
 describe('decodeDamage', () => {
 	it('membaca keempat field', () => {
 		expect(decodeDamage({ src: 4, dst: 1, amount: 7, hpSisa: 23 }))
-			.toEqual({ src: 4, dst: 1, amount: 7, hpSisa: 23 });
+			.toEqual({ src: 4, dst: 1, amount: 7, hpSisa: 23, jenis: 0 });
 	});
 
 	// hpSisa NOL adalah nilai sah -- ia berarti target mati. Falsy-check
@@ -19,7 +19,7 @@ describe('decodeDamage', () => {
 	// sekali menghasilkan byte yang identik di kawat.
 	it('field absen jadi nol, bukan undefined', () => {
 		const d = decodeDamage({ src: 1, dst: 2 });
-		expect(d).toEqual({ src: 1, dst: 2, amount: 0, hpSisa: 0 });
+		expect(d).toEqual({ src: 1, dst: 2, amount: 0, hpSisa: 0, jenis: 0 });
 	});
 });
 
@@ -219,5 +219,56 @@ describe('barisHUD', () => {
 		const s = barisHUD({ src: 6, dst: 4, amount: 7, hpSisa: 23 }, 0);
 		expect(s).not.toContain('undefined');
 		expect(s).not.toContain('NaN');
+	});
+});
+
+describe('decodeDamage jenis', () => {
+	// Enum protobuf tiba sebagai ANGKA. Nol adalah TIDAK_DIKENAL dan
+	// sah, jadi falsy-check akan menelannya -- jebakan yang sama dengan
+	// objecttype 0 di M6a.
+	it('jenis absen jadi 0 (TIDAK_DIKENAL), bukan undefined', () => {
+		expect(decodeDamage({ src: 1, dst: 2, amount: 5, hpSisa: 3 }).jenis).toBe(0);
+	});
+
+	it('membaca jenis NORMAL, MISS, dan KRITIKAL', () => {
+		expect(decodeDamage({ src: 1, dst: 2, amount: 5, hpSisa: 3, jenis: 1 }).jenis).toBe(JENIS_NORMAL);
+		expect(decodeDamage({ src: 1, dst: 2, amount: 0, hpSisa: 3, jenis: 2 }).jenis).toBe(JENIS_MISS);
+		expect(decodeDamage({ src: 1, dst: 2, amount: 9, hpSisa: 3, jenis: 3 }).jenis).toBe(JENIS_KRITIKAL);
+	});
+});
+
+describe('barisHUD jenis', () => {
+	it('MISS ditulis MISS, bukan -0', () => {
+		const s = barisHUD({ src: 6, dst: 4, amount: 0, hpSisa: 30, jenis: JENIS_MISS }, 30);
+		expect(s).toContain('MISS');
+		expect(s).not.toContain('-0');
+	});
+
+	it('KRITIKAL ditandai', () => {
+		const s = barisHUD({ src: 6, dst: 4, amount: 4, hpSisa: 26, jenis: JENIS_KRITIKAL }, 30);
+		expect(s).toContain('KRITIKAL');
+		expect(s).toContain('-4');
+	});
+
+	it('NORMAL tidak menambah label', () => {
+		const s = barisHUD({ src: 6, dst: 4, amount: 7, hpSisa: 23, jenis: JENIS_NORMAL }, 30);
+		expect(s).not.toContain('MISS');
+		expect(s).not.toContain('KRITIKAL');
+		expect(s).toContain('-7');
+	});
+
+	// Server selalu eksplisit, jadi TIDAK_DIKENAL yang tiba berarti ada
+	// yang salah. Ia ditandai alih-alih ditelan sebagai serangan biasa.
+	it('TIDAK_DIKENAL ditandai, bukan diperlakukan sebagai normal', () => {
+		const s = barisHUD({ src: 6, dst: 4, amount: 7, hpSisa: 23, jenis: 0 }, 30);
+		expect(s).toContain('?JENIS');
+	});
+
+	// MISS pada pukulan yang membunuh tetap mustahil, tapi bila hpSisa
+	// nol tiba bersama MISS, penanda MATI tidak boleh hilang.
+	it('MISS tetap menampilkan MATI bila hpSisa nol', () => {
+		const s = barisHUD({ src: 6, dst: 4, amount: 0, hpSisa: 0, jenis: JENIS_MISS }, 30);
+		expect(s).toContain('MISS');
+		expect(s).toContain('MATI');
 	});
 });

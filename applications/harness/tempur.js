@@ -14,12 +14,23 @@
 // undefined. Ditulis sekali supaya tidak ada satu field pun yang lupa.
 const num = (v) => (v === undefined || v === null ? 0 : Number(v));
 
+// Nilai enum JenisDamage dari proto/ro.proto.
+//
+// Nol adalah TIDAK_DIKENAL, BUKAN normal: server selalu menyetel jenis
+// secara eksplisit, jadi nol yang tiba berarti ada yang salah dan panel
+// HUD menandainya alih-alih menelannya.
+export const JENIS_TIDAK_DIKENAL = 0;
+export const JENIS_NORMAL = 1;
+export const JENIS_MISS = 2;
+export const JENIS_KRITIKAL = 3;
+
 export function decodeDamage(m) {
 	return {
 		src: num(m.src),
 		dst: num(m.dst),
 		amount: num(m.amount),
 		hpSisa: num(m.hpSisa),
+		jenis: num(m.jenis),
 	};
 }
 
@@ -157,5 +168,18 @@ export function ringkasProbeSkin(hasil) {
 export function barisHUD(d, maxHp) {
 	const persen = persenDarah(d.hpSisa, maxHp);
 	const mati = d.hpSisa <= 0 ? ' MATI' : '';
-	return `${d.src} → ${d.dst}  -${d.amount}  (${d.hpSisa}${maxHp ? '/' + maxHp : ''} = ${persen}%)${mati}`;
+	const sisa = `(${d.hpSisa}${maxHp ? '/' + maxHp : ''} = ${persen}%)`;
+	if (d.jenis === JENIS_MISS) {
+		// MISS, bukan "-0": nol damage dan tidak kena adalah dua hal
+		// berbeda, dan menampilkannya sama menghapus perbedaan yang
+		// server justru repot-repot kirimkan.
+		return `${d.src} → ${d.dst}  MISS  ${sisa}${mati}`;
+	}
+	if (d.jenis === JENIS_TIDAK_DIKENAL) {
+		// Server selalu eksplisit, jadi ini seharusnya mustahil.
+		// Ditandai, bukan ditelan sebagai serangan biasa.
+		return `${d.src} → ${d.dst}  -${d.amount}  ?JENIS  ${sisa}${mati}`;
+	}
+	const label = d.jenis === JENIS_KRITIKAL ? '  KRITIKAL' : '';
+	return `${d.src} → ${d.dst}  -${d.amount}${label}  ${sisa}${mati}`;
 }
