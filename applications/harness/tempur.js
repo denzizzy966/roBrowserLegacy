@@ -105,3 +105,57 @@ export function pilihTerdekat(daftar, x, y, toleransi = 1) {
 	}
 	return pilih;
 }
+
+/**
+ * Jalur berkas skin angka damage di dalam GRF.
+ *
+ * DISALIN dari Renderer/Effects/Damage.js (_damageSkins[0]), bukan
+ * diimpor: ia const tingkat modul yang tidak diekspor, dan keputusan D3
+ * melarang menyentuh client/src untuk mengekspornya. Pola yang sama
+ * dipakai tabel ARAH di M4.
+ *
+ * Nama direktorinya "이펙트" dalam encoding EUC-KR.
+ */
+export const BERKAS_SKIN_DAMAGE = [
+	'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbc\xfd\xc0\xda.spr',
+	'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/msg.spr',
+	'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/bluemsg.spr',
+	'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbc\xfd\xc0\xda.act',
+];
+
+/**
+ * Merangkum hasil probe berkas skin menjadi satu kalimat yang menyebut
+ * apa yang harus dilakukan.
+ *
+ * hasil: [{ nama, ada }]
+ */
+export function ringkasProbeSkin(hasil) {
+	const hilang = hasil.filter((h) => !h.ada).map((h) => h.nama);
+	if (hilang.length === 0) {
+		return {
+			lengkap: true,
+			pesan: `skin damage lengkap (${hasil.length}/${hasil.length} berkas) -- angka damage bawaan roBrowserLegacy akan tergambar`,
+		};
+	}
+	return {
+		lengkap: false,
+		pesan:
+			`skin damage TIDAK lengkap: ${hilang.length} dari ${hasil.length} berkas hilang di GRF-mu ` +
+			`(${hilang.join(', ')}). Damage.add akan diam TANPA galat -- ` +
+			`Client.getFiles tidak meneruskan onerror, jadi callback-nya tidak pernah dipanggil. ` +
+			`Panel HUD harness tetap menampilkan damage.`,
+	};
+}
+
+/**
+ * Baris HUD untuk satu peristiwa damage.
+ *
+ * Dipisahkan dari DOM supaya dapat diuji: panel HUD ada justru karena
+ * angka damage bawaan bisa diam, dan panel yang ikut diam tanpa
+ * ketahuan akan mengulangi persoalan yang sama.
+ */
+export function barisHUD(d, maxHp) {
+	const persen = persenDarah(d.hpSisa, maxHp);
+	const mati = d.hpSisa <= 0 ? ' MATI' : '';
+	return `${d.src} → ${d.dst}  -${d.amount}  (${d.hpSisa}${maxHp ? '/' + maxHp : ''} = ${persen}%)${mati}`;
+}

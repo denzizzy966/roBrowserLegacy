@@ -17,7 +17,7 @@ import Damage        from 'Renderer/Effects/Damage.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat } from './tempur.js';
+import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, BERKAS_SKIN_DAMAGE, ringkasProbeSkin, barisHUD } from './tempur.js';
 import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, objecttypeDari, pathKeInt16, encodeMove, arahLangkah, buatAntrean } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
@@ -284,6 +284,71 @@ function pasangKanvasKlik() {
 // KEMBALI apa yang kita tulis. Itu pertanyaan yang menjatuhkan M4.
 // ---------------------------------------------------------------------
 
+// hudDamage adalah panel damage milik harness sendiri.
+//
+// Ia ADA karena angka damage bawaan roBrowserLegacy bisa diam TANPA satu
+// pun galat: Damage.add keluar lebih awal bila sprite skinnya belum
+// termuat ("Need to wait the client to load damage sprite"), dan
+// Client.getFiles tidak meneruskan onerror -- satu berkas hilang di GRF
+// membuat callback-nya tidak pernah dipanggil, selamanya.
+//
+// Milestone ini harus BISA DIAMATI, jadi observabilitasnya tidak boleh
+// bergantung pada aset yang mungkin tidak ada di GRF pemain.
+let hudDamage = null;
+
+function pastikanHUD() {
+	if (hudDamage) {
+		return hudDamage;
+	}
+	hudDamage = document.createElement('div');
+	hudDamage.id = 'm2-hud-damage';
+	Object.assign(hudDamage.style, {
+		position: 'fixed', top: '8px', right: '8px', zIndex: 9999,
+		font: '12px/1.45 monospace', color: '#fff',
+		background: 'rgba(0,0,0,.62)', padding: '6px 9px',
+		borderRadius: '4px', pointerEvents: 'none',
+		maxWidth: '340px', whiteSpace: 'pre',
+	});
+	hudDamage.textContent = 'damage:\n(belum ada)';
+	document.body.appendChild(hudDamage);
+	return hudDamage;
+}
+
+const riwayatDamage = [];
+
+function catatHUD(baris) {
+	riwayatDamage.push(baris);
+	while (riwayatDamage.length > 8) {
+		riwayatDamage.shift();
+	}
+	pastikanHUD().textContent = 'damage:\n' + riwayatDamage.join('\n');
+}
+
+/**
+ * Memeriksa apakah keempat berkas skin damage ada di GRF pemain.
+ *
+ * Memakai Client.getFile dengan onerror -- yang Damage.init sendiri TIDAK
+ * lakukan lewat Client.getFiles, dan itulah sebabnya kegagalannya sunyi.
+ */
+function probeSkinDamage() {
+	const hasil = [];
+	let sisa = BERKAS_SKIN_DAMAGE.length;
+	BERKAS_SKIN_DAMAGE.forEach((nama) => {
+		const selesai = (ada) => {
+			hasil.push({ nama, ada });
+			if (--sisa === 0) {
+				const r = ringkasProbeSkin(hasil);
+				log((r.lengkap ? '' : '! ') + r.pesan);
+			}
+		};
+		try {
+			Client.getFile(nama, () => selesai(true), () => selesai(false));
+		} catch (e) {
+			selesai(false);
+		}
+	});
+}
+
 // itemTanah memetakan groundId ke penanda yang digambar harness sendiri.
 //
 // Item lantai TIDAK memakai Entity.TYPE_ITEM roBrowserLegacy, dan itu
@@ -313,6 +378,10 @@ function tampilkanDamage(d) {
 		return;
 	}
 	log(`< damage ${d.src} -> ${d.dst}: ${d.amount} (sisa ${d.hpSisa} = ${persenDarah(d.hpSisa, korban.__m2MaxHP)}%)`);
+
+	// Panel HUD SELALU dicatat, bahkan bila Damage.add berhasil: ia yang
+	// menjamin milestone dapat diamati, dan angka bawaan adalah bonus.
+	catatHUD(barisHUD(d, korban.__m2MaxHP));
 
 	Damage.add(d.amount, korban, Renderer.tick,
 		null, Damage.TYPE.DAMAGE | Damage.TYPE.ENEMY);
@@ -431,6 +500,12 @@ q.add(function () {
 
 q.add(async function () {
 	Intro.remove();
+
+	// GRF sudah terindeks di sini, jadi probe skin damage dapat berjalan.
+	// Hasilnya menjawab satu pertanyaan yang selama ini hanya bisa
+	// ditebak: apakah angka damage bawaan akan tergambar, atau diam
+	// karena berkas skinnya tidak ada di GRF ini.
+	probeSkinDamage();
 
 	try {
 		log(`memuat skema dari ${SCHEMA_URL} ...`);

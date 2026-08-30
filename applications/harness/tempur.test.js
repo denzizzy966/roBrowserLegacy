@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat } from './tempur.js';
+import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, ringkasProbeSkin, BERKAS_SKIN_DAMAGE, barisHUD } from './tempur.js';
 
 describe('decodeDamage', () => {
 	it('membaca keempat field', () => {
@@ -163,5 +163,61 @@ describe('pilihTerdekat', () => {
 	it('yang lebih dekat menang', () => {
 		const dua = [{ id: 9, x: 5, y: 5 }, { id: 3, x: 6, y: 6 }];
 		expect(pilihTerdekat(dua, 5, 5)).toBe(9);
+	});
+});
+
+describe('ringkasProbeSkin', () => {
+	it('lengkap saat semua berkas ada', () => {
+		const r = ringkasProbeSkin([{ nama: 'a', ada: true }, { nama: 'b', ada: true }]);
+		expect(r.lengkap).toBe(true);
+		expect(r.pesan).toContain('2/2');
+	});
+
+	// Pesannya harus MENYEBUT sebab keheningannya, bukan sekadar
+	// "gagal": Client.getFiles tidak meneruskan onerror, jadi satu
+	// berkas hilang membuat callback tidak pernah dipanggil dan
+	// Damage.add diam selamanya tanpa satu pun galat.
+	it('menyebut berkas mana yang hilang dan mengapa ia diam', () => {
+		const r = ringkasProbeSkin([{ nama: 'a', ada: true }, { nama: 'b.spr', ada: false }]);
+		expect(r.lengkap).toBe(false);
+		expect(r.pesan).toContain('b.spr');
+		expect(r.pesan).toContain('onerror');
+		expect(r.pesan).toContain('HUD');
+	});
+});
+
+describe('BERKAS_SKIN_DAMAGE', () => {
+	// Disalin dari Damage.js. Bila salah satu jalur salah ketik, probe
+	// akan melaporkan "hilang" untuk berkas yang sebenarnya ada, dan
+	// mengirim orang memburu masalah yang tidak ada.
+	it('empat berkas, dua di antaranya .spr bernama Korea', () => {
+		expect(BERKAS_SKIN_DAMAGE).toHaveLength(4);
+		expect(BERKAS_SKIN_DAMAGE.filter((p) => p.endsWith('.act'))).toHaveLength(1);
+		for (const p of BERKAS_SKIN_DAMAGE) {
+			expect(p.startsWith('data/sprite/')).toBe(true);
+		}
+	});
+});
+
+describe('barisHUD', () => {
+	it('memuat kedua id, jumlah, sisa, dan persen', () => {
+		const s = barisHUD({ src: 6, dst: 4, amount: 7, hpSisa: 23 }, 30);
+		expect(s).toContain('6');
+		expect(s).toContain('4');
+		expect(s).toContain('-7');
+		expect(s).toContain('23/30');
+		expect(s).toContain('77%');
+	});
+
+	it('menandai kematian saat hpSisa nol', () => {
+		expect(barisHUD({ src: 6, dst: 4, amount: 7, hpSisa: 0 }, 30)).toContain('MATI');
+	});
+
+	// maxHp tidak diketahui (entity yang belum sempat menyimpannya)
+	// tidak boleh menghasilkan "23/undefined".
+	it('maxHp tidak diketahui tidak menghasilkan undefined', () => {
+		const s = barisHUD({ src: 6, dst: 4, amount: 7, hpSisa: 23 }, 0);
+		expect(s).not.toContain('undefined');
+		expect(s).not.toContain('NaN');
 	});
 });
