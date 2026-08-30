@@ -393,9 +393,17 @@ function mobDiPetak(x, y) {
  * hanya membawa id item.
  */
 function encodeSederhana(namaField, isi) {
-	return schema.ClientMsg.encode(
+	// .finish() mengembalikan Uint8Array yang menunjuk ke buffer BERSAMA
+	// milik protobufjs, bukan buffer miliknya sendiri. Mengirimkannya apa
+	// adanya mengirim seluruh kolam itu -- server melihat byte tambahan
+	// dan menolaknya dengan "cannot parse invalid wire-format data".
+	//
+	// encodeMove dan encodeEnterMap sudah memakai toArrayBuffer sejak M1
+	// karena alasan yang sama; berkas ini melewatkannya.
+	const u8 = schema.ClientMsg.encode(
 		schema.ClientMsg.create({ [namaField]: isi })
 	).finish();
+	return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
 }
 
 let schema   = null;
