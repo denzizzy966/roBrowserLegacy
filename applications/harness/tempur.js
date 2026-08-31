@@ -183,3 +183,51 @@ export function barisHUD(d, maxHp) {
 	const label = d.jenis === JENIS_KRITIKAL ? '  KRITIKAL' : '';
 	return `${d.src} → ${d.dst}  -${d.amount}${label}  ${sisa}${mati}`;
 }
+
+/**
+ * Nama tampilan mob dari id job.
+ *
+ * Membungkus DB.getMonsterName, yang membaca MonsterNameTable --
+ * TABEL YANG BERBEDA dari MonsterTable. Keduanya berkunci id yang sama
+ * tetapi isinya lain: MonsterNameTable[1184] adalah 'Fabre' (nama
+ * tampilan), MonsterTable[1184] adalah 'FABRE' (nama berkas sprite).
+ * Memakai yang kedua menghasilkan nama huruf besar yang terlihat seperti
+ * konstanta, bukan nama makhluk.
+ *
+ * cari dioper masuk supaya fungsi ini dapat diuji tanpa memuat seluruh
+ * DBManager beserta GRF-nya.
+ */
+export function namaMob(job, cari) {
+	const nama = cari(job);
+	// getMonsterName mengembalikan 'Unknown' untuk id yang tidak ada.
+	// Ditambahi idnya supaya laporan verifikasi menyebut mob MANA yang
+	// tidak dikenal, alih-alih sederet 'Unknown' yang identik.
+	if (!nama || nama === 'Unknown') {
+		return `?${job}`;
+	}
+	return nama;
+}
+
+/**
+ * Menyalakan bar HP sebuah entity.
+ *
+ * URUTANNYA WAJIB: isi hp dan hp_max DULU, update() belakangan.
+ * EntityLife.update() diawali
+ *
+ *     if (this.hp < 0 || this.hp_max < 0) { this.remove(); return; }
+ *
+ * dan nilai awal keduanya -1. Memanggil update() lebih dulu MENGHAPUS
+ * barnya tanpa satu pun galat: bar tak muncul, konsol bersih.
+ *
+ * Mengembalikan false bila datanya tidak layak, sehingga pemanggil dapat
+ * melaporkannya alih-alih diam.
+ */
+export function hidupkanBar(life, hp, maxHp) {
+	if (!life || !(maxHp > 0) || hp === undefined || hp === null) {
+		return false;
+	}
+	life.hp = hp;
+	life.hp_max = maxHp;
+	life.update();
+	return true;
+}

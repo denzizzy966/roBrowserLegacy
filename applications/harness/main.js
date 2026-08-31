@@ -13,11 +13,12 @@ import Session       from 'Engine/SessionStorage.js';
 import Intro         from 'UI/Components/Intro/Intro.js';
 import Network       from 'Network/NetworkManager.js';
 import Mouse         from 'Controls/MouseEventHandler.js';
+import DB            from 'DB/DBManager.js';
 import Damage        from 'Renderer/Effects/Damage.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, BERKAS_SKIN_DAMAGE, ringkasProbeSkin, barisHUD, JENIS_MISS, JENIS_KRITIKAL } from './tempur.js';
+import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, BERKAS_SKIN_DAMAGE, ringkasProbeSkin, barisHUD, JENIS_MISS, JENIS_KRITIKAL, namaMob, hidupkanBar } from './tempur.js';
 import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, objecttypeDari, pathKeInt16, encodeMove, arahLangkah, buatAntrean } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
@@ -173,6 +174,25 @@ function spawnkanLain(sp) {
 	// milik harness, bukan field roBrowserLegacy.
 	lain.__m2MaxHP = sp.maxHp;
 	EntityManager.add(lain);
+
+	// M6e -- nama dan bar HP, untuk MOB saja.
+	//
+	// Keduanya milik roBrowserLegacy dan sudah dirender tiap frame oleh
+	// EntityRender (baris 152 dan 158), yang dijalankan
+	// EntityManager.render(). Harness sudah masuk rantai itu sejak
+	// perbaikan M5 -- jebakan walkProcess M4 tidak berlaku di sini.
+	//
+	// Pemain sengaja tidak diberi keduanya: bar HP pemain milik
+	// UI/Components/BasicInfo, dan HP-nya sudah terlihat di panel HUD.
+	if (objecttype === 5) {
+		lain.display.name = namaMob(sp.job, (j) => DB.getMonsterName(j));
+		lain.display.add();
+		if (!hidupkanBar(lain.life, sp.hp, sp.maxHp)) {
+			// TIDAK diabaikan diam-diam: bar yang tidak menyala adalah
+			// gejala satu-satunya bila EvtSpawn tiba tanpa hp/max_hp.
+			log(`! bar HP entity ${sp.entityId} tidak menyala (hp ${sp.hp}/${sp.maxHp})`);
+		}
+	}
 	log(`< spawn entity ${sp.entityId} di (${sp.x},${sp.y})`);
 	periksaPendaftaran(lain);
 	return lain;
@@ -382,6 +402,11 @@ function tampilkanDamage(d) {
 	// Panel HUD SELALU dicatat, bahkan bila Damage.add berhasil: ia yang
 	// menjamin milestone dapat diamati, dan angka bawaan adalah bonus.
 	catatHUD(barisHUD(d, korban.__m2MaxHP));
+
+	// Bar HP korban ikut turun. hpSisa dipakai apa adanya -- server yang
+	// menghitungnya, dan client tidak pernah mengurangi sendiri (spec
+	// induk Bagian 8.3).
+	hidupkanBar(korban.life, d.hpSisa, korban.__m2MaxHP);
 
 	// Jenis diteruskan ke tampilan bawaan roBrowserLegacy juga.
 	// Damage.TYPE punya MISS dan CRIT sejak lama (Damage.js:680).

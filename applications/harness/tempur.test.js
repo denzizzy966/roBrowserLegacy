@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, ringkasProbeSkin, BERKAS_SKIN_DAMAGE, barisHUD, JENIS_NORMAL, JENIS_MISS, JENIS_KRITIKAL } from './tempur.js';
+import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, ringkasProbeSkin, BERKAS_SKIN_DAMAGE, barisHUD, JENIS_NORMAL, JENIS_MISS, JENIS_KRITIKAL, namaMob, hidupkanBar } from './tempur.js';
 
 describe('decodeDamage', () => {
 	it('membaca keempat field', () => {
@@ -270,5 +270,79 @@ describe('barisHUD jenis', () => {
 		const s = barisHUD({ src: 6, dst: 4, amount: 0, hpSisa: 0, jenis: JENIS_MISS }, 30);
 		expect(s).toContain('MISS');
 		expect(s).toContain('MATI');
+	});
+});
+
+describe('namaMob', () => {
+	const tabel = { 1002: 'Poring', 1184: 'Fabre' };
+	const cari = (job) => tabel[job] ?? 'Unknown';
+
+	it('membaca nama tampilan, bukan nama sprite', () => {
+		expect(namaMob(1184, cari)).toBe('Fabre');
+		expect(namaMob(1002, cari)).toBe('Poring');
+	});
+
+	// 'Unknown' yang berderet identik tidak memberi tahu mob MANA yang
+	// tidak dikenal.
+	it('job tak dikenal menyebut idnya', () => {
+		expect(namaMob(9999, cari)).toBe('?9999');
+	});
+
+	it('nama kosong tidak menghasilkan undefined', () => {
+		expect(namaMob(7, () => undefined)).toBe('?7');
+		expect(namaMob(7, () => '')).toBe('?7');
+	});
+});
+
+describe('hidupkanBar', () => {
+	const bar = () => ({ hp: -1, hp_max: -1, dipanggil: 0, update() { this.dipanggil++; } });
+
+	it('mengisi hp dan hp_max lalu update', () => {
+		const l = bar();
+		expect(hidupkanBar(l, 23, 30)).toBe(true);
+		expect(l.hp).toBe(23);
+		expect(l.hp_max).toBe(30);
+		expect(l.dipanggil).toBe(1);
+	});
+
+	// INI asersi yang menjaga jebakannya. EntityLife.update() menghapus
+	// barnya bila hp atau hp_max negatif, dan nilai awalnya -1 -- jadi
+	// update() yang dipanggil sebelum keduanya diisi membunuh bar itu
+	// TANPA GALAT.
+	it('hp dan hp_max terisi SEBELUM update dipanggil', () => {
+		const urutan = [];
+		const l = {
+			_hp: -1, _max: -1,
+			set hp(v) { this._hp = v; urutan.push('hp'); },
+			get hp() { return this._hp; },
+			set hp_max(v) { this._max = v; urutan.push('hp_max'); },
+			get hp_max() { return this._max; },
+			update() { urutan.push('update'); },
+		};
+		hidupkanBar(l, 5, 10);
+		expect(urutan).toEqual(['hp', 'hp_max', 'update']);
+	});
+
+	// maxHp nol berarti datanya belum lengkap. update() akan menghapus
+	// barnya diam-diam, jadi lebih baik tidak dipanggil sama sekali dan
+	// pemanggil melaporkannya.
+	it('maxHp nol atau negatif tidak memanggil update', () => {
+		for (const m of [0, -1, undefined, null]) {
+			const l = bar();
+			expect(hidupkanBar(l, 5, m)).toBe(false);
+			expect(l.dipanggil).toBe(0);
+		}
+	});
+
+	it('hp nol SAH -- mob sekarat tetap menampilkan bar kosong', () => {
+		const l = bar();
+		expect(hidupkanBar(l, 0, 30)).toBe(true);
+		expect(l.hp).toBe(0);
+		expect(l.dipanggil).toBe(1);
+	});
+
+	it('life yang tidak ada tidak menjatuhkan apa pun', () => {
+		expect(hidupkanBar(null, 5, 10)).toBe(false);
+		expect(hidupkanBar(undefined, 5, 10)).toBe(false);
 	});
 });
