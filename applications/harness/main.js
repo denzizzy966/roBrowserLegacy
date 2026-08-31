@@ -88,6 +88,14 @@ function daftarkanEntity(info) {
 	// gejalanya tampak seperti sprite rusak alih-alih field yang hilang.
 	// 1 adalah gaya rambut pertama, ada untuk kedua jenis kelamin.
 	spot.set({ objecttype: Entity.TYPE_PC, GID: info.entityId, job: 0, sex: 1, head: 1 });
+	// HP pemain sendiri, dari EvtMapInfo. Tanpa ini panel damage
+	// menampilkan setiap pukulan yang diterima pemain sebagai "0%":
+	// __m2MaxHP hanya dipasang di spawnkanLain, yang melayani entity
+	// LAIN dan tidak pernah menyentuh sprite kita sendiri.
+	//
+	// Bar HP dan nama sengaja TIDAK dipasang untuk pemain (keputusan
+	// M6e); yang dibutuhkan hanya angkanya untuk panel.
+	spot.__m2MaxHP = info.maxHp;
 	EntityManager.add(spot);
 
 	periksaPendaftaran(spot);
@@ -141,6 +149,14 @@ function spawnkanLain(sp) {
 		ada.position[0] = sp.x;
 		ada.position[1] = sp.y;
 		ada.position[2] = Altitude.getCellHeight(sp.x, sp.y);
+		// HP ikut diperbarui. EvtSpawn dikirim ulang saat mob bangkit
+		// dari respawn dan saat ia masuk kembali ke radius pandang --
+		// membiarkan HP lama membuat bar mob yang baru hidup tetap
+		// menampilkan darah terakhirnya sebelum mati.
+		ada.__m2MaxHP = sp.maxHp;
+		if (ada.objecttype === 5) {
+			hidupkanBar(ada.life, sp.hp, sp.maxHp);
+		}
 		log(`< spawn ulang entity ${sp.entityId} di (${sp.x},${sp.y})`);
 		return ada;
 	}

@@ -77,7 +77,8 @@ describe('decodeMapInfo', () => {
 		// gagal di sini. entityId sempat hilang justru karena assertion
 		// yang longgar tidak akan pernah menyadarinya.
 		expect(decodeMapInfo(ServerMsg, toArrayBuffer(raw))).toEqual({
-			mapName: 'geffen', xs: 240, ys: 240, spawnX: 118, spawnY: 115, entityId: 7
+			mapName: 'geffen', xs: 240, ys: 240, spawnX: 118, spawnY: 115, entityId: 7,
+			hp: 0, maxHp: 0
 		});
 	});
 
@@ -156,7 +157,8 @@ describe('decodeMapInfo — dimensi tidak simetris', () => {
 		})).finish();
 
 		expect(decodeMapInfo(ServerMsg, toArrayBuffer(raw))).toEqual({
-			mapName: 'payon', xs: 300, ys: 360, spawnX: 149, spawnY: 179, entityId: 11
+			mapName: 'payon', xs: 300, ys: 360, spawnX: 149, spawnY: 179, entityId: 11,
+			hp: 0, maxHp: 0
 		});
 	});
 });
@@ -721,5 +723,35 @@ describe('decodeSpawn membawa hp', () => {
 		expect(sp.hp).toBe(0);
 		expect(sp.maxHp).toBe(0);
 		expect(Number.isNaN(sp.hp)).toBe(false);
+	});
+});
+
+// M6f: EvtMapInfo membawa HP pemain sendiri.
+//
+// Tanpa keduanya, panel damage menampilkan setiap pukulan yang diterima
+// pemain sebagai "0%" -- client tahu HP setiap MOB lewat EvtSpawn,
+// tetapi tidak tahu HP-nya sendiri.
+describe('decodeMapInfo membawa HP pemain', () => {
+	it('membaca hp dan maxHp', () => {
+		const { ServerMsg } = types();
+		const raw = ServerMsg.encode(ServerMsg.create({
+			mapInfo: { mapName: 'prontera', xs: 312, ys: 392, spawnX: 157, spawnY: 197, entityId: 6, hp: 23, maxHp: 40 }
+		})).finish();
+		const info = decodeMapInfo(ServerMsg, toArrayBuffer(raw));
+		expect(info.hp).toBe(23);
+		expect(info.maxHp).toBe(40);
+	});
+
+	// Server lama tidak mengirimnya, dan Number(undefined) adalah NaN --
+	// yang membuat persenDarah menghasilkan NaN%, bukan 0%.
+	it('absen jadi nol, bukan NaN', () => {
+		const { ServerMsg } = types();
+		const raw = ServerMsg.encode(ServerMsg.create({
+			mapInfo: { mapName: 'prontera', xs: 312, ys: 392, spawnX: 157, spawnY: 197, entityId: 6 }
+		})).finish();
+		const info = decodeMapInfo(ServerMsg, toArrayBuffer(raw));
+		expect(info.hp).toBe(0);
+		expect(info.maxHp).toBe(0);
+		expect(Number.isNaN(info.maxHp)).toBe(false);
 	});
 });

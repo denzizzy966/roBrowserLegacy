@@ -41,7 +41,15 @@ export function decodeMapInfo(ServerMsg, arrayBuffer) {
 		// miliknya dari gerak pemain lain (lihat penjaga di main.js).
 		// Dipakai juga sebagai GID saat entity didaftarkan ke
 		// EntityManager.
-		entityId: Number(msg.mapInfo.entityId)
+		entityId: Number(msg.mapInfo.entityId),
+		// hp dan maxHp MILIK PEMAIN SENDIRI, ditambahkan M6f. Tanpa
+		// keduanya, panel damage menampilkan setiap pukulan yang
+		// diterima pemain sebagai "0%": client tahu HP setiap mob lewat
+		// EvtSpawn, tetapi tidak tahu HP-nya sendiri.
+		//
+		// Nol eksplisit, bukan Number(undefined) yang menghasilkan NaN.
+		hp:       msg.mapInfo.hp === undefined || msg.mapInfo.hp === null ? 0 : Number(msg.mapInfo.hp),
+		maxHp:    msg.mapInfo.maxHp === undefined || msg.mapInfo.maxHp === null ? 0 : Number(msg.mapInfo.maxHp)
 	};
 }
 
