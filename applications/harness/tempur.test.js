@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, ringkasProbeSkin, BERKAS_SKIN_DAMAGE, barisHUD, JENIS_NORMAL, JENIS_MISS, JENIS_KRITIKAL, namaMob, hidupkanBar } from './tempur.js';
+import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, ringkasProbeSkin, BERKAS_SKIN_DAMAGE, barisHUD, JENIS_NORMAL, JENIS_MISS, JENIS_KRITIKAL, namaMob, hidupkanBar, perluDihapusSetelahMati, mainkanAksi, TIPE_PC, TIPE_MOB } from './tempur.js';
 
 describe('decodeDamage', () => {
 	it('membaca keempat field', () => {
@@ -344,5 +344,73 @@ describe('hidupkanBar', () => {
 	it('life yang tidak ada tidak menjatuhkan apa pun', () => {
 		expect(hidupkanBar(null, 5, 10)).toBe(false);
 		expect(hidupkanBar(undefined, 5, 10)).toBe(false);
+	});
+});
+
+describe('perluDihapusSetelahMati', () => {
+	// Server M6c Bagian 4.6: entity PEMAIN tidak dihapus saat mati.
+	// Client yang menghapusnya membuat Camera.setTarget memegang objek
+	// mati, dan kamera mengikuti hantu di posisi kematian.
+	it('mob dihapus, pemain TIDAK', () => {
+		expect(perluDihapusSetelahMati(TIPE_MOB)).toBe(true);
+		expect(perluDihapusSetelahMati(TIPE_PC)).toBe(false);
+	});
+
+	// TIPE_PC bernilai NOL. Implementasi berbasis truthiness akan
+	// menganggap pemain sebagai "tidak ada tipe".
+	it('tipe pemain bernilai nol dan itu sah', () => {
+		expect(TIPE_PC).toBe(0);
+		expect(perluDihapusSetelahMati(0)).toBe(false);
+	});
+});
+
+describe('mainkanAksi', () => {
+	const buatEntity = () => ({
+		ACTION: { IDLE: 0, WALK: 1, HURT: 6, DIE: 8, ATTACK: -2 },
+		terakhir: null,
+		setAction(o) { this.terakhir = o; },
+	});
+
+	it('memainkan sekali lalu kembali ke aksi berikutnya', () => {
+		const e = buatEntity();
+		expect(mainkanAksi(e, e.ACTION.HURT, e.ACTION.IDLE)).toBe(true);
+		expect(e.terakhir.action).toBe(6);
+		expect(e.terakhir.repeat).toBe(false);
+		expect(e.terakhir.next).toEqual({ action: 0, frame: 0, repeat: true, play: true, next: false });
+	});
+
+	// DIE harus BERHENTI di frame terakhir -- mayat tetap tergeletak.
+	it('kembaliKe null berarti berhenti di frame terakhir', () => {
+		const e = buatEntity();
+		mainkanAksi(e, e.ACTION.DIE, null);
+		expect(e.terakhir.next).toBe(false);
+	});
+
+	// -1 berarti "aksi ini tidak ada untuk tipe/job ini".
+	it('aksi -1 ditolak, bukan diteruskan', () => {
+		const e = buatEntity();
+		expect(mainkanAksi(e, -1, e.ACTION.IDLE)).toBe(false);
+		expect(e.terakhir).toBe(null);
+	});
+
+	// -2 adalah SENTINEL ATTACK yang setAction terjemahkan sendiri ke
+	// ATTACK1/2/3 menurut senjata. Menolaknya bersama -1 akan diam-diam
+	// mematikan animasi serang PEMAIN -- mob punya ACTION.ATTACK = 2,
+	// pemain punya -2, jadi cacatnya hanya muncul di satu sisi.
+	it('aksi -2 DITERUSKAN -- ia sentinel ATTACK, bukan aksi yang hilang', () => {
+		const e = buatEntity();
+		expect(mainkanAksi(e, -2, e.ACTION.IDLE)).toBe(true);
+		expect(e.terakhir.action).toBe(-2);
+	});
+
+	it('aksi nol SAH -- IDLE bernilai nol', () => {
+		const e = buatEntity();
+		expect(mainkanAksi(e, 0, null)).toBe(true);
+		expect(e.terakhir.action).toBe(0);
+	});
+
+	it('entity tanpa setAction tidak menjatuhkan apa pun', () => {
+		expect(mainkanAksi(null, 1, 0)).toBe(false);
+		expect(mainkanAksi({}, 1, 0)).toBe(false);
 	});
 });

@@ -14,11 +14,12 @@ import Intro         from 'UI/Components/Intro/Intro.js';
 import Network       from 'Network/NetworkManager.js';
 import Mouse         from 'Controls/MouseEventHandler.js';
 import DB            from 'DB/DBManager.js';
+import Cursor        from 'UI/CursorManager.js';
 import Damage        from 'Renderer/Effects/Damage.js';
 
 import GoSocket        from '../m1-harness/GoSocket.js';
 import { loadSchema }  from '../m1-harness/proto.js';
-import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, BERKAS_SKIN_DAMAGE, ringkasProbeSkin, barisHUD, JENIS_MISS, JENIS_KRITIKAL, namaMob, hidupkanBar } from './tempur.js';
+import { decodeDamage, decodeDeath, decodeItemTanah, decodeItemHilang, persenDarah, encodeSatuField, pilihTerdekat, BERKAS_SKIN_DAMAGE, ringkasProbeSkin, barisHUD, JENIS_MISS, JENIS_KRITIKAL, namaMob, hidupkanBar, perluDihapusSetelahMati, mainkanAksi, TIPE_MOB } from './tempur.js';
 import { rswFileName, encodeEnterMap, decodeMapInfo, decodeServerError, spawnPlacement, decodeZoneTick, lompatanTick, tickTerbuang, decodeMove, decodeSpawn, decodeDespawn, objecttypeDari, pathKeInt16, encodeMove, arahLangkah, buatAntrean } from './mapinfo.js';
 
 const SERVER_HOST = 'localhost';
@@ -281,6 +282,11 @@ function pasangKanvasKlik() {
 		return;
 	}
 	kanvas.__m2Klik = true;
+
+	// Kursor mengikuti apa yang ada di bawahnya. Dipasang di kanvas yang
+	// sama dengan klik, supaya keduanya hidup dan mati bersama.
+	kanvas.addEventListener('mousemove', perbaruiKursor);
+
 	kanvas.addEventListener('mousedown', () => {
 		const x = Mouse.world.x | 0;
 		const y = Mouse.world.y | 0;
@@ -424,6 +430,12 @@ function tampilkanDamage(d) {
 	// induk Bagian 8.3).
 	hidupkanBar(korban.life, d.hpSisa, korban.__m2MaxHP);
 
+	// Animasi terluka. Hanya untuk pukulan yang MENDARAT: makhluk yang
+	// serangan lawannya meleset tidak tersentak.
+	if (d.jenis !== JENIS_MISS) {
+		mainkanAksi(korban, korban.ACTION.HURT, korban.ACTION.IDLE);
+	}
+
 	// Jenis diteruskan ke tampilan bawaan roBrowserLegacy juga.
 	// Damage.TYPE punya MISS dan CRIT sejak lama (Damage.js:680).
 	//
@@ -441,15 +453,7 @@ function tampilkanDamage(d) {
 	// Entity (EntityAction.js), jadi terjangkau dari luar. ACTION.ATTACK
 	// bernilai -2 dan diterjemahkan sendiri ke ATTACK1/2/3 menurut senjata.
 	const penyerang = EntityManager.get(d.src);
-	if (penyerang && penyerang.setAction) {
-		penyerang.setAction({
-			action: penyerang.ACTION.ATTACK,
-			frame: 0,
-			repeat: false,
-			play: true,
-			next: { action: penyerang.ACTION.IDLE, frame: 0, repeat: true, play: true, next: false },
-		});
-	}
+	mainkanAksi(penyerang, penyerang && penyerang.ACTION.ATTACK, penyerang && penyerang.ACTION.IDLE);
 }
 
 /** Menggambar penanda item di tanah. */
@@ -473,6 +477,112 @@ function itemDiPetak(x, y) {
 	}
 	return pilihTerdekat(daftar, x, y);
 }
+
+/**
+ * Menjalankan kematian sebuah sprite.
+ *
+ * Mob dihapus SETELAH animasi matinya sempat terlihat; pemain TIDAK
+ * dihapus sama sekali.
+ *
+ * Versi pertama menghapus keduanya seketika, dengan komentar yang
+ * berbunyi "menghapusnya di sini pun aman: spawn berikutnya membuatnya
+ * lagi". Penalaran itu salah: spawn berikutnya membuat objek Entity
+ * BARU, sementara Camera.setTarget masih memegang objek lama -- kamera
+ * lalu mengikuti hantu di posisi kematian, dan karakter yang hidup
+ * kembali tak pernah diikuti.
+ */
+function matikanSprite(entityId) {
+	const e = EntityManager.get(entityId);
+	if (!e) {
+		log(`! mati untuk entity ${entityId} yang tak dikenal -- abaikan`);
+		return;
+	}
+	log(`< mati: entity ${entityId}`);
+
+	// next null: mayat BERHENTI di frame terakhir alih-alih berdiri lagi.
+	mainkanAksi(e, e.ACTION.DIE, null);
+
+	if (!perluDihapusSetelahMati(e.objecttype)) {
+		// Pemain. Entity dipertahankan supaya Camera tetap menempel;
+		// EvtSpawn respawn hanya memindahkannya.
+		return;
+	}
+	// Mob. Dihapus setelah animasi sempat terlihat -- menghapusnya
+	// seketika membuat mob lenyap tanpa mati.
+	setTimeout(() => {
+		if (EntityManager.get(entityId)) {
+			EntityManager.remove(entityId);
+		}
+	}, JEDA_HAPUS_MAYAT);
+}
+
+// Berapa lama mayat mob tergeletak sebelum dihapus. Cukup untuk animasi
+// matinya terlihat; lebih lama akan bertabrakan dengan respawn 10 detik.
+const JEDA_HAPUS_MAYAT = 1200;
+
+/**
+ * Menyesuaikan kursor dengan apa yang ada di bawahnya.
+ *
+ * Cursor.setType(ACTION.ATTACK) adalah kursor pedang RO. Ia butuh
+ * Cursor.init() yang memuat data/sprite/cursors.spr dari GRF -- pola
+ * yang sama dengan skin damage, jadi kegagalannya BISA senyap dan
+ * probenya dilaporkan.
+ */
+function perbaruiKursor() {
+	if (!kursorSiap) {
+		return;
+	}
+	const x = Mouse.world.x | 0;
+	const y = Mouse.world.y | 0;
+	if (x < 0 || y < 0) {
+		return;
+	}
+	const adaMob = mobDiPetak(x, y) !== null;
+	const adaItem = itemDiPetak(x, y) !== null;
+	if (adaMob) {
+		Cursor.setType(Cursor.ACTION.ATTACK);
+	} else if (adaItem) {
+		Cursor.setType(Cursor.ACTION.PICK);
+	} else {
+		Cursor.setType(Cursor.ACTION.DEFAULT);
+	}
+}
+
+let kursorSiap = false;
+
+/**
+ * Memuat sprite kursor RO, lalu menyalakan kursor kontekstual.
+ *
+ * Cursor.init memuat data/sprite/cursors.spr dan .act lewat
+ * Client.getFiles -- yang TIDAK meneruskan onerror, persis seperti
+ * Damage.init. Satu berkas hilang di GRF membuat callback-nya tidak
+ * pernah dipanggil, tanpa galat dan tanpa timeout.
+ *
+ * Karena itu keberhasilannya DILAPORKAN, bukan diasumsikan: tanpa baris
+ * ini, kursor yang tidak pernah berubah tampak seperti kode yang salah
+ * alih-alih aset yang hilang.
+ */
+function siapkanKursor() {
+	let selesai = false;
+	Cursor.init(() => {
+		selesai = true;
+		kursorSiap = true;
+		log('kursor RO termuat -- pedang saat menunjuk monster, tangan saat menunjuk item');
+	});
+	// Cursor.init memanggil callback-nya SEGERA bila sprite sudah termuat
+	// sebelumnya, jadi pemeriksaan tertunda ini hanya menangkap kasus
+	// callback yang tidak pernah datang.
+	setTimeout(() => {
+		if (!selesai) {
+			log('! kursor RO TIDAK termuat: data/sprite/cursors.spr atau .act ' +
+				'tidak ada di GRF-mu. Cursor.init memakai Client.getFiles yang ' +
+				'tidak meneruskan onerror, jadi ia diam selamanya. Kursor tetap ' +
+				'kursor browser biasa; sisanya berjalan normal.');
+		}
+	}, 5000);
+}
+
+
 
 /** Mencari mob di dekat petak yang diklik, untuk CmdAttack. */
 function mobDiPetak(x, y) {
@@ -557,6 +667,7 @@ q.add(async function () {
 	// ditebak: apakah angka damage bawaan akan tergambar, atau diam
 	// karena berkas skinnya tidak ada di GRF ini.
 	probeSkinDamage();
+	siapkanKursor();
 
 	try {
 		log(`memuat skema dari ${SCHEMA_URL} ...`);
@@ -769,17 +880,7 @@ q.add(async function () {
 
 				if (msg.death) {
 					const dt = decodeDeath(msg.death);
-					antrean.jalankan(() => {
-						log(`< mati: entity ${dt.entityId}`);
-						// Dihapus DI SINI, bukan menunggu EvtDespawn: mob mati
-						// dihapus dari zone, jadi tidak akan pernah ada despawn
-						// untuknya. Pemain yang mati justru TIDAK dihapus --
-						// EvtSpawn menyusul di titik spawn -- jadi menghapusnya
-						// di sini pun aman: spawn berikutnya membuatnya lagi.
-						if (EntityManager.get(dt.entityId)) {
-							EntityManager.remove(dt.entityId);
-						}
-					});
+					antrean.jalankan(() => matikanSprite(dt.entityId));
 					return;
 				}
 

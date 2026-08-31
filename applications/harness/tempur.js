@@ -231,3 +231,70 @@ export function hidupkanBar(life, hp, maxHp) {
 	life.update();
 	return true;
 }
+
+// Nilai yang EntityAction pakai untuk "aksi ini tidak ada bagi
+// tipe/job ini". BUKAN -2, yang merupakan sentinel ATTACK.
+export const AKSI_TIDAK_ADA = -1;
+
+// objecttype roBrowserLegacy yang harness pakai.
+export const TIPE_PC = 0;
+export const TIPE_MOB = 5;
+
+/**
+ * Apakah entity yang mati harus DIHAPUS dari client?
+ *
+ * Hanya mob. Server M6c keputusan Bagian 4.6 menyatakan entity PEMAIN
+ * tidak dihapus saat mati -- ia dipindah ke titik spawn dan HP-nya diisi
+ * ulang. Client yang menghapusnya melanggar keputusan itu, dan akibatnya
+ * halus: Camera.setTarget memegang referensi ke objek entity, jadi
+ * EvtSpawn respawn membuat objek BARU dan kamera tetap menunjuk yang
+ * lama -- kamera mengikuti hantu di posisi kematian.
+ *
+ * Ditemukan di browser oleh manusia yang tahu RO: di permainan asli,
+ * memilih respawn memuat ulang map sehingga kamera dibangun ulang. Yang
+ * TIDAK memuat ulang justru Resurrection dan Yggdrasil Leaf -- dan di
+ * sana entity-nya memang tidak pernah dihapus.
+ */
+export function perluDihapusSetelahMati(objecttype) {
+	return objecttype === TIPE_MOB;
+}
+
+/**
+ * Memainkan satu animasi sekali jalan, lalu kembali ke aksi berikutnya.
+ *
+ * Dipakai untuk DIE, HURT, dan ATTACK. Ditulis sekali supaya bentuk
+ * option-nya -- yang mudah salah -- hanya ada di satu tempat.
+ *
+ * next: null berarti animasinya BERHENTI di frame terakhir. Itu yang
+ * benar untuk DIE (mayat tetap tergeletak) dan salah untuk HURT
+ * (makhluk harus kembali berdiri).
+ */
+export function mainkanAksi(entity, aksi, kembaliKe) {
+	if (!entity || !entity.setAction || !entity.ACTION) {
+		return false;
+	}
+	// -1 dan -2 BERBEDA, dan menyamakannya mematikan animasi serang
+	// pemain.
+	//
+	// EntityAction menyetel nilai awal ATTACK = -2, HURT = -1, DIE = -1.
+	// Yang -1 berarti "aksi ini tidak ada untuk tipe/job ini"; yang -2
+	// adalah SENTINEL yang setAction terjemahkan sendiri ke ATTACK1/2/3
+	// menurut senjata (EntityAction.js:88-96).
+	//
+	// Mob punya ACTION.ATTACK = 2, aksi sungguhan. Pemain punya -2. Jadi
+	// penjaga "tolak semua negatif" akan bekerja untuk mob dan
+	// diam-diam mematikan animasi serang pemain.
+	if (aksi === undefined || aksi === null || aksi === AKSI_TIDAK_ADA) {
+		return false;
+	}
+	entity.setAction({
+		action: aksi,
+		frame: 0,
+		repeat: false,
+		play: true,
+		next: kembaliKe === null || kembaliKe === undefined
+			? false
+			: { action: kembaliKe, frame: 0, repeat: true, play: true, next: false },
+	});
+	return true;
+}
