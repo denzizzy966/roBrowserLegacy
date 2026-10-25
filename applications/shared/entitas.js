@@ -165,12 +165,29 @@ export function buatPenggerak({ log, catatHUD = () => {}, hapusPCSetelahMati = f
 		// Kecuali bila spawn membawa nama (nama untuk semua jenis) atau tim
 		// bukan 0 (bar juga untuk PC): itu bidak autochess, yang tidak punya
 		// BasicInfo dan harus terbaca langsung di papan.
+		//
+		// display.name hanya DATA. Kanvas papan nama baru digambar oleh
+		// display.update(), yang dipanggil set({name}) di Entity.js -- dan
+		// tidak dipanggil siapa pun bila name ditugaskan langsung. Tanpa
+		// refresh() papan nama dirender tiap frame sebagai kanvas kosong:
+		// tidak ada galat, tidak ada nama (teramati di verifikasi AC1).
+		// refresh() memilih gaya (MOB/DEFAULT) dari objecttype sendiri.
+		//
+		// load = COMPLETE karena namanya SUDAH diketahui. Bila dibiarkan
+		// NONE, EntityControl.onMouseOver mengirim PACKET_CZ_REQNAME --
+		// paket Gravity -- lewat Network ke server Go, yang membalasnya
+		// dengan "handler gagal: cannot parse invalid wire-format data"
+		// setiap kali kursor menyentuh sprite (teramati di verifikasi AC1).
+		const pasangNama = (nama) => {
+			lain.display.name = nama;
+			lain.display.load = lain.display.TYPE.COMPLETE;
+			lain.display.refresh(lain);
+			lain.display.add();
+		};
 		if (sp.nama) {
-			lain.display.name = sp.nama;
-			lain.display.add();
+			pasangNama(sp.nama);
 		} else if (objecttype === 5) {
-			lain.display.name = namaMob(sp.job, (j) => DB.getMonsterName(j));
-			lain.display.add();
+			pasangNama(namaMob(sp.job, (j) => DB.getMonsterName(j)));
 		}
 		if (objecttype === 5 || sp.tim) {
 			if (!hidupkanBar(lain.life, sp.hp, sp.maxHp)) {
@@ -359,8 +376,15 @@ export function buatPenggerak({ log, catatHUD = () => {}, hapusPCSetelahMati = f
 		// EntityManager.remove adalah removeEntity, BUKAN removeGID.
 		// removeGID hanya menghapus entri peta dan MEMBIARKAN entity tetap di
 		// _list, sehingga ia terus dirender selamanya.
+		//
+		// Dibandingkan IDENTITASNYA, bukan sekadar ada-tidaknya GID: dalam
+		// jeda ini map bisa dimuat ulang dan entity BARU bisa lahir dengan
+		// GID yang sama (pertandingan autochess memberi ID mulai dari 1
+		// lagi). Memeriksa GID saja menghapus bidak yang baru lahir --
+		// teramati di verifikasi AC1 sebagai "damage untuk entity 6 yang
+		// tak dikenal" pada pertandingan kedua.
 		setTimeout(() => {
-			if (EntityManager.get(entityId)) {
+			if (EntityManager.get(entityId) === e) {
 				EntityManager.remove(entityId);
 			}
 		}, JEDA_HAPUS_MAYAT);
