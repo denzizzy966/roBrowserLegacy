@@ -16,6 +16,24 @@ import { decodeSpawn } from '../harness/mapinfo.js';
  */
 export const FASE = { PERSIAPAN: 1, TEMPUR: 2, HASIL: 3 };
 
+/**
+ * Efek status ailment, sama dengan enum EfekStatus di proto/ro.proto. Nilai 0
+ * (TIDAK_DIKENAL) sengaja tidak punya nama: ia hanya tiba karena bug.
+ */
+export const EFEK_STATUS = {
+	BEKU:    1,
+	PINGSAN: 2,
+	TIDUR:   3,
+	RACUN:   4,
+	BUTA:    5,
+	BISU:    6
+};
+
+/**
+ * Nilai jenis damage pemulihan HP, sama dengan JENIS_DAMAGE_HEAL di ro.proto.
+ */
+export const JENIS_DAMAGE_HEAL = 4;
+
 function angka(x) {
 	return Number(x ?? 0);
 }
@@ -125,5 +143,92 @@ export function decodeCaturHasil(msg) {
 		menang:         Boolean(h.menang),
 		damageDiterima: angka(h.damageDiterima),
 		zenyMasuk:      angka(h.zenyMasuk)
+	};
+}
+
+/**
+ * Membaca EvtSkillMulai dari sebuah ServerMsg.
+ *
+ * @param {object} msg - ServerMsg hasil decode
+ * @returns {{src:number, skid:number, lv:number, dst:number, x:number, y:number, castMs:number}|null}
+ */
+export function decodeSkillMulai(msg) {
+	const m = msg && msg.skillMulai;
+	if (!m) {
+		return null;
+	}
+	return {
+		src:    angka(m.src),
+		skid:   angka(m.skid),
+		lv:     angka(m.lv),
+		dst:    angka(m.dst),
+		x:      angka(m.x),
+		y:      angka(m.y),
+		castMs: angka(m.castMs)
+	};
+}
+
+/**
+ * Membaca EvtSkillKena dari sebuah ServerMsg.
+ *
+ * @param {object} msg - ServerMsg hasil decode
+ * @returns {{src:number, skid:number, lv:number, x:number, y:number,
+ *   kena:Array<{dst:number, amount:number, hpSisa:number, jenis:number}>}|null}
+ */
+export function decodeSkillKena(msg) {
+	const m = msg && msg.skillKena;
+	if (!m) {
+		return null;
+	}
+	return {
+		src:  angka(m.src),
+		skid: angka(m.skid),
+		lv:   angka(m.lv),
+		x:    angka(m.x),
+		y:    angka(m.y),
+		kena: (m.kena || []).map((k) => ({
+			dst:    angka(k.dst),
+			amount: angka(k.amount),
+			hpSisa: angka(k.hpSisa),
+			jenis:  angka(k.jenis)
+		}))
+	};
+}
+
+/**
+ * Membaca EvtStatus dari sebuah ServerMsg.
+ *
+ * @param {object} msg - ServerMsg hasil decode
+ * @returns {{entityId:number, efst:number, aktif:boolean, durasiMs:number}|null}
+ */
+export function decodeStatus(msg) {
+	const s = msg && msg.status;
+	if (!s) {
+		return null;
+	}
+	return {
+		entityId: angka(s.entityId),
+		efst:     angka(s.efst),
+		// false juga hilang dari kawat; tiba sebagai undefined.
+		aktif:    Boolean(s.aktif),
+		durasiMs: angka(s.durasiMs)
+	};
+}
+
+/**
+ * Membaca EvtSP dari sebuah ServerMsg.
+ *
+ * @param {object} msg - ServerMsg hasil decode
+ * @returns {{entityId:number, sp:number, maxSp:number}|null}
+ */
+export function decodeSP(msg) {
+	const s = msg && msg.sp;
+	if (!s) {
+		return null;
+	}
+	return {
+		entityId: angka(s.entityId),
+		sp:       angka(s.sp),
+		maxSp:    angka(s.maxSp)
 	};
 }

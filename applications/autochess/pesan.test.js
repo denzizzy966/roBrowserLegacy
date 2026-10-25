@@ -3,7 +3,20 @@ import protobuf from 'protobufjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { FASE, encodeCaturMasuk, encodeCaturSiap, decodeSpawnLengkap, decodeCaturFase, decodeCaturHasil } from './pesan.js';
+import {
+	FASE,
+	EFEK_STATUS,
+	JENIS_DAMAGE_HEAL,
+	encodeCaturMasuk,
+	encodeCaturSiap,
+	decodeSpawnLengkap,
+	decodeCaturFase,
+	decodeCaturHasil,
+	decodeSkillMulai,
+	decodeSkillKena,
+	decodeStatus,
+	decodeSP
+} from './pesan.js';
 
 // Membaca skema yang SAMA dengan yang dipakai server. Menyalin isi ro.proto
 // ke dalam test akan membuatnya tetap lulus walau skema aslinya berubah.
@@ -144,5 +157,163 @@ describe('FASE', () => {
 			TEMPUR:    e.FASE_CATUR_TEMPUR,
 			HASIL:     e.FASE_CATUR_HASIL
 		});
+	});
+});
+
+describe('decodeSkillMulai', () => {
+	it('decodeSkillMulai membaca src, skid, lv, dst, x, y, castMs', () => {
+		const { ServerMsg } = types();
+		const msg = lewatKawat(ServerMsg, {
+			skillMulai: {
+				src: 1, skid: 89, lv: 10, dst: 4, x: 50, y: 49, castMs: 7800
+			}
+		});
+
+		expect(decodeSkillMulai(msg)).toEqual({
+			src: 1, skid: 89, lv: 10, dst: 4, x: 50, y: 49, castMs: 7800
+		});
+	});
+
+	it('decodeSkillMulai menormalkan field yang absen/nol', () => {
+		const { ServerMsg } = types();
+		const msg = lewatKawat(ServerMsg, {
+			skillMulai: { src: 1, skid: 5, lv: 1 }
+		});
+
+		expect(decodeSkillMulai(msg)).toEqual({
+			src: 1, skid: 5, lv: 1, dst: 0, x: 0, y: 0, castMs: 0
+		});
+	});
+
+	it('decodeSkillMulai mengembalikan null untuk pesan lain', () => {
+		const { ServerMsg } = types();
+		const spawn = lewatKawat(ServerMsg, { spawn: { entityId: 1 } });
+		expect(decodeSkillMulai(spawn)).toBeNull();
+	});
+});
+
+describe('decodeSkillKena', () => {
+	it('decodeSkillKena membaca src, skid, lv, x, y, dan daftar kena', () => {
+		const { ServerMsg } = types();
+		const msg = lewatKawat(ServerMsg, {
+			skillKena: {
+				src: 1, skid: 89, lv: 10, x: 50, y: 49,
+				kena: [
+					{ dst: 4, amount: 350, hpSisa: 150, jenis: 1 },
+					{ dst: 5, amount: 200, hpSisa: 0, jenis: 3 }
+				]
+			}
+		});
+
+		expect(decodeSkillKena(msg)).toEqual({
+			src: 1, skid: 89, lv: 10, x: 50, y: 49,
+			kena: [
+				{ dst: 4, amount: 350, hpSisa: 150, jenis: 1 },
+				{ dst: 5, amount: 200, hpSisa: 0, jenis: 3 }
+			]
+		});
+	});
+
+	it('decodeSkillKena dengan kena kosong menghasilkan array kosong', () => {
+		const { ServerMsg } = types();
+		const msg = lewatKawat(ServerMsg, {
+			skillKena: { src: 1, skid: 89, lv: 10, x: 50, y: 49 }
+		});
+
+		expect(decodeSkillKena(msg)).toEqual({
+			src: 1, skid: 89, lv: 10, x: 50, y: 49, kena: []
+		});
+	});
+
+	it('decodeSkillKena mengembalikan null untuk pesan lain', () => {
+		const { ServerMsg } = types();
+		const spawn = lewatKawat(ServerMsg, { spawn: { entityId: 1 } });
+		expect(decodeSkillKena(spawn)).toBeNull();
+	});
+});
+
+describe('decodeStatus', () => {
+	it('decodeStatus membaca entityId, efst, aktif, durasiMs', () => {
+		const { ServerMsg } = types();
+		const msg = lewatKawat(ServerMsg, {
+			status: {
+				entityId: 4,
+				efst: EFEK_STATUS.BEKU,
+				aktif: true,
+				durasiMs: 3000
+			}
+		});
+
+		expect(decodeStatus(msg)).toEqual({
+			entityId: 4, efst: 1, aktif: true, durasiMs: 3000
+		});
+	});
+
+	it('decodeStatus menangani nilai 0 dan aktif: false yang hilang dari kawat', () => {
+		const { ServerMsg } = types();
+		const msg = lewatKawat(ServerMsg, {
+			status: { entityId: 4, efst: EFEK_STATUS.BEKU }
+		});
+
+		expect(decodeStatus(msg)).toEqual({
+			entityId: 4, efst: 1, aktif: false, durasiMs: 0
+		});
+	});
+
+	it('decodeStatus mengembalikan null untuk pesan lain', () => {
+		const { ServerMsg } = types();
+		const spawn = lewatKawat(ServerMsg, { spawn: { entityId: 1 } });
+		expect(decodeStatus(spawn)).toBeNull();
+	});
+});
+
+describe('decodeSP', () => {
+	it('decodeSP membaca entityId, sp, maxSp', () => {
+		const { ServerMsg } = types();
+		const msg = lewatKawat(ServerMsg, {
+			sp: { entityId: 1, sp: 40, maxSp: 90 }
+		});
+
+		expect(decodeSP(msg)).toEqual({
+			entityId: 1, sp: 40, maxSp: 90
+		});
+	});
+
+	it('decodeSP menangani sp 0 yang hilang dari kawat', () => {
+		const { ServerMsg } = types();
+		const msg = lewatKawat(ServerMsg, {
+			sp: { entityId: 1, maxSp: 90 }
+		});
+
+		expect(decodeSP(msg)).toEqual({
+			entityId: 1, sp: 0, maxSp: 90
+		});
+	});
+
+	it('decodeSP mengembalikan null untuk pesan lain', () => {
+		const { ServerMsg } = types();
+		const spawn = lewatKawat(ServerMsg, { spawn: { entityId: 1 } });
+		expect(decodeSP(spawn)).toBeNull();
+	});
+});
+
+describe('EFEK_STATUS dan JENIS_DAMAGE_HEAL', () => {
+	it('EFEK_STATUS sama dengan enum EfekStatus di ro.proto', () => {
+		const root = protobuf.parse(readFileSync(SCHEMA_PATH, 'utf8')).root;
+		const e = root.lookupEnum('ro.v1.EfekStatus').values;
+		expect(EFEK_STATUS).toEqual({
+			BEKU:    e.EFEK_STATUS_BEKU,
+			PINGSAN: e.EFEK_STATUS_PINGSAN,
+			TIDUR:   e.EFEK_STATUS_TIDUR,
+			RACUN:   e.EFEK_STATUS_RACUN,
+			BUTA:    e.EFEK_STATUS_BUTA,
+			BISU:    e.EFEK_STATUS_BISU
+		});
+	});
+
+	it('JENIS_DAMAGE_HEAL sama dengan nilai JENIS_DAMAGE_HEAL di ro.proto', () => {
+		const root = protobuf.parse(readFileSync(SCHEMA_PATH, 'utf8')).root;
+		const e = root.lookupEnum('ro.v1.JenisDamage').values;
+		expect(JENIS_DAMAGE_HEAL).toBe(e.JENIS_DAMAGE_HEAL);
 	});
 });
