@@ -32,6 +32,8 @@ import EntityManager from 'Renderer/EntityManager.js';
 import Session       from 'Engine/SessionStorage.js';
 import Intro         from 'UI/Components/Intro/Intro.js';
 import Network       from 'Network/NetworkManager.js';
+import EffectManager from 'Renderer/EffectManager.js';
+import SK            from 'DB/Skills/SkillConst.js';
 
 import GoSocket          from '../m1-harness/GoSocket.js';
 import { loadSchema }    from '../m1-harness/proto.js';
@@ -363,6 +365,52 @@ function ulang(seed = 0) {
 	Network.send(encodeCaturMasuk(schema.ClientMsg, seed));
 }
 
+/**
+ * SPIKE AC2 (Task 1): memutar satu skill lengkap dari konsol untuk
+ * membuktikan EffectManager bekerja di luar MapEngine -- risiko teratas
+ * spec Bagian 13. Bukan jalur produksi; EvtSkillMulai/EvtSkillKena
+ * memakai efek.js.
+ *
+ * SM_BASH dan AC_DOUBLE TIDAK punya effectId di SkillEffect.js: efeknya
+ * hidup di beginCastEffectId, beforeHitEffectId, dan hitEffectId. Karena
+ * itu keempat pembungkus spamSkill* dipanggil, bukan spamSkill saja.
+ *
+ * @param {number} skid  id skill (lihat __ac.SK)
+ * @param {number} dstEntityId  GID sasaran; jatuh ke src bila tak ada
+ * @param {number} [srcEntityId=1]  GID perapal
+ * @param {number} [castMs=800]  lama cast bar; 0 = instan
+ * @returns {boolean} false bila perapal tidak ditemukan
+ */
+function cobaEfek(skid, dstEntityId, srcEntityId = 1, castMs = 800) {
+	const src = EntityManager.get(srcEntityId);
+	const dst = EntityManager.get(dstEntityId) || src;
+	if (!src || !dst) {
+		log(`! cobaEfek: entity src=${srcEntityId} atau dst=${dstEntityId} tidak ditemukan`);
+		return false;
+	}
+	src.setAction({
+		action: src.ACTION.SKILL,
+		frame:  0,
+		repeat: false,
+		play:   true,
+		next:   { action: src.ACTION.IDLE, frame: 0, repeat: true, play: true }
+	});
+	if (castMs > 0) {
+		src.cast.set(castMs);
+	}
+	EffectManager.spamSkillCast(skid, src.GID, Renderer.tick, src.GID);
+	setTimeout(() => {
+		src.cast.clean();
+		const pos = [dst.position[0], dst.position[1], dst.position[2]];
+		EffectManager.spamSkill(skid, dst.GID, pos, Renderer.tick, src.GID);
+		EffectManager.spamSkillBeforeHit(skid, dst.GID, Renderer.tick, src.GID);
+		EffectManager.spamSkillHit(skid, dst.GID, Renderer.tick, src.GID);
+	}, Math.max(0, castMs));
+	log(`cobaEfek skid=${skid} src=${src.GID} dst=${dst.GID} castMs=${castMs}`);
+	return true;
+}
+
 // Untuk penyetelan kamera manual di konsol browser:
 // __ac.Camera.zoomFinal = 90; __ac.Camera.angleFinal[0] = 240; __ac.ulang();
-window.__ac = { Camera, EntityManager, Session, log, ZOOM, SUDUT, antrean, ulang };
+// Spike efek: __ac.cobaEfek(__ac.SK.WZ_STORMGUST, 4, 1, 1000);
+window.__ac = { Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek };
