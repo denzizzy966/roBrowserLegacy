@@ -35,7 +35,9 @@ export const JEDA_HAPUS_MAYAT = 1200;
  * setiap hidupkanBar sesudahnya -- spawn, damage, skill -- ikut
  * menggambarnya tanpa pemanggilan ulang. Spawn harness (decodeSpawn)
  * tidak membawa maxSp; entity-nya tidak disentuh dan tidak punya baris SP.
- * Mob autochess membawa maxSp 0 dan juga tidak.
+ * Bidak autochess -- mob maupun PC -- membawa maxSp dari sp_max di
+ * units.yml (semua bidak punya skill sejak AC2), jadi semuanya mendapat
+ * baris SP; hanya entity bermaxSp 0 yang tidak.
  *
  * Prefiks __ac menandai field milik autochess, bukan roBrowserLegacy.
  */
