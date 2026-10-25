@@ -16,6 +16,9 @@
 // - Spawn memakai decodeSpawnLengkap (tim, nama, tampilan), dan PC yang
 //   mati ikut dihapus: di sini PC adalah bidak, bukan kamera.
 // - EvtCaturFase dan EvtCaturHasil ditampilkan di banner #fase.
+// - AC2: EvtSkillMulai, EvtSkillKena, EvtStatus, dan EvtSP digambar oleh
+//   efek.js; galat dekode dan galat handler dilaporkan terpisah
+//   (buatPenerima di pesan.js).
 //
 // Nol berkas client/src/ berubah: semuanya lewat API publik.
 
@@ -33,14 +36,20 @@ import Session       from 'Engine/SessionStorage.js';
 import Intro         from 'UI/Components/Intro/Intro.js';
 import Network       from 'Network/NetworkManager.js';
 import EffectManager from 'Renderer/EffectManager.js';
+import Damage        from 'Renderer/Effects/Damage.js';
 import SK            from 'DB/Skills/SkillConst.js';
+import SkillEffect   from 'DB/Skills/SkillEffect.js';
 
 import GoSocket          from '../m1-harness/GoSocket.js';
 import { loadSchema }    from '../m1-harness/proto.js';
 import { buatPenggerak } from '../shared/entitas.js';
-import { decodeDamage, decodeDeath } from '../harness/tempur.js';
+import { decodeDamage, decodeDeath, hidupkanBar, mainkanAksi } from '../harness/tempur.js';
 import { rswFileName, decodeMapInfo, decodeServerError, decodeMove, decodeDespawn, buatAntrean } from '../harness/mapinfo.js';
-import { FASE, encodeCaturMasuk, encodeCaturSiap, decodeSpawnLengkap, decodeCaturFase, decodeCaturHasil } from './pesan.js';
+import {
+	FASE, encodeCaturMasuk, encodeCaturSiap, decodeSpawnLengkap, decodeCaturFase, decodeCaturHasil,
+	decodeSkillMulai, decodeSkillKena, decodeStatus, decodeSP, JENIS_DAMAGE_HEAL, buatPenerima, amankan
+} from './pesan.js';
+import { buatManajerEfek } from './efek.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
 
 const SERVER_HOST = 'localhost';
@@ -86,6 +95,13 @@ function namaFase(fase) {
 // PC yang mati dihapus seperti mob: kamera tidak menempel ke bidak mana
 // pun, jadi tidak ada target kamera yang bisa menjadi hantu.
 const penggerak = buatPenggerak({ log, hapusPCSetelahMati: true });
+
+// AC2: skill, status, dan SP. Modul client/src/ disuntikkan supaya efek.js
+// teruji tanpa WebGL.
+const efek = buatManajerEfek({
+	EntityManager, EffectManager, Damage, Renderer, Altitude, SkillEffect,
+	hidupkanBar, mainkanAksi, log
+});
 
 // Semua pesan yang menyentuh entity -- dan juga fase/hasil, supaya
 // banner tidak mengumumkan apa pun tentang papan yang belum tergambar --
@@ -193,98 +209,149 @@ q.add(async function () {
 	}, false);
 });
 
-/** Menangani satu frame dari server. */
-function terimaPesan(data) {
-	try {
-		const err = decodeServerError(schema.ServerMsg, data);
-		if (err) {
-			log(`! server menolak: ${err}`);
-			return;
-		}
-
-		const info = decodeMapInfo(schema.ServerMsg, data);
-		if (info) {
-			muatArena(info);
-			return;
-		}
-
-		// Sisanya menerima ServerMsg yang sudah didekode, jadi frame non-MapInfo
-		// didekode TIGA kali (galat, MapInfo, lalu di sini) -- sama dengan harness.
-		// Dibiarkan: decodeServerError/decodeMapInfo milik harness menerima byte,
-		// dan biayanya kecil dibanding satu tick.
-		const msg = schema.ServerMsg.decode(new Uint8Array(data));
-
-		const fase = decodeCaturFase(msg);
-		if (fase) {
-			antrean.jalankan(() => {
-				log(`< fase: ${namaFase(fase.fase)} ronde ${fase.ronde} (sisa ${fase.sisaMs} ms)`);
-				aturBanner(`Ronde ${fase.ronde} — ${namaFase(fase.fase)}`);
-			});
-			return;
-		}
-
-		const hasil = decodeCaturHasil(msg);
-		if (hasil) {
-			antrean.jalankan(() => {
-				const teks = hasil.menang ? 'MENANG' : 'KALAH';
-				log(`< hasil: ${teks} (ronde ${hasil.ronde})`);
-				aturBanner(teks);
-			});
-			return;
-		}
-
-		const sp = decodeSpawnLengkap(msg);
-		if (sp) {
-			antrean.jalankan(() => penggerak.spawnkan(sp));
-			return;
-		}
-
-		const dp = decodeDespawn(msg);
-		if (dp) {
-			antrean.jalankan(() => {
-				// removeEntity, BUKAN removeGID (lihat harness).
-				if (EntityManager.get(dp.entityId)) {
-					EntityManager.remove(dp.entityId);
-					log(`< despawn entity ${dp.entityId}`);
-				} else {
-					log(`! despawn untuk entity ${dp.entityId} yang tak dikenal — abaikan`);
-				}
-			});
-			return;
-		}
-
-		const mv = decodeMove(msg);
-		if (mv) {
-			antrean.jalankan(() => {
-				const e = EntityManager.get(mv.entityId);
-				if (!e) {
-					log(`! gerak untuk entity ${mv.entityId} yang tak dikenal — abaikan`);
-					return;
-				}
-				log(`< gerak entity ${mv.entityId}: ${mv.path.length - 1} langkah, ${mv.speedMs} ms/cell`);
-				penggerak.jalankanSepanjang(e, mv.path, mv.speedMs);
-			});
-			return;
-		}
-
-		if (msg.damage) {
-			const d = decodeDamage(msg.damage);
-			antrean.jalankan(() => penggerak.tampilkanDamage(d));
-			return;
-		}
-
-		if (msg.death) {
-			const dt = decodeDeath(msg.death);
-			antrean.jalankan(() => penggerak.matikanSprite(dt.entityId));
-			return;
-		}
-
-		log(`< pesan tanpa body yang dikenali (${data.byteLength} byte)`);
-	} catch (err) {
-		log(`! frame tidak dapat didekode (${data.byteLength} byte): ${err.message}`);
-		log('! kemungkinan skema client dan server berbeda — coba hard reload (Ctrl+Shift+R)');
-	}
+/**
+ * Mendekode satu frame. Galat di SINI -- dan hanya di sini -- berarti
+ * skema client dan server berbeda (lihat buatPenerima di pesan.js).
+ *
+ * Frame non-MapInfo didekode TIGA kali (galat, MapInfo, lalu ServerMsg)
+ * -- sama dengan harness. Dibiarkan: decodeServerError/decodeMapInfo milik
+ * harness menerima byte, dan biayanya kecil dibanding satu tick.
+ */
+function dekodeFrame(data) {
+	return {
+		galat: decodeServerError(schema.ServerMsg, data),
+		info:  decodeMapInfo(schema.ServerMsg, data),
+		msg:   schema.ServerMsg.decode(new Uint8Array(data))
+	};
 }
+
+/**
+ * Menahan fn sampai map siap (lihat antrean), dengan badannya dibungkus
+ * amankan: satu pesan yang gagal digambar tidak membuang pesan tertahan
+ * di belakangnya, dan tidak dilaporkan sebagai galat skema.
+ */
+function jalankan(fn) {
+	antrean.jalankan(amankan(fn, log));
+}
+
+/** Meneruskan satu frame yang sudah didekode ke handler-nya. */
+function tanganiPesan({ galat, info, msg }, data) {
+	if (galat) {
+		log(`! server menolak: ${galat}`);
+		return;
+	}
+
+	if (info) {
+		muatArena(info);
+		return;
+	}
+
+	const fase = decodeCaturFase(msg);
+	if (fase) {
+		jalankan(() => {
+			log(`< fase: ${namaFase(fase.fase)} ronde ${fase.ronde} (sisa ${fase.sisaMs} ms)`);
+			aturBanner(`Ronde ${fase.ronde} — ${namaFase(fase.fase)}`);
+		});
+		return;
+	}
+
+	const hasil = decodeCaturHasil(msg);
+	if (hasil) {
+		jalankan(() => {
+			const teks = hasil.menang ? 'MENANG' : 'KALAH';
+			log(`< hasil: ${teks} (ronde ${hasil.ronde})`);
+			aturBanner(teks);
+		});
+		return;
+	}
+
+	const sp = decodeSpawnLengkap(msg);
+	if (sp) {
+		jalankan(() => penggerak.spawnkan(sp));
+		return;
+	}
+
+	const dp = decodeDespawn(msg);
+	if (dp) {
+		jalankan(() => {
+			// removeEntity, BUKAN removeGID (lihat harness).
+			if (EntityManager.get(dp.entityId)) {
+				EntityManager.remove(dp.entityId);
+				log(`< despawn entity ${dp.entityId}`);
+			} else {
+				log(`! despawn untuk entity ${dp.entityId} yang tak dikenal — abaikan`);
+			}
+		});
+		return;
+	}
+
+	const mv = decodeMove(msg);
+	if (mv) {
+		jalankan(() => {
+			const e = EntityManager.get(mv.entityId);
+			if (!e) {
+				log(`! gerak untuk entity ${mv.entityId} yang tak dikenal — abaikan`);
+				return;
+			}
+			log(`< gerak entity ${mv.entityId}: ${mv.path.length - 1} langkah, ${mv.speedMs} ms/cell`);
+			penggerak.jalankanSepanjang(e, mv.path, mv.speedMs);
+		});
+		return;
+	}
+
+	if (msg.damage) {
+		const d = decodeDamage(msg.damage);
+		jalankan(() => penggerak.tampilkanDamage(d));
+		return;
+	}
+
+	if (msg.death) {
+		const dt = decodeDeath(msg.death);
+		jalankan(() => penggerak.matikanSprite(dt.entityId));
+		return;
+	}
+
+	const sm = decodeSkillMulai(msg);
+	if (sm) {
+		jalankan(() => {
+			log(`< skill ${sm.skid} lv ${sm.lv}: ${sm.src} -> ${sm.dst || `(${sm.x},${sm.y})`}, cast ${sm.castMs} ms`);
+			efek.mulaiSkill(sm);
+		});
+		return;
+	}
+
+	const sk = decodeSkillKena(msg);
+	if (sk) {
+		jalankan(() => {
+			const daftar = sk.kena.map((k) => `${k.dst}:${k.amount}${k.jenis === JENIS_DAMAGE_HEAL ? '+' : ''}`).join(' ');
+			log(`< skill ${sk.skid} kena dari ${sk.src} di (${sk.x},${sk.y}): ${daftar || '(tak ada korban)'}`);
+			efek.kenaSkill(sk);
+		});
+		return;
+	}
+
+	const st = decodeStatus(msg);
+	if (st) {
+		jalankan(() => {
+			log(`< status ${st.efst} ${st.aktif ? 'aktif' : 'lepas'} pada ${st.entityId}${st.aktif ? ` (${st.durasiMs} ms)` : ''}`);
+			efek.ubahStatus(st);
+		});
+		return;
+	}
+
+	// EvtSP tidak dicatat ke log: ia tiba setiap SP berubah, beberapa kali
+	// per detik per bidak, dan akan menenggelamkan baris lain.
+	const spBaru = decodeSP(msg);
+	if (spBaru) {
+		jalankan(() => efek.ubahSP(spBaru));
+		return;
+	}
+
+	log(`< pesan tanpa body yang dikenali (${data.byteLength} byte)`);
+}
+
+/** Menangani satu frame dari server. */
+const terimaPesan = buatPenerima({ dekode: dekodeFrame, tangani: tanganiPesan, log });
 
 /** EvtMapInfo: muat map arena dan arahkan kamera ke pusat papan. */
 function muatArena(info) {

@@ -18,6 +18,7 @@ import Altitude      from 'Renderer/Map/Altitude.js';
 import Damage        from 'Renderer/Effects/Damage.js';
 import Renderer      from 'Renderer/Renderer.js';
 import DB            from 'DB/DBManager.js';
+import StatusState   from 'DB/Status/StatusState.js';
 
 import { hidupkanBar, mainkanAksi, namaMob, perluDihapusSetelahMati, persenDarah, barisHUD, JENIS_MISS, JENIS_KRITIKAL } from '../harness/tempur.js';
 import { objecttypeDari, pathKeInt16, arahLangkah } from '../harness/mapinfo.js';
@@ -25,6 +26,27 @@ import { objecttypeDari, pathKeInt16, arahLangkah } from '../harness/mapinfo.js'
 // Berapa lama mayat mob tergeletak sebelum dihapus. Cukup untuk animasi
 // matinya terlihat; lebih lama akan bertabrakan dengan respawn 10 detik.
 export const JEDA_HAPUS_MAYAT = 1200;
+
+/**
+ * Menyimpan SP spawn di entity dan menyalakan baris SP bar-nya (AC2).
+ *
+ * Cukup mengisi life.sp/sp_max: EntityLife.update() roBrowserLegacy
+ * menggambar baris SP biru di bawah HP sendiri bila keduanya >= 0, jadi
+ * setiap hidupkanBar sesudahnya -- spawn, damage, skill -- ikut
+ * menggambarnya tanpa pemanggilan ulang. Spawn harness (decodeSpawn)
+ * tidak membawa maxSp; entity-nya tidak disentuh dan tidak punya baris SP.
+ * Mob autochess membawa maxSp 0 dan juga tidak.
+ *
+ * Prefiks __ac menandai field milik autochess, bukan roBrowserLegacy.
+ */
+function pasangSP(entity, sp) {
+	entity.__acSP = sp.sp || 0;
+	entity.__acMaxSP = sp.maxSp || 0;
+	if (entity.__acMaxSP > 0) {
+		entity.life.sp = Math.max(0, Math.min(entity.__acMaxSP, entity.__acSP));
+		entity.life.sp_max = entity.__acMaxSP;
+	}
+}
 
 /**
  * Membuat penggerak entity yang terikat ke log milik pemakainya.
@@ -103,6 +125,7 @@ export function buatPenggerak({ log, catatHUD = () => {}, hapusPCSetelahMati = f
 			// membiarkan HP lama membuat bar mob yang baru hidup tetap
 			// menampilkan darah terakhirnya sebelum mati.
 			ada.__m2MaxHP = sp.maxHp;
+			pasangSP(ada, sp);
 			// Bidak bertim (autochess) memakai bar juga, PC sekalipun.
 			if (ada.objecttype === 5 || sp.tim) {
 				hidupkanBar(ada.life, sp.hp, sp.maxHp);
@@ -151,6 +174,9 @@ export function buatPenggerak({ log, catatHUD = () => {}, hapusPCSetelahMati = f
 		// milik harness, bukan field roBrowserLegacy.
 		lain.__m2MaxHP = sp.maxHp;
 		EntityManager.add(lain);
+		// SEBELUM hidupkanBar di bawah, supaya update() pertamanya sudah
+		// menggambar baris SP.
+		pasangSP(lain, sp);
 
 		// M6e -- nama dan bar HP, untuk MOB saja.
 		//
@@ -311,8 +337,10 @@ export function buatPenggerak({ log, catatHUD = () => {}, hapusPCSetelahMati = f
 		hidupkanBar(korban.life, d.hpSisa, korban.__m2MaxHP);
 
 		// Animasi terluka. Hanya untuk pukulan yang MENDARAT: makhluk yang
-		// serangan lawannya meleset tidak tersentak.
-		if (d.jenis !== JENIS_MISS) {
+		// serangan lawannya meleset tidak tersentak. Bidak beku (AC2) juga
+		// tidak: HURT menimpa pose FREEZE2 yang dipasang
+		// EntityState.updateBodyState, dan sprite bergerak di dalam balok es.
+		if (d.jenis !== JENIS_MISS && korban.bodyState !== StatusState.BodyState.FREEZE) {
 			mainkanAksi(korban, korban.ACTION.HURT, korban.ACTION.IDLE);
 		}
 

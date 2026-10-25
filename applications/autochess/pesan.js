@@ -232,3 +232,54 @@ export function decodeSP(msg) {
 		maxSp:    angka(s.maxSp)
 	};
 }
+
+/**
+ * Membungkus badan sebuah handler pesan (termasuk callback antrean.jalankan)
+ * agar lemparannya dicatat sebagai galat RENDERING, bukan galat skema.
+ *
+ * Dibungkus per callback, bukan sekali di sekeliling antrean: pesan yang
+ * tertahan dikuras berurutan di dalam onLoad, dan satu lemparan tanpa
+ * bungkus ini akan membuang semua pesan di belakangnya.
+ *
+ * @param {function(): void} fn
+ * @param {function(string): void} log
+ * @returns {function(): void}
+ */
+export function amankan(fn, log) {
+	return function () {
+		try {
+			fn();
+		} catch (err) {
+			log(`! galat saat menjalankan pesan: ${err.message}`);
+			console.error(err);
+		}
+	};
+}
+
+/**
+ * Membuat penerima frame server dengan DUA penanganan galat terpisah.
+ *
+ * Sebelum AC2 satu try/catch membungkus decode DAN handler, sehingga
+ * setiap galat rendering (mis. entity.cast yang tak ada) dilaporkan
+ * sebagai "skema client dan server berbeda" -- arahan yang salah.
+ * Sekarang hanya galat dekode yang menyebut skema.
+ *
+ * @param {object} d
+ * @param {function(ArrayBuffer): any} d.dekode  melempar bila frame rusak
+ * @param {function(any, ArrayBuffer): void} d.tangani  dispatch handler
+ * @param {function(string): void} d.log
+ * @returns {function(ArrayBuffer): void}
+ */
+export function buatPenerima({ dekode, tangani, log }) {
+	return function terimaPesan(data) {
+		let pesan;
+		try {
+			pesan = dekode(data);
+		} catch (err) {
+			log(`! frame tidak dapat didekode (${data.byteLength} byte): ${err.message}`);
+			log('! kemungkinan skema client dan server berbeda — coba hard reload (Ctrl+Shift+R)');
+			return;
+		}
+		amankan(() => tangani(pesan, data), log)();
+	};
+}
