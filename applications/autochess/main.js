@@ -9,6 +9,8 @@
 //
 // Yang berbeda dari harness:
 // - CmdCaturMasuk menggantikan CmdEnterMap; server memilih map-nya.
+// - CmdCaturSiap dikirim dari MapRenderer.onLoad; server menahan fase
+//   dan spawn sampai pesan itu tiba.
 // - Tidak ada avatar pemain. spot hanyalah titik tumpu kamera di pusat
 //   papan dan SENGAJA tidak masuk EntityManager.
 // - Spawn memakai decodeSpawnLengkap (tim, nama, tampilan), dan PC yang
@@ -36,7 +38,7 @@ import { loadSchema }    from '../m1-harness/proto.js';
 import { buatPenggerak } from '../shared/entitas.js';
 import { decodeDamage, decodeDeath } from '../harness/tempur.js';
 import { rswFileName, decodeMapInfo, decodeServerError, decodeMove, decodeDespawn, buatAntrean } from '../harness/mapinfo.js';
-import { FASE, encodeCaturMasuk, decodeSpawnLengkap, decodeCaturFase, decodeCaturHasil } from './pesan.js';
+import { FASE, encodeCaturMasuk, encodeCaturSiap, decodeSpawnLengkap, decodeCaturFase, decodeCaturHasil } from './pesan.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
 
 const SERVER_HOST = 'localhost';
@@ -315,6 +317,16 @@ function muatArena(info) {
 		} catch (err) {
 			log(`! gagal menjalankan pesan yang tertahan: ${err.message}`);
 		}
+
+		// Map tergambar dan antrean terbuka: baru sekarang server boleh
+		// mengirim fase dan spawn. Server MENAHAN pertempuran sampai pesan
+		// ini (atau batas 20 detiknya), supaya spawn, jalan, dan serangan
+		// pertama terlihat langsung -- bukan diputar sekaligus dari
+		// antrean seperti sebelum CmdCaturSiap ada. Dikirim di LUAR try di
+		// atas: pesan tertahan yang gagal tidak boleh menggantung
+		// pertandingan sampai batas waktunya.
+		log('> siap');
+		Network.send(encodeCaturSiap(schema.ClientMsg));
 	};
 
 	// SEBELUM setMap: pesan untuk map lama dibuang, dan setiap pesan sejak
@@ -334,6 +346,10 @@ q.run();
  * Registry server membatalkan pertandingan lama sebelum yang baru
  * mengirim apa pun, jadi EvtMapInfo baru menyapu bidak lama lewat
  * setMap -> EntityManager.free(). Untuk verifikasi manual saja.
+ *
+ * CmdCaturSiap TIDAK dikirim di sini: EvtMapInfo pertandingan baru
+ * melewati muatArena seperti biasa, dan onLoad-nya yang mengirim siap
+ * setelah map tergambar ulang.
  */
 function ulang(seed = 0) {
 	if (!schema || !goSocket) {

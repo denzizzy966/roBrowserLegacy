@@ -32,6 +32,22 @@ export function encodeCaturMasuk(ClientMsg, seed) {
 }
 
 /**
+ * Membangun ClientMsg berisi CmdCaturSiap: map dari EvtMapInfo terakhir
+ * sudah tergambar, pertempuran boleh dimulai.
+ *
+ * Pesannya kosong, tetapi oneof-nya tetap TERKIRIM: protobufjs menulis
+ * field pesan yang disetel walau isinya kosong (tag + panjang 0), jadi
+ * server melihat caturSiap, bukan body kosong. Test round-trip-nya
+ * menjaga hal ini.
+ *
+ * @param {object} ClientMsg - tipe ClientMsg dari skema
+ * @returns {ArrayBuffer}
+ */
+export function encodeCaturSiap(ClientMsg) {
+	return encodeSatuField(ClientMsg, 'caturSiap', {});
+}
+
+/**
  * Membaca EvtSpawn beserta field autochess (8-13).
  *
  * EvtSpawn dari zone MMO tidak menyetel satu pun field baru; hasilnya

@@ -3,7 +3,7 @@ import protobuf from 'protobufjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { FASE, encodeCaturMasuk, decodeSpawnLengkap, decodeCaturFase, decodeCaturHasil } from './pesan.js';
+import { FASE, encodeCaturMasuk, encodeCaturSiap, decodeSpawnLengkap, decodeCaturFase, decodeCaturHasil } from './pesan.js';
 
 // Membaca skema yang SAMA dengan yang dipakai server. Menyalin isi ro.proto
 // ke dalam test akan membuatnya tetap lulus walau skema aslinya berubah.
@@ -40,6 +40,23 @@ describe('encodeCaturMasuk', () => {
 		expect(decoded.caturMasuk).toBeTruthy();
 		// uint64 tiba sebagai objek mirip Long; Number() menyamakannya.
 		expect(Number(decoded.caturMasuk.seed)).toBe(7);
+	});
+});
+
+describe('encodeCaturSiap', () => {
+	it('encodeCaturSiap tiba sebagai caturSiap, bukan body kosong', () => {
+		const { ClientMsg } = types();
+
+		const buf = encodeCaturSiap(ClientMsg);
+		expect(buf).toBeInstanceOf(ArrayBuffer);
+		// Tag field 18 (wire type 2) plus panjang 0: tiga byte. Body
+		// kosong akan nol byte dan server membalasnya "tanpa body".
+		expect(buf.byteLength).toBe(3);
+
+		const decoded = ClientMsg.decode(new Uint8Array(buf));
+		expect(decoded.body).toBe('caturSiap');
+		expect(decoded.caturSiap).toBeTruthy();
+		expect(decoded.caturMasuk).toBeFalsy();
 	});
 });
 
