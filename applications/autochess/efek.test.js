@@ -4,6 +4,7 @@ import StatusState from 'DB/Status/StatusState.js';
 import EffectConst from 'DB/Effects/EffectConst.js';
 import { EFEK_BADAN_STATUS, gambarBarSP, buatManajerEfek } from './efek.js';
 import { EFEK_STATUS, JENIS_DAMAGE_HEAL, buatPenerima, amankan } from './pesan.js';
+import { JENIS_MISS } from '../harness/tempur.js';
 
 const TICK = 5000;
 
@@ -147,6 +148,74 @@ describe('efek.js', () => {
 		const s3 = siapkan([entityPalsu(1), beku]);
 		s3.efek.kenaSkill({ src: 1, skid: 89, lv: 5, x: 15, y: 25, kena: [{ dst: 4, amount: 10, hpSisa: 90, jenis: 0 }] });
 		expect(s3.deps.mainkanAksi).not.toHaveBeenCalled();
+	});
+
+	it('kenaSkill tidak menggambar MISS untuk skill dukung (amount 0, jenis NORMAL)', () => {
+		const pendeta = entityPalsu(1);
+		const kawan = entityPalsu(2);
+		const poring = entityPalsu(4, 15, 25);
+		const { deps, efek } = siapkan([pendeta, kawan, poring]);
+
+		// Blessing: server mengirim amount 0 berjenis NORMAL per korban.
+		efek.kenaSkill({ src: 1, skid: 34, lv: 5, x: 10, y: 20, kena: [{ dst: 2, amount: 0, hpSisa: 100, jenis: 0 }] });
+		expect(deps.Damage.add).not.toHaveBeenCalled();
+		expect(deps.mainkanAksi).not.toHaveBeenCalled();
+		// Efek kena dan bar tetap jalan.
+		expect(deps.EffectManager.spamSkillBeforeHit).toHaveBeenCalledWith(34, 2, TICK, 1);
+		expect(deps.EffectManager.spamSkillHit).toHaveBeenCalledWith(34, 2, TICK, 1);
+		expect(deps.hidupkanBar).toHaveBeenCalledWith(kawan.life, 100, 100);
+
+		// MISS sungguhan (amount 0, jenis MISS) tetap tampil sebagai MISS.
+		efek.kenaSkill({ src: 1, skid: 5, lv: 1, x: 15, y: 25, kena: [{ dst: 4, amount: 0, hpSisa: 100, jenis: JENIS_MISS }] });
+		expect(deps.Damage.add).toHaveBeenCalledTimes(1);
+		expect(deps.Damage.add).toHaveBeenCalledWith(0, poring, TICK, null, deps.Damage.TYPE.MISS);
+		expect(deps.mainkanAksi).not.toHaveBeenCalled();
+	});
+
+	it('ubahStatus beku/pingsan/tidur/bisu membatalkan cast seperti server', () => {
+		const { BodyState } = StatusState;
+		const kasus = [
+			{ nama: 'bisu', efst: EFEK_STATUS.BISU, badan: 0, keIdle: true },
+			{ nama: 'pingsan', efst: EFEK_STATUS.PINGSAN, badan: BodyState.STUN, keIdle: true },
+			{ nama: 'tidur', efst: EFEK_STATUS.TIDUR, badan: BodyState.SLEEP, keIdle: true },
+			// Setter bodyState FREEZE sendiri memasang pose FREEZE2.
+			{ nama: 'beku', efst: EFEK_STATUS.BEKU, badan: BodyState.FREEZE, keIdle: false }
+		];
+		for (const c of kasus) {
+			const tertunda = [];
+			const wiz = entityPalsu(1);
+			const s = siapkan([wiz]);
+			const efek = buatManajerEfek({ ...s.deps, tunda: (fn, ms) => tertunda.push({ fn, ms }) });
+
+			efek.mulaiSkill({ src: 1, skid: 89, lv: 5, dst: 0, x: 15, y: 25, castMs: 3000 });
+			wiz.action = wiz.ACTION.SKILL;
+			wiz.setAction.mockClear();
+
+			efek.ubahStatus({ entityId: 1, efst: c.efst, aktif: true, durasiMs: 2000 });
+			expect(wiz.cast.clean, c.nama).toHaveBeenCalled();
+			expect(wiz.__acSkill, c.nama).toBe(null);
+			expect(s.deps.EffectManager.remove, c.nama).toHaveBeenCalledWith(null, 1, expect.arrayContaining([EffectConst.EF_BEGINSPELL]));
+			expect(wiz.bodyState, c.nama).toBe(c.badan);
+			if (c.keIdle) {
+				expect(wiz.setAction, c.nama).toHaveBeenCalledWith(expect.objectContaining({ action: wiz.ACTION.IDLE, play: true }));
+			} else {
+				expect(wiz.setAction, c.nama).not.toHaveBeenCalled();
+			}
+
+			// Timer cast basi kini no-op (identitas cast sudah dilupakan).
+			wiz.setAction.mockClear();
+			tertunda[0].fn();
+			expect(wiz.setAction, c.nama).not.toHaveBeenCalled();
+		}
+
+		// Racun tidak membatalkan cast; pelepasan status juga tidak.
+		const wiz = entityPalsu(1);
+		const { efek } = siapkan([wiz]);
+		efek.mulaiSkill({ src: 1, skid: 89, lv: 5, dst: 0, x: 15, y: 25, castMs: 3000 });
+		efek.ubahStatus({ entityId: 1, efst: EFEK_STATUS.RACUN, aktif: true, durasiMs: 2000 });
+		efek.ubahStatus({ entityId: 1, efst: EFEK_STATUS.BISU, aktif: false, durasiMs: 0 });
+		expect(wiz.cast.clean).not.toHaveBeenCalled();
+		expect(wiz.__acSkill).not.toBe(null);
 	});
 
 	it('ubahStatus memasang dan melepas efek badan via EffectManager serta mereset effectColor racun', () => {

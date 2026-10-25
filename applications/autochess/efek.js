@@ -46,6 +46,21 @@ export const EFEK_BADAN_STATUS = {
 	[EFEK_STATUS.BISU]:    193  // EF_SILENCEATTACK
 };
 
+// Status yang membuat server membatalkan cast (arena/status.go,
+// terapkanStatus: cast = nil). Server tidak mengirim pesan batal, jadi
+// client menirunya sendiri saat status ini mulai.
+const STATUS_BATAL_CAST = new Set([
+	EFEK_STATUS.BEKU,
+	EFEK_STATUS.PINGSAN,
+	EFEK_STATUS.TIDUR,
+	EFEK_STATUS.BISU
+]);
+
+// Aura cast yang dicabut saat cast batal; daftar yang sama dengan
+// onEntityCastCancel (src/Engine/MapEngine/Entity.js): EF_BEGINSPELL
+// sampai EF_BEGINSPELL7 dan varian elemennya.
+const EFEK_AURA_CAST = [12, 54, 55, 56, 57, 58, 59, 454, 60, 513];
+
 // Berapa lama sesudah waktu cast habis sebuah cast tanpa EvtSkillKena
 // dianggap batal. Lebih dari satu tick server (TickMs) dan sedikit sisa.
 const JEDA_CAST_BASI = 1500;
@@ -249,6 +264,15 @@ export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer
 				continue;
 			}
 
+			// Skill dukung (Blessing, Increase AGI, ...) tiba per korban
+			// sebagai amount 0 berjenis NORMAL. Damage.add memperlakukan 0
+			// sebagai meleset (cabang `if (!damage)` di Damage.js) dan
+			// menggambar MISS, jadi angka dan sentakan dilewati; efek kena
+			// dan bar di atas tetap jalan. MISS sungguhan tetap ditampilkan.
+			if (k.amount === 0 && k.jenis !== JENIS_MISS) {
+				continue;
+			}
+
 			let tipe = Damage.TYPE.DAMAGE | Damage.TYPE.ENEMY;
 			if (k.jenis === JENIS_MISS) {
 				tipe = Damage.TYPE.MISS;
@@ -289,6 +313,7 @@ export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer
 		}
 
 		entity.__acStatus = entity.__acStatus || new Set();
+		const batalCast = ev.aktif && STATUS_BATAL_CAST.has(ev.efst);
 		if (ev.aktif) {
 			entity.__acStatus.add(ev.efst);
 			// Kilatan lama (refresh durasi) dibuang dulu agar tidak menumpuk.
@@ -322,8 +347,37 @@ export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer
 				kesehatan |= bit;
 			}
 		}
+		if (batalCast) {
+			batalkanCast(entity, badan);
+		}
 		entity.bodyState = badan;
 		entity.healthState = kesehatan;
+	}
+
+	/**
+	 * Meniru pembatalan cast di server (beku, pingsan, tidur, bisu
+	 * mengosongkan cast) seperti onEntityCastCancel: cast bar dan aura
+	 * dicabut, cast yang diingat dilupakan -- sehingga EvtSkillKena yang
+	 * tak akan datang tidak ditunggu dan timer cast basi (yang memeriksa
+	 * identitas __acSkill) menjadi no-op -- dan pose skill yang ditahan
+	 * dilepas ke IDLE. Pengecualian: beku yang BARU dipasang, karena
+	 * setter bodyState sendiri memasang pose FREEZE2; pingsan dan tidur
+	 * tidak menyentuh aksi (EntityState.updateBodyState).
+	 *
+	 * @param {object} entity
+	 * @param {number} badan  bodyState yang akan dipasang sesudah ini
+	 */
+	function batalkanCast(entity, badan) {
+		if (entity.cast && typeof entity.cast.clean === 'function') {
+			entity.cast.clean();
+		}
+		EffectManager.remove(null, entity.GID, EFEK_AURA_CAST);
+		entity.__acSkill = null;
+
+		const beriPoseBeku = badan === StatusState.BodyState.FREEZE && entity.bodyState !== badan;
+		if (entity.objecttype === TIPE_PC && entity.action === entity.ACTION.SKILL && !beriPoseBeku) {
+			entity.setAction({ action: entity.ACTION.IDLE, frame: 0, repeat: true, play: true });
+		}
 	}
 
 	/** EvtSP: simpan, lalu gambar ulang baris SP di bawah bar HP. */
