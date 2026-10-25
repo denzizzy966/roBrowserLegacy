@@ -206,7 +206,10 @@ function terimaPesan(data) {
 			return;
 		}
 
-		// Sisanya menerima ServerMsg yang sudah didekode; didekode SEKALI.
+		// Sisanya menerima ServerMsg yang sudah didekode, jadi frame non-MapInfo
+		// didekode TIGA kali (galat, MapInfo, lalu di sini) -- sama dengan harness.
+		// Dibiarkan: decodeServerError/decodeMapInfo milik harness menerima byte,
+		// dan biayanya kecil dibanding satu tick.
 		const msg = schema.ServerMsg.decode(new Uint8Array(data));
 
 		const fase = decodeCaturFase(msg);
