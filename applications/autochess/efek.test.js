@@ -218,6 +218,24 @@ describe('efek.js', () => {
 		expect(wiz.__acSkill).not.toBe(null);
 	});
 
+	it('status yang dipasang skill pada perapalnya sendiri tidak memotong pose pelepasan', () => {
+		// Asura Strike: EvtSkillKena lalu EvtStatus bisu_diri di tick yang
+		// sama. kenaSkill sudah melupakan cast dan memutar pose SKILL->IDLE;
+		// bisu tidak boleh memaksa IDLE di tengah animasi itu.
+		const champ = entityPalsu(1);
+		const { deps, efek } = siapkan([champ]);
+		efek.mulaiSkill({ src: 1, skid: 271, lv: 5, dst: 4, x: 15, y: 25, castMs: 2000 });
+		efek.kenaSkill({ src: 1, skid: 271, lv: 5, x: 15, y: 25, kena: [{ dst: 4, amount: 999, hpSisa: 0, jenis: 0 }] });
+		expect(deps.mainkanAksi).toHaveBeenCalledWith(champ, champ.ACTION.SKILL, champ.ACTION.IDLE);
+		champ.action = champ.ACTION.SKILL;
+		champ.setAction.mockClear();
+
+		efek.ubahStatus({ entityId: 1, efst: EFEK_STATUS.BISU, aktif: true, durasiMs: 5000 });
+		expect(champ.setAction).not.toHaveBeenCalled();
+		expect(champ.healthState & StatusState.HealthState.SILENCE).toBeTruthy();
+		expect(champ.__acSkill).toBe(null);
+	});
+
 	it('ubahStatus memasang dan melepas efek badan via EffectManager serta mereset effectColor racun', () => {
 		const poring = entityPalsu(4);
 		const { deps, efek } = siapkan([poring]);

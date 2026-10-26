@@ -368,6 +368,12 @@ export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer
 	 * @param {number} badan  bodyState yang akan dipasang sesudah ini
 	 */
 	function batalkanCast(entity, badan) {
+		// Hanya cast yang masih berjalan yang posenya dilepas. Skill yang
+		// baru saja dilepas sudah dilupakan oleh kenaSkill (__acSkill null)
+		// dan sedang memutar pose pelepasannya; status yang skill itu
+		// pasang pada perapalnya sendiri di tick yang sama (Asura Strike
+		// -> bisu_diri) tidak boleh memotong animasi tersebut.
+		const castBerjalan = !!(entity.__acSkill && entity.__acSkill.castMs > 0);
 		if (entity.cast && typeof entity.cast.clean === 'function') {
 			entity.cast.clean();
 		}
@@ -375,7 +381,7 @@ export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer
 		entity.__acSkill = null;
 
 		const beriPoseBeku = badan === StatusState.BodyState.FREEZE && entity.bodyState !== badan;
-		if (entity.objecttype === TIPE_PC && entity.action === entity.ACTION.SKILL && !beriPoseBeku) {
+		if (castBerjalan && entity.objecttype === TIPE_PC && entity.action === entity.ACTION.SKILL && !beriPoseBeku) {
 			entity.setAction({ action: entity.ACTION.IDLE, frame: 0, repeat: true, play: true });
 		}
 	}
