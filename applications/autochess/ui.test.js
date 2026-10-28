@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-import { renderUI, ikatAksi, formatWaktu, sandikanAksi } from './ui.js';
+import { renderUI, ikatAksi, formatWaktu, sandikanAksi, simpanPilihan, pulihkanPilihan } from './ui.js';
 import { FASE } from './pesan.js';
 
 const HERE        = dirname(fileURLToPath(import.meta.url));
@@ -267,5 +267,84 @@ describe('sandikanAksi', () => {
 
 	it('aksi tak dikenal melempar', () => {
 		expect(() => sandikanAksi(ClientMsg, 'terbang', {})).toThrow(/terbang/);
+	});
+});
+
+// DOM palsu untuk simpan/pulihkan pilihan: kartu bangku dengan dua select,
+// dan kartu papan tanpa select (harus dilewati).
+function panelPalsu(kartuIsi) {
+	const semua = kartuIsi.map(({ bidak, kolom, baris }) => {
+		const kartu = { dataset: { bidak } };
+		const buatSelect = (jenis, value) => (value === undefined ? null : {
+			tagName: 'SELECT',
+			value,
+			focus: vi.fn(),
+			hasAttribute: (a) => a === `data-${jenis}`,
+			closest: (sel) => (sel === '.kartu[data-bidak]' ? kartu : null)
+		});
+		kartu.kolom = buatSelect('kolom', kolom);
+		kartu.baris = buatSelect('baris', baris);
+		kartu.querySelector = (sel) => {
+			if (sel === '[data-kolom]') {
+				return kartu.kolom;
+			}
+			return sel === '[data-baris]' ? kartu.baris : null;
+		};
+		return kartu;
+	});
+	return {
+		kartu: semua,
+		querySelectorAll: (sel) => (sel === '.kartu[data-bidak]' ? semua : []),
+		contains: (el) => semua.includes(el)
+	};
+}
+
+describe('simpanPilihan dan pulihkanPilihan', () => {
+	it('nilai kedua select dan fokus kembali ke kartu dengan data-bidak yang sama', () => {
+		const lama = panelPalsu([{ bidak: '1', kolom: '0', baris: '0' }, { bidak: '5', kolom: '6', baris: '3' }, { bidak: '9' }]);
+		const simpanan = simpanPilihan(lama, lama.kartu[1].baris);
+
+		expect(simpanan.fokus).toEqual({ bidak: '5', jenis: 'baris' });
+		expect(simpanan.nilai.get('5')).toEqual({ kolom: '6', baris: '3' });
+		expect(simpanan.nilai.has('9')).toBe(false);
+
+		// Redraw: bidak 1 sudah ditaruh (kartunya hilang), urutan berubah,
+		// dan semua select kembali ke bawaan render.
+		const baru = panelPalsu([{ bidak: '7', kolom: '2', baris: '0' }, { bidak: '5', kolom: '2', baris: '0' }]);
+		pulihkanPilihan(baru, simpanan);
+
+		expect(baru.kartu[1].kolom.value).toBe('6');
+		expect(baru.kartu[1].baris.value).toBe('3');
+		expect(baru.kartu[1].baris.focus).toHaveBeenCalledWith({ preventScroll: true });
+		expect(baru.kartu[1].kolom.focus).not.toHaveBeenCalled();
+		// Kartu baru tanpa simpanan memakai bawaan render.
+		expect(baru.kartu[0].kolom.value).toBe('2');
+		expect(baru.kartu[0].kolom.focus).not.toHaveBeenCalled();
+	});
+
+	it('tanpa fokus di panel tidak ada yang difokus ulang', () => {
+		const lama = panelPalsu([{ bidak: '5', kolom: '4', baris: '1' }]);
+		const luar = { tagName: 'SELECT', hasAttribute: () => true, closest: () => ({ dataset: { bidak: '5' } }) };
+
+		expect(simpanPilihan(lama, null).fokus).toBeNull();
+		expect(simpanPilihan(lama, { tagName: 'BODY' }).fokus).toBeNull();
+		// Select di luar panel (kartunya bukan milik root).
+		expect(simpanPilihan(lama, luar).fokus).toBeNull();
+
+		const baru = panelPalsu([{ bidak: '5', kolom: '0', baris: '0' }]);
+		pulihkanPilihan(baru, simpanPilihan(lama, null));
+		expect(baru.kartu[0].kolom.value).toBe('4');
+		expect(baru.kartu[0].kolom.focus).not.toHaveBeenCalled();
+		expect(baru.kartu[0].baris.focus).not.toHaveBeenCalled();
+	});
+
+	it('fokus hilang dengan tenang bila kartunya tidak ada lagi', () => {
+		const lama = panelPalsu([{ bidak: '5', kolom: '4', baris: '1' }]);
+		const simpanan = simpanPilihan(lama, lama.kartu[0].kolom);
+		const baru = panelPalsu([{ bidak: '6', kolom: '0', baris: '0' }]);
+
+		expect(() => pulihkanPilihan(baru, simpanan)).not.toThrow();
+		expect(baru.kartu[0].kolom.focus).not.toHaveBeenCalled();
+		expect(baru.kartu[0].kolom.value).toBe('0');
 	});
 });

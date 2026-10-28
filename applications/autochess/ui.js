@@ -264,6 +264,65 @@ export function ikatAksi(root, kirim) {
 	});
 }
 
+/** Kartu bangku: punya data-bidak DAN kedua select (kartu papan tidak). */
+function kartuBangku(root) {
+	return [...root.querySelectorAll('.kartu[data-bidak]')].filter(
+		(k) => k.querySelector('[data-kolom]') && k.querySelector('[data-baris]')
+	);
+}
+
+/**
+ * Menyimpan pilihan kolom/baris setiap kartu bangku dan select mana yang
+ * sedang difokus, SEBELUM root.innerHTML diganti (lihat gambarUI di
+ * main.js). Kuncinya data-bidak, bukan urutan kartu: bangku bisa berubah
+ * di antara dua redraw.
+ *
+ * @param {object} root - elemen #ui
+ * @param {object|null} fokus - document.activeElement
+ * @returns {{nilai: Map<string, {kolom: string, baris: string}>, fokus: {bidak: string, jenis: string}|null}}
+ */
+export function simpanPilihan(root, fokus) {
+	const nilai = new Map();
+	for (const kartu of kartuBangku(root)) {
+		nilai.set(kartu.dataset.bidak, {
+			kolom: kartu.querySelector('[data-kolom]').value,
+			baris: kartu.querySelector('[data-baris]').value
+		});
+	}
+	let f = null;
+	if (fokus && fokus.tagName === 'SELECT' && typeof fokus.closest === 'function') {
+		const kartu = fokus.closest('.kartu[data-bidak]');
+		if (kartu && root.contains(kartu)) {
+			f = { bidak: kartu.dataset.bidak, jenis: fokus.hasAttribute('data-kolom') ? 'kolom' : 'baris' };
+		}
+	}
+	return { nilai, fokus: f };
+}
+
+/**
+ * Memulihkan simpanan simpanPilihan SESUDAH innerHTML diganti: nilai
+ * kedua select dikembalikan ke kartu dengan data-bidak yang sama, dan
+ * fokus ke select yang sama. Kartu yang sudah hilang (bidak dijual atau
+ * ditaruh) dilewati begitu saja.
+ *
+ * @param {object} root - elemen #ui
+ * @param {ReturnType<typeof simpanPilihan>} simpanan
+ */
+export function pulihkanPilihan(root, simpanan) {
+	for (const kartu of kartuBangku(root)) {
+		const bidak = kartu.dataset.bidak;
+		const v = simpanan.nilai.get(bidak);
+		if (v) {
+			kartu.querySelector('[data-kolom]').value = v.kolom;
+			kartu.querySelector('[data-baris]').value = v.baris;
+		}
+		if (simpanan.fokus && simpanan.fokus.bidak === bidak) {
+			// preventScroll: panel tidak boleh melompat tiap detik.
+			kartu.querySelector(`[data-${simpanan.fokus.jenis}]`).focus({ preventScroll: true });
+		}
+	}
+}
+
 /** Penyandi perintah catur per aksi UI. */
 const PENYANDI = {
 	beli:        (C, a) => encodeCaturBeli(C, a.slot),

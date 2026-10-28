@@ -56,7 +56,7 @@ import {
 import { buatManajerEfek } from './efek.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
 import { buatState } from './state.js';
-import { renderUI, ikatAksi, sandikanAksi, namaFase } from './ui.js';
+import { renderUI, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
@@ -136,6 +136,8 @@ let schema   = null;
 let goSocket = null;
 // Diganti baru setiap EvtMapInfo (lihat muatArena).
 let st = buatState();
+// HTML #ui terakhir yang digambar; '' memaksa redraw (lihat gambarUI).
+let htmlTerakhir = '';
 let mulaiBerkas = 0;
 let sudahPernahMuat = false;
 
@@ -426,6 +428,7 @@ function muatArena(info) {
 	// boleh tertinggal.
 	antrean.reset();
 	st = buatState();
+	htmlTerakhir = '';
 	aturBanner('');
 
 	const rsw = rswFileName(info.mapName);
@@ -459,37 +462,23 @@ function kirim(aksi, arg = {}) {
 	return true;
 }
 
-let htmlTerakhir = '';
-
 /**
- * Menggambar ulang #ui bila isinya berubah. innerHTML menutup dropdown
- * yang sedang terbuka dan mereset pilihan select, jadi: render dilewati
- * selama sebuah select di panel sedang difokus, dan pilihan kolom/baris
- * per bidak dipulihkan sesudahnya.
+ * Menggambar ulang #ui bila isinya berubah -- SELALU, juga saat sebuah
+ * select di panel sedang difokus: melewati render akan membekukan timer,
+ * fase, dan status disabled tombol melintasi pergantian fase. innerHTML
+ * mereset pilihan dan fokus, jadi keduanya disimpan lalu dipulihkan per
+ * bidak (simpanPilihan/pulihkanPilihan di ui.js). Dropdown yang sedang
+ * TERBUKA tetap tertutup oleh redraw; fokus dan nilainya bertahan.
  */
 function gambarUI() {
 	const html = renderUI({ ...st.ambil(), sisaMs: st.sisaMs(performance.now()) });
 	if (html === htmlTerakhir) {
 		return;
 	}
-	const fokus = document.activeElement;
-	if (fokus && fokus.tagName === 'SELECT' && uiEl.contains(fokus)) {
-		return;
-	}
-	const simpan = new Map();
-	for (const sel of uiEl.querySelectorAll('.kartu[data-bidak] select')) {
-		const jenis = sel.hasAttribute('data-kolom') ? 'kolom' : 'baris';
-		simpan.set(`${sel.closest('.kartu').dataset.bidak}:${jenis}`, sel.value);
-	}
+	const simpanan = simpanPilihan(uiEl, document.activeElement);
 	uiEl.innerHTML = html;
 	htmlTerakhir = html;
-	for (const sel of uiEl.querySelectorAll('.kartu[data-bidak] select')) {
-		const jenis = sel.hasAttribute('data-kolom') ? 'kolom' : 'baris';
-		const nilai = simpan.get(`${sel.closest('.kartu').dataset.bidak}:${jenis}`);
-		if (nilai !== undefined) {
-			sel.value = nilai;
-		}
-	}
+	pulihkanPilihan(uiEl, simpanan);
 }
 
 ikatAksi(uiEl, kirim);
