@@ -9,6 +9,17 @@ import {
 	JENIS_DAMAGE_HEAL,
 	encodeCaturMasuk,
 	encodeCaturSiap,
+	encodeCaturBeli,
+	encodeCaturJual,
+	encodeCaturRefresh,
+	encodeCaturKunci,
+	encodeCaturBeliExp,
+	encodeCaturTaruh,
+	encodeCaturKeBangku,
+	encodeCaturKeluar,
+	encodeCaturLewati,
+	decodeCaturState,
+	decodeCaturSelesai,
 	decodeSpawnLengkap,
 	decodeCaturFase,
 	decodeCaturHasil,
@@ -118,14 +129,14 @@ describe('decodeCaturFase dan decodeCaturHasil', () => {
 		});
 		// lawanKursi tidak dikirim (CREEP) dan harus tiba sebagai 0.
 		expect(decodeCaturFase(fase)).toEqual({
-			fase: FASE.TEMPUR, ronde: 1, sisaMs: 60000, lawanKursi: 0, jenis: 1
+			fase: FASE.TEMPUR, ronde: 1, sisaMs: 60000, lawanKursi: 0, jenis: 1, salinan: false
 		});
 
 		const hasil = lewatKawat(ServerMsg, {
 			caturHasil: { ronde: 1, menang: true, damageDiterima: 0, zenyMasuk: 5 }
 		});
 		expect(decodeCaturHasil(hasil)).toEqual({
-			ronde: 1, menang: true, damageDiterima: 0, zenyMasuk: 5
+			ronde: 1, menang: true, damageDiterima: 0, zenyMasuk: 5, seri: false
 		});
 
 		// Kalah: menang=false hilang dari kawat dan harus tiba sebagai
@@ -134,7 +145,7 @@ describe('decodeCaturFase dan decodeCaturHasil', () => {
 			caturHasil: { ronde: 2, damageDiterima: 7 }
 		});
 		expect(decodeCaturHasil(kalah)).toEqual({
-			ronde: 2, menang: false, damageDiterima: 7, zenyMasuk: 0
+			ronde: 2, menang: false, damageDiterima: 7, zenyMasuk: 0, seri: false
 		});
 	});
 
@@ -315,5 +326,96 @@ describe('EFEK_STATUS dan JENIS_DAMAGE_HEAL', () => {
 		const root = protobuf.parse(readFileSync(SCHEMA_PATH, 'utf8')).root;
 		const e = root.lookupEnum('ro.v1.JenisDamage').values;
 		expect(JENIS_DAMAGE_HEAL).toBe(e.JENIS_DAMAGE_HEAL);
+	});
+});
+
+describe('encode perintah catur AC3', () => {
+	const dekode = (buf) => types().ClientMsg.decode(new Uint8Array(buf));
+
+	it('sembilan perintah tiba sebagai oneof yang benar', () => {
+		const { ClientMsg } = types();
+
+		expect(dekode(encodeCaturBeli(ClientMsg, 3)).caturBeli.slot).toBe(3);
+		expect(dekode(encodeCaturJual(ClientMsg, 9)).caturJual.bidakId).toBe(9);
+		expect(dekode(encodeCaturRefresh(ClientMsg)).body).toBe('caturRefresh');
+		expect(dekode(encodeCaturKunci(ClientMsg, true)).caturKunci.kunci).toBe(true);
+		expect(dekode(encodeCaturBeliExp(ClientMsg)).body).toBe('caturBeliExp');
+
+		const taruh = dekode(encodeCaturTaruh(ClientMsg, 7, 3, 2));
+		expect(taruh.body).toBe('caturTaruh');
+		expect(taruh.caturTaruh.bidakId).toBe(7);
+		expect(taruh.caturTaruh.kolom).toBe(3);
+		expect(taruh.caturTaruh.baris).toBe(2);
+
+		expect(dekode(encodeCaturKeBangku(ClientMsg, 5)).caturKeBangku.bidakId).toBe(5);
+		expect(dekode(encodeCaturKeluar(ClientMsg)).body).toBe('caturKeluar');
+		expect(dekode(encodeCaturLewati(ClientMsg)).body).toBe('caturLewati');
+	});
+});
+
+describe('decodeCaturState dan decodeCaturSelesai', () => {
+	it('decodeCaturState membaca snapshot penuh', () => {
+		const { ServerMsg } = types();
+		const msg = lewatKawat(ServerMsg, {
+			caturState: {
+				ronde: 4, fase: 1, sisaMs: 30000,
+				kursi: [{ kursi: 0, nama: 'Saya', hp: 80, level: 5, hidup: true, streak: 2 }],
+				saya: {
+					kursi: 0, zeny: 12, exp: 4, expBerikut: 20, level: 5, kapasitas: 5, kunci: true,
+					toko: [{ slot: 0, unitId: 'poring', harga: 1 }, { slot: 1 }],
+					bidak: [{ bidakId: 7, unitId: 'poring', bintang: 2, diPapan: true, kolom: 3, baris: 2, entityId: 42 }],
+					sinergi: [{ id: 'pemburu', jumlah: 3, tingkatAktif: 1, origin: true }],
+					peluang: [{ tier: 1, persen: 70 }]
+				}
+			}
+		});
+		const s = decodeCaturState(msg);
+
+		expect(s.ronde).toBe(4);
+		expect(s.sisaMs).toBe(30000);
+		expect(s.kursi[0]).toEqual({ kursi: 0, nama: 'Saya', hp: 80, level: 5, bot: false, hidup: true, streak: 2 });
+		expect(s.saya.expBerikut).toBe(20);
+		expect(s.saya.kunci).toBe(true);
+		expect(s.saya.toko[1]).toEqual({ slot: 1, unitId: '', harga: 0 });
+		expect(s.saya.bidak[0].entityId).toBe(42);
+		expect(s.saya.bidak[0].diPapan).toBe(true);
+		expect(s.saya.sinergi[0]).toEqual({ id: 'pemburu', jumlah: 3, tingkatAktif: 1, origin: true });
+		expect(s.saya.peluang[0]).toEqual({ tier: 1, persen: 70 });
+	});
+
+	it('decodeCaturState selalu mengembalikan array, walau kosong', () => {
+		const { ServerMsg } = types();
+		const s = decodeCaturState(lewatKawat(ServerMsg, { caturState: { ronde: 1 } }));
+
+		expect(s.kursi).toEqual([]);
+		expect(s.saya.toko).toEqual([]);
+		expect(s.saya.bidak).toEqual([]);
+		expect(s.saya.sinergi).toEqual([]);
+		expect(s.saya.peluang).toEqual([]);
+	});
+
+	it('decodeCaturSelesai membaca peringkat', () => {
+		const { ServerMsg } = types();
+		const msg = lewatKawat(ServerMsg, {
+			caturSelesai: { peringkat: [3, 0, 5, 1, 2, 4, 6, 7], peringkatSaya: 2 }
+		});
+		expect(decodeCaturSelesai(msg)).toEqual({ peringkat: [3, 0, 5, 1, 2, 4, 6, 7], peringkatSaya: 2 });
+	});
+
+	it('decodeCaturFase membaca salinan dan decodeCaturHasil membaca seri', () => {
+		const { ServerMsg } = types();
+		const f = decodeCaturFase(lewatKawat(ServerMsg, { caturFase: { fase: 2, salinan: true } }));
+		const h = decodeCaturHasil(lewatKawat(ServerMsg, { caturHasil: { ronde: 3, seri: true } }));
+
+		expect(f.salinan).toBe(true);
+		expect(h.seri).toBe(true);
+	});
+
+	it('pesan lain mengembalikan null', () => {
+		const { ServerMsg } = types();
+		const spawn = lewatKawat(ServerMsg, { spawn: { entityId: 1 } });
+
+		expect(decodeCaturState(spawn)).toBeNull();
+		expect(decodeCaturSelesai(spawn)).toBeNull();
 	});
 });

@@ -66,6 +66,105 @@ export function encodeCaturSiap(ClientMsg) {
 }
 
 /**
+ * Membangun ClientMsg berisi CmdCaturBeli: beli unit di slot toko.
+ *
+ * @param {object} ClientMsg - tipe ClientMsg dari skema
+ * @param {number} slot - indeks slot toko
+ * @returns {ArrayBuffer}
+ */
+export function encodeCaturBeli(ClientMsg, slot) {
+	return encodeSatuField(ClientMsg, 'caturBeli', { slot });
+}
+
+/**
+ * Membangun ClientMsg berisi CmdCaturJual: jual bidak.
+ *
+ * @param {object} ClientMsg - tipe ClientMsg dari skema
+ * @param {number} bidakId
+ * @returns {ArrayBuffer}
+ */
+export function encodeCaturJual(ClientMsg, bidakId) {
+	return encodeSatuField(ClientMsg, 'caturJual', { bidakId });
+}
+
+/**
+ * Membangun ClientMsg berisi CmdCaturRefresh: kocok ulang toko.
+ *
+ * @param {object} ClientMsg - tipe ClientMsg dari skema
+ * @returns {ArrayBuffer}
+ */
+export function encodeCaturRefresh(ClientMsg) {
+	return encodeSatuField(ClientMsg, 'caturRefresh', {});
+}
+
+/**
+ * Membangun ClientMsg berisi CmdCaturKunci. Bool eksplisit, bukan toggle,
+ * supaya pesan yang hilang atau diulang tidak membalik keadaan.
+ *
+ * @param {object} ClientMsg - tipe ClientMsg dari skema
+ * @param {boolean} kunci
+ * @returns {ArrayBuffer}
+ */
+export function encodeCaturKunci(ClientMsg, kunci) {
+	return encodeSatuField(ClientMsg, 'caturKunci', { kunci });
+}
+
+/**
+ * Membangun ClientMsg berisi CmdCaturBeliExp: beli EXP dengan Zeny.
+ *
+ * @param {object} ClientMsg - tipe ClientMsg dari skema
+ * @returns {ArrayBuffer}
+ */
+export function encodeCaturBeliExp(ClientMsg) {
+	return encodeSatuField(ClientMsg, 'caturBeliExp', {});
+}
+
+/**
+ * Membangun ClientMsg berisi CmdCaturTaruh: taruh bidak ke petak papan.
+ *
+ * @param {object} ClientMsg - tipe ClientMsg dari skema
+ * @param {number} bidakId
+ * @param {number} kolom
+ * @param {number} baris
+ * @returns {ArrayBuffer}
+ */
+export function encodeCaturTaruh(ClientMsg, bidakId, kolom, baris) {
+	return encodeSatuField(ClientMsg, 'caturTaruh', { bidakId, kolom, baris });
+}
+
+/**
+ * Membangun ClientMsg berisi CmdCaturKeBangku: tarik bidak dari papan.
+ *
+ * @param {object} ClientMsg - tipe ClientMsg dari skema
+ * @param {number} bidakId
+ * @returns {ArrayBuffer}
+ */
+export function encodeCaturKeBangku(ClientMsg, bidakId) {
+	return encodeSatuField(ClientMsg, 'caturKeBangku', { bidakId });
+}
+
+/**
+ * Membangun ClientMsg berisi CmdCaturKeluar: tinggalkan pertandingan.
+ *
+ * @param {object} ClientMsg - tipe ClientMsg dari skema
+ * @returns {ArrayBuffer}
+ */
+export function encodeCaturKeluar(ClientMsg) {
+	return encodeSatuField(ClientMsg, 'caturKeluar', {});
+}
+
+/**
+ * Membangun ClientMsg berisi CmdCaturLewati: lewati sisa timer persiapan.
+ * Bukan caturSiap (kesiapan render).
+ *
+ * @param {object} ClientMsg - tipe ClientMsg dari skema
+ * @returns {ArrayBuffer}
+ */
+export function encodeCaturLewati(ClientMsg) {
+	return encodeSatuField(ClientMsg, 'caturLewati', {});
+}
+
+/**
  * Membaca EvtSpawn beserta field autochess (8-13).
  *
  * EvtSpawn dari zone MMO tidak menyetel satu pun field baru; hasilnya
@@ -108,7 +207,7 @@ export function decodeSpawnLengkap(msg) {
  * Membaca EvtCaturFase dari sebuah ServerMsg.
  *
  * @param {object} msg - ServerMsg hasil decode
- * @returns {{fase:number, ronde:number, sisaMs:number, lawanKursi:number, jenis:number}|null}
+ * @returns {{fase:number, ronde:number, sisaMs:number, lawanKursi:number, jenis:number, salinan:boolean}|null}
  */
 export function decodeCaturFase(msg) {
 	const f = msg && msg.caturFase;
@@ -122,7 +221,9 @@ export function decodeCaturFase(msg) {
 		sisaMs:     angka(f.sisaMs),
 		// Tidak bermakna saat jenis CREEP.
 		lawanKursi: angka(f.lawanKursi),
-		jenis:      angka(f.jenis)
+		jenis:      angka(f.jenis),
+		// Lawan adalah salinan papan kursi lain; kursi itu tidak terluka.
+		salinan:    Boolean(f.salinan)
 	};
 }
 
@@ -130,7 +231,7 @@ export function decodeCaturFase(msg) {
  * Membaca EvtCaturHasil dari sebuah ServerMsg.
  *
  * @param {object} msg - ServerMsg hasil decode
- * @returns {{ronde:number, menang:boolean, damageDiterima:number, zenyMasuk:number}|null}
+ * @returns {{ronde:number, menang:boolean, damageDiterima:number, zenyMasuk:number, seri:boolean}|null}
  */
 export function decodeCaturHasil(msg) {
 	const h = msg && msg.caturHasil;
@@ -142,7 +243,92 @@ export function decodeCaturHasil(msg) {
 		// false juga hilang dari kawat; tiba sebagai undefined.
 		menang:         Boolean(h.menang),
 		damageDiterima: angka(h.damageDiterima),
-		zenyMasuk:      angka(h.zenyMasuk)
+		zenyMasuk:      angka(h.zenyMasuk),
+		// Habis waktu tanpa pemenang; bukan kekalahan.
+		seri:           Boolean(h.seri)
+	};
+}
+
+/**
+ * Membaca EvtCaturState (snapshot penuh sisi pemain) dari sebuah ServerMsg.
+ * Daftar selalu array walau kosong (proto3 membuang repeated kosong dari
+ * kawat); unitId slot toko kosong tiba sebagai ''.
+ *
+ * @param {object} msg - ServerMsg hasil decode
+ * @returns {{ronde:number, fase:number, sisaMs:number, kursi:object[], saya:object}|null}
+ */
+export function decodeCaturState(msg) {
+	const b = msg && msg.caturState;
+	if (!b) {
+		return null;
+	}
+	const s = b.saya || {};
+	return {
+		ronde:  angka(b.ronde),
+		fase:   angka(b.fase),
+		// Durasi tersisa, bukan tenggat absolut.
+		sisaMs: angka(b.sisaMs),
+		kursi:  (b.kursi || []).map((k) => ({
+			kursi:  angka(k.kursi),
+			nama:   k.nama || '',
+			hp:     angka(k.hp),
+			level:  angka(k.level),
+			bot:    Boolean(k.bot),
+			hidup:  Boolean(k.hidup),
+			streak: angka(k.streak)
+		})),
+		saya: {
+			kursi:      angka(s.kursi),
+			zeny:       angka(s.zeny),
+			exp:        angka(s.exp),
+			expBerikut: angka(s.expBerikut),
+			level:      angka(s.level),
+			kapasitas:  angka(s.kapasitas),
+			kunci:      Boolean(s.kunci),
+			toko:       (s.toko || []).map((t) => ({
+				slot:   angka(t.slot),
+				// '' = slot kosong.
+				unitId: t.unitId || '',
+				harga:  angka(t.harga)
+			})),
+			bidak:      (s.bidak || []).map((d) => ({
+				bidakId:  angka(d.bidakId),
+				unitId:   d.unitId || '',
+				bintang:  angka(d.bintang),
+				diPapan:  Boolean(d.diPapan),
+				kolom:    angka(d.kolom),
+				baris:    angka(d.baris),
+				// 0 = di bangku.
+				entityId: angka(d.entityId)
+			})),
+			sinergi:    (s.sinergi || []).map((n) => ({
+				id:           n.id || '',
+				jumlah:       angka(n.jumlah),
+				tingkatAktif: angka(n.tingkatAktif),
+				origin:       Boolean(n.origin)
+			})),
+			peluang:    (s.peluang || []).map((p) => ({
+				tier:   angka(p.tier),
+				persen: angka(p.persen)
+			}))
+		}
+	};
+}
+
+/**
+ * Membaca EvtCaturSelesai dari sebuah ServerMsg.
+ *
+ * @param {object} msg - ServerMsg hasil decode
+ * @returns {{peringkat:number[], peringkatSaya:number}|null}
+ */
+export function decodeCaturSelesai(msg) {
+	const b = msg && msg.caturSelesai;
+	if (!b) {
+		return null;
+	}
+	return {
+		peringkat:     (b.peringkat || []).map(angka),
+		peringkatSaya: angka(b.peringkatSaya)
 	};
 }
 
