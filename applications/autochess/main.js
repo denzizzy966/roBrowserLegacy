@@ -350,11 +350,13 @@ function tanganiPesan({ galat, info, msg }, data) {
 		return;
 	}
 
-	const st = decodeStatus(msg);
-	if (st) {
+	// Bukan `st`: nama itu milik state catur di lingkup modul, dan
+	// `const` di sini akan menutupinya (TDZ) untuk seluruh fungsi.
+	const status = decodeStatus(msg);
+	if (status) {
 		jalankan(() => {
-			log(`< status ${st.efst} ${st.aktif ? 'aktif' : 'lepas'} pada ${st.entityId}${st.aktif ? ` (${st.durasiMs} ms)` : ''}`);
-			efek.ubahStatus(st);
+			log(`< status ${status.efst} ${status.aktif ? 'aktif' : 'lepas'} pada ${status.entityId}${status.aktif ? ` (${status.durasiMs} ms)` : ''}`);
+			efek.ubahStatus(status);
 		});
 		return;
 	}
