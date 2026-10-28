@@ -19,6 +19,9 @@
 // - AC2: EvtSkillMulai, EvtSkillKena, EvtStatus, dan EvtSP digambar oleh
 //   efek.js; galat dekode dan galat handler dilaporkan terpisah
 //   (buatPenerima di pesan.js).
+// - AC3: EvtCaturState, EvtCaturFase, EvtCaturHasil, dan EvtCaturSelesai
+//   masuk state.js; panel #ui (ui.js) digambar ulang tiap 250 ms dan
+//   tombolnya mengirim perintah catur lewat kirim(aksi, arg).
 //
 // Nol berkas client/src/ berubah: semuanya lewat API publik.
 
@@ -46,11 +49,14 @@ import { buatPenggerak } from '../shared/entitas.js';
 import { decodeDamage, decodeDeath, hidupkanBar, mainkanAksi } from '../harness/tempur.js';
 import { rswFileName, decodeMapInfo, decodeServerError, decodeMove, decodeDespawn, buatAntrean } from '../harness/mapinfo.js';
 import {
-	FASE, encodeCaturMasuk, encodeCaturSiap, decodeSpawnLengkap, decodeCaturFase, decodeCaturHasil,
+	encodeCaturMasuk, encodeCaturSiap, decodeSpawnLengkap, decodeCaturFase, decodeCaturHasil,
+	decodeCaturState, decodeCaturSelesai,
 	decodeSkillMulai, decodeSkillKena, decodeStatus, decodeSP, JENIS_DAMAGE_HEAL, buatPenerima, amankan
 } from './pesan.js';
 import { buatManajerEfek } from './efek.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
+import { buatState } from './state.js';
+import { renderUI, ikatAksi, sandikanAksi, namaFase } from './ui.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
@@ -73,23 +79,12 @@ const SUDUT = 250;
 
 const logEl  = document.getElementById('log');
 const faseEl = document.getElementById('fase');
+const uiEl   = document.getElementById('ui');
 
 function log(msg) {
 	logEl.textContent += msg + '\n';
 	logEl.scrollTop = logEl.scrollHeight;
 	console.log('[ac]', msg);
-}
-
-const NAMA_FASE = {
-	[FASE.PERSIAPAN]: 'PERSIAPAN',
-	[FASE.TEMPUR]:    'TEMPUR',
-	[FASE.HASIL]:     'HASIL'
-};
-
-function namaFase(fase) {
-	// Fase 0 hanya tiba karena bug (lihat FaseCatur di ro.proto) dan
-	// harus TERLIHAT sebagai bug, bukan ditebak.
-	return NAMA_FASE[fase] || `TIDAK DIKENAL (${fase})`;
 }
 
 // PC yang mati dihapus seperti mob: kamera tidak menempel ke bidak mana
@@ -139,6 +134,8 @@ function aturBanner(teks) {
 
 let schema   = null;
 let goSocket = null;
+// Diganti baru setiap EvtMapInfo (lihat muatArena).
+let st = buatState();
 let mulaiBerkas = 0;
 let sudahPernahMuat = false;
 
@@ -246,8 +243,25 @@ function tanganiPesan({ galat, info, msg }, data) {
 		return;
 	}
 
+	// State catur diperbarui SEKETIKA, di luar antrean: panel #ui tidak
+	// bergantung pada map, dan jam countdown harus mulai saat pesan tiba,
+	// bukan saat antrean dikuras.
+	const cs = decodeCaturState(msg);
+	if (cs) {
+		st.terima(cs, performance.now());
+		return;
+	}
+
+	const selesai = decodeCaturSelesai(msg);
+	if (selesai) {
+		st.terimaSelesai(selesai);
+		log(`< selesai: peringkatmu #${selesai.peringkatSaya + 1}`);
+		return;
+	}
+
 	const fase = decodeCaturFase(msg);
 	if (fase) {
+		st.terimaFase(fase, performance.now());
 		jalankan(() => {
 			log(`< fase: ${namaFase(fase.fase)} ronde ${fase.ronde} (sisa ${fase.sisaMs} ms)`);
 			aturBanner(`Ronde ${fase.ronde} — ${namaFase(fase.fase)}`);
@@ -257,8 +271,12 @@ function tanganiPesan({ galat, info, msg }, data) {
 
 	const hasil = decodeCaturHasil(msg);
 	if (hasil) {
+		st.terimaHasil(hasil);
 		jalankan(() => {
-			const teks = hasil.menang ? 'MENANG' : 'KALAH';
+			let teks = hasil.menang ? 'MENANG' : 'KALAH';
+			if (hasil.seri) {
+				teks = 'SERI';
+			}
 			log(`< hasil: ${teks} (ronde ${hasil.ronde})`);
 			aturBanner(teks);
 		});
@@ -402,8 +420,12 @@ function muatArena(info) {
 	};
 
 	// SEBELUM setMap: pesan untuk map lama dibuang, dan setiap pesan sejak
-	// titik ini ditahan sampai onLoad di atas.
+	// titik ini ditahan sampai onLoad di atas. State catur juga dibuang:
+	// server mengirim EvtMapInfo lebih dulu daripada state pertandingan
+	// baru (lihat aktor.go), jadi selesai/hasil pertandingan lama tidak
+	// boleh tertinggal.
 	antrean.reset();
+	st = buatState();
 	aturBanner('');
 
 	const rsw = rswFileName(info.mapName);
@@ -412,6 +434,74 @@ function muatArena(info) {
 }
 
 q.run();
+
+/**
+ * Mengirim satu perintah catur dari panel #ui (atau konsol: __ac.kirim).
+ *
+ * @param {string} aksi - nama data-aksi (lihat ui.js), atau 'keluar'
+ * @param {object} [arg]
+ * @returns {boolean} false bila belum tersambung atau aksi tak dikenal
+ */
+function kirim(aksi, arg = {}) {
+	if (!schema || !goSocket) {
+		log('! belum tersambung');
+		return false;
+	}
+	let buf;
+	try {
+		buf = sandikanAksi(schema.ClientMsg, aksi, arg);
+	} catch (err) {
+		log(`! ${err.message}`);
+		return false;
+	}
+	log(`> ${aksi} ${JSON.stringify(arg)}`);
+	Network.send(buf);
+	return true;
+}
+
+let htmlTerakhir = '';
+
+/**
+ * Menggambar ulang #ui bila isinya berubah. innerHTML menutup dropdown
+ * yang sedang terbuka dan mereset pilihan select, jadi: render dilewati
+ * selama sebuah select di panel sedang difokus, dan pilihan kolom/baris
+ * per bidak dipulihkan sesudahnya.
+ */
+function gambarUI() {
+	const html = renderUI({ ...st.ambil(), sisaMs: st.sisaMs(performance.now()) });
+	if (html === htmlTerakhir) {
+		return;
+	}
+	const fokus = document.activeElement;
+	if (fokus && fokus.tagName === 'SELECT' && uiEl.contains(fokus)) {
+		return;
+	}
+	const simpan = new Map();
+	for (const sel of uiEl.querySelectorAll('.kartu[data-bidak] select')) {
+		const jenis = sel.hasAttribute('data-kolom') ? 'kolom' : 'baris';
+		simpan.set(`${sel.closest('.kartu').dataset.bidak}:${jenis}`, sel.value);
+	}
+	uiEl.innerHTML = html;
+	htmlTerakhir = html;
+	for (const sel of uiEl.querySelectorAll('.kartu[data-bidak] select')) {
+		const jenis = sel.hasAttribute('data-kolom') ? 'kolom' : 'baris';
+		const nilai = simpan.get(`${sel.closest('.kartu').dataset.bidak}:${jenis}`);
+		if (nilai !== undefined) {
+			sel.value = nilai;
+		}
+	}
+}
+
+ikatAksi(uiEl, kirim);
+setInterval(amankan(gambarUI, log), 250);
+
+// Menutup tab = menyerah: server membebaskan kursi seketika, bukan
+// menunggu socket putus.
+window.addEventListener('beforeunload', () => {
+	if (schema && goSocket) {
+		Network.send(sandikanAksi(schema.ClientMsg, 'keluar', {}));
+	}
+});
 
 /**
  * Meminta pertandingan baru tanpa memuat ulang halaman (dan GRF-nya).
@@ -480,4 +570,9 @@ function cobaEfek(skid, dstEntityId, srcEntityId = 1, castMs = 800) {
 // Untuk penyetelan kamera manual di konsol browser:
 // __ac.Camera.zoomFinal = 90; __ac.Camera.angleFinal[0] = 240; __ac.ulang();
 // Spike efek: __ac.cobaEfek(__ac.SK.WZ_STORMGUST, 4, 1, 1000);
-window.__ac = { Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek };
+// AC3: __ac.state() memberi snapshot state catur untuk e2e, dan
+// __ac.kirim('beli', {slot: 0}) mengirim perintah tanpa panel.
+window.__ac = {
+	Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek,
+	kirim, state: () => st.ambil()
+};

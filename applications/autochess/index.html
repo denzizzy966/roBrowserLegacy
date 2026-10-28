@@ -6,7 +6,9 @@
 	<style>
 		html, body { margin: 0; height: 100%; background: #111; color: #ddd;
 		             font-family: ui-monospace, monospace; }
-		#log { position: fixed; left: 0; bottom: 0; right: 0; max-height: 9rem;
+		/* #log berhenti di tepi kiri panel #ui supaya keduanya tidak
+		   bertumpuk; kanvas WebGL tetap terlihat di sisa layar. */
+		#log { position: fixed; left: 0; bottom: 0; right: 376px; max-height: 9rem;
 		       overflow: auto; white-space: pre-wrap; background: rgba(0,0,0,.75);
 		       padding: .5rem; font-size: 12px; z-index: 100; }
 		/* Banner fase/hasil: atas tengah, di atas kanvas WebGL. Kosong =
@@ -17,6 +19,21 @@
 		        background: rgba(0,0,0,.7); color: #fff; border-radius: 4px;
 		        z-index: 100; pointer-events: none; }
 		#fase:empty { display: none; }
+		/* Panel catur AC3 (ui.js): kanan, bergulir, polos. */
+		#ui { position: fixed; top: 0; right: 0; bottom: 0; width: 360px;
+		      overflow-y: auto; background: rgba(0,0,0,.8); color: #ddd;
+		      font-size: 12px; padding: 8px; z-index: 100; box-sizing: content-box; }
+		#ui section { margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 6px; }
+		#ui h3 { margin: 0 0 4px; font-size: 12px; color: #fc6; }
+		#ui table { width: 100%; border-collapse: collapse; }
+		#ui th, #ui td { text-align: left; padding: 1px 3px; }
+		#ui tr.saya { color: #6cf; }
+		#ui tr.tersingkir { color: #777; text-decoration: line-through; }
+		#ui .kartu { padding: 2px 0; }
+		#ui .kosong { color: #666; }
+		#ui button, #ui select { font: inherit; margin-left: 2px; }
+		#ui button[disabled] { opacity: .4; }
+		#ui #hasil, #ui #selesai { color: #fff; }
 	</style>
 	<script>
 		// Configs.js mengisi dirinya dari window.ROConfig lewat IIFE saat
@@ -32,6 +49,7 @@
 <body>
 	<div id="fase"></div>
 	<div id="log"></div>
+	<div id="ui"></div>
 	<script type="module" src="./main.js"></script>
 </body>
 </html>
