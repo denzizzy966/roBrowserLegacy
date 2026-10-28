@@ -56,7 +56,7 @@ import {
 import { buatManajerEfek } from './efek.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
 import { buatState } from './state.js';
-import { renderUI, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
+import { renderUI, perbaruiTimer, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
@@ -138,6 +138,9 @@ let goSocket = null;
 let st = buatState();
 // HTML #ui terakhir yang digambar; '' memaksa redraw (lihat gambarUI).
 let htmlTerakhir = '';
+// performance.now() saat tombol pointer ditekan di dalam #ui; null =
+// tidak ada yang ditahan (lihat gambarUI).
+let ditahanSejak = null;
 let mulaiBerkas = 0;
 let sudahPernahMuat = false;
 
@@ -465,26 +468,61 @@ function kirim(aksi, arg = {}) {
 }
 
 /**
- * Menggambar ulang #ui bila isinya berubah -- SELALU, juga saat sebuah
- * select di panel sedang difokus: melewati render akan membekukan timer,
- * fase, dan status disabled tombol melintasi pergantian fase. innerHTML
- * mereset pilihan dan fokus, jadi keduanya disimpan lalu dipulihkan per
- * bidak (simpanPilihan/pulihkanPilihan di ui.js). Dropdown yang sedang
- * TERBUKA tetap tertutup oleh redraw; fokus dan nilainya bertahan.
+ * Tekan lebih lama dari ini tidak lagi menahan redraw: pointerup bisa
+ * tidak pernah tiba (mis. popup select bawaan menelannya), dan panel
+ * tidak boleh membeku melintasi pergantian fase karenanya.
+ */
+const BATAS_TAHAN_MS = 1000;
+
+/**
+ * Dipanggil tiap 250 ms. Hitung mundur hanya ditulis ke node #timer
+ * (perbaruiTimer); innerHTML #ui baru diganti bila keluaran renderUI
+ * berubah, yaitu saat pesan server mengubah state -- renderUI tidak
+ * bergantung jam. Dulu timer ikut di HTML sehingga panel dibangun ulang
+ * tiap detik: klik yang mouseup-nya jatuh sesudah penggantian hilang
+ * (~1 dari 10) dan dropdown yang terbuka tertutup.
+ *
+ * Bila berubah, panel dibangun ulang juga saat sebuah select difokus
+ * (melewatinya membekukan fase dan status disabled tombol); pilihan dan
+ * fokus disimpan lalu dipulihkan per bidak (simpanPilihan/pulihkanPilihan
+ * di ui.js). Satu-satunya penundaan: selama tombol pointer ditahan di
+ * dalam #ui (paling lama BATAS_TAHAN_MS), supaya klik yang sedang
+ * berlangsung tidak kehilangan tombolnya; redraw menyusul saat dilepas.
  */
 function gambarUI() {
-	const html = renderUI({ ...st.ambil(), sisaMs: st.sisaMs(performance.now()) });
-	if (html === htmlTerakhir) {
-		return;
+	const sekarang = performance.now();
+	const ditahan = ditahanSejak !== null && sekarang - ditahanSejak < BATAS_TAHAN_MS;
+	const html = renderUI(st.ambil());
+	if (html !== htmlTerakhir && !ditahan) {
+		const simpanan = simpanPilihan(uiEl, document.activeElement);
+		uiEl.innerHTML = html;
+		htmlTerakhir = html;
+		pulihkanPilihan(uiEl, simpanan);
 	}
-	const simpanan = simpanPilihan(uiEl, document.activeElement);
-	uiEl.innerHTML = html;
-	htmlTerakhir = html;
-	pulihkanPilihan(uiEl, simpanan);
+	perbaruiTimer(uiEl, st.sisaMs(sekarang));
 }
 
+const gambarUIAman = amankan(gambarUI, log);
+
+uiEl.addEventListener('pointerdown', () => {
+	ditahanSejak = performance.now();
+});
+// Di window (capture): pelepasan di luar #ui juga harus membuka tahanan.
+// setTimeout 0, bukan langsung: click dikirim sesudah pointerup dalam
+// task yang sama, dan tombolnya harus masih ada saat itu.
+function lepasPointer() {
+	if (ditahanSejak === null) {
+		return;
+	}
+	ditahanSejak = null;
+	setTimeout(gambarUIAman, 0);
+}
+window.addEventListener('pointerup', lepasPointer, true);
+window.addEventListener('pointercancel', lepasPointer, true);
+window.addEventListener('blur', lepasPointer);
+
 ikatAksi(uiEl, kirim);
-setInterval(amankan(gambarUI, log), 250);
+setInterval(gambarUIAman, 250);
 
 // Menutup tab = menyerah: server membebaskan kursi seketika, bukan
 // menunggu socket putus.

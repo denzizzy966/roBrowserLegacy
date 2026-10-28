@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-import { renderUI, ikatAksi, formatWaktu, sandikanAksi, simpanPilihan, pulihkanPilihan } from './ui.js';
+import { renderUI, ikatAksi, formatWaktu, perbaruiTimer, sandikanAksi, simpanPilihan, pulihkanPilihan } from './ui.js';
 import { FASE } from './pesan.js';
 
 const HERE        = dirname(fileURLToPath(import.meta.url));
@@ -52,7 +52,39 @@ describe('formatWaktu', () => {
 	});
 });
 
+describe('perbaruiTimer', () => {
+	function rootPalsu() {
+		const timer = { textContent: '--:--' };
+		return { timer, querySelector: (sel) => (sel === '#timer' ? timer : null) };
+	}
+
+	it('menulis mm:ss ke node #timer, dijepit di 00:00', () => {
+		const root = rootPalsu();
+		// Dibulatkan ke atas seperti formatWaktu: 29,5 s masih 00:30.
+		perbaruiTimer(root, 29500);
+		expect(root.timer.textContent).toBe('00:30');
+		perbaruiTimer(root, 29000);
+		expect(root.timer.textContent).toBe('00:29');
+		perbaruiTimer(root, 61001);
+		expect(root.timer.textContent).toBe('01:02');
+		perbaruiTimer(root, -300);
+		expect(root.timer.textContent).toBe('00:00');
+	});
+
+	it('tanpa node #timer (state belum tiba) tidak melempar', () => {
+		expect(() => perbaruiTimer({ querySelector: () => null }, 1000)).not.toThrow();
+	});
+});
+
 describe('renderUI', () => {
+	it('keluaran tidak bergantung jam: sisaMs beda, HTML sama persis', () => {
+		// Detik yang sama, detik berbeda, dan fase lain: htmlTerakhir di
+		// main.js hanya boleh berubah karena state server.
+		expect(render({ sisaMs: 25000 })).toBe(render({ sisaMs: 24100 }));
+		expect(render({ sisaMs: 25000 })).toBe(render({ sisaMs: 3000 }));
+		expect(render({ fase: FASE.TEMPUR, sisaMs: 59000 })).toBe(render({ fase: FASE.TEMPUR, sisaMs: 0 }));
+	});
+
 	it('menunggu bila state belum tiba', () => {
 		const html = renderUI({ state: null, fase: 0, ronde: 0, hasilTerakhir: null, selesai: null, sisaMs: 0 });
 		expect(html).toContain('menunggu');
@@ -63,7 +95,9 @@ describe('renderUI', () => {
 		const html = render();
 
 		expect(html).toContain('id="status"');
-		expect(html).toContain('00:25');
+		// Hitung mundur hanya placeholder: angkanya diisi perbaruiTimer.
+		expect(html).toContain('id="timer"');
+		expect(html).not.toContain('00:25');
 		expect(html).toContain('17');           // zeny
 		expect(html).toContain('4/10');         // exp/expBerikut
 		expect(html).toContain('1/4');          // kapasitas: satu bidak di papan dari 4

@@ -93,11 +93,19 @@ function petakKosong(bidak) {
 	return { kolom: 0, baris: 0 };
 }
 
-function bagianStatus(state, fase, ronde, sisaMs) {
+/**
+ * Placeholder hitung mundur. Teksnya SENGAJA tetap (bukan sisaMs): angka
+ * mm:ss diisi perbaruiTimer lewat textContent, supaya keluaran renderUI
+ * hanya berubah bila state server berubah dan main.js tidak mengganti
+ * innerHTML (lalu membuang klik yang sedang berlangsung) tiap detik.
+ */
+const TIMER_KOSONG = '--:--';
+
+function bagianStatus(state, fase, ronde) {
 	const s = state.saya;
 	const diPapan = s.bidak.filter((b) => b.diPapan).length;
 	return `<section id="status">
-<div>Ronde ${ronde} — ${esc(namaFase(fase))} — <b>${formatWaktu(sisaMs)}</b></div>
+<div>Ronde ${ronde} — ${esc(namaFase(fase))} — <b id="timer">${TIMER_KOSONG}</b></div>
 <div>Zeny ${s.zeny} · Lv ${s.level} · EXP ${s.exp}/${s.expBerikut} · Papan ${diPapan}/${s.kapasitas}</div>
 </section>`;
 }
@@ -192,21 +200,26 @@ function bagianPeluang(peluang) {
  * server tetap menolak perintah di luar itu, tetapi tombol yang mati
  * memberi tahu pemain sebelum ia mengeklik.
  *
+ * Keluaran TIDAK bergantung jam: hitung mundur hanya placeholder
+ * <b id="timer">, diisi perbaruiTimer. Untuk state yang sama hasilnya
+ * identik byte demi byte, jadi pembanding htmlTerakhir di main.js hanya
+ * membangun ulang panel saat pesan server mengubah sesuatu. sisaMs
+ * tetap diterima (pemanggil lama mengopernya) tetapi tidak dibaca.
+ *
  * @param {object} d
  * @param {object|null} d.state - keluaran decodeCaturState
  * @param {number} d.fase - fase terbaru (FASE)
  * @param {number} [d.ronde] - ronde terbaru; jatuh ke state.ronde
  * @param {object|null} d.hasilTerakhir - keluaran decodeCaturHasil
  * @param {object|null} d.selesai - keluaran decodeCaturSelesai
- * @param {number} d.sisaMs - sisa waktu fase menurut jam lokal
  * @returns {string}
  */
-export function renderUI({ state, fase, ronde, hasilTerakhir, selesai, sisaMs }) {
+export function renderUI({ state, fase, ronde, hasilTerakhir, selesai }) {
 	if (!state) {
 		return '<section id="status">menunggu state pertandingan …</section>';
 	}
 	const aktif = fase === FASE.PERSIAPAN && !selesai;
-	return bagianStatus(state, fase, ronde || state.ronde, sisaMs)
+	return bagianStatus(state, fase, ronde || state.ronde)
 		+ bagianHasil(hasilTerakhir)
 		+ bagianSelesai(selesai, state.kursi)
 		+ bagianKursi(state.kursi, state.saya.kursi)
@@ -215,6 +228,26 @@ export function renderUI({ state, fase, ronde, hasilTerakhir, selesai, sisaMs })
 		+ bagianPapan(state.saya.bidak, aktif)
 		+ bagianSinergi(state.saya.sinergi)
 		+ bagianPeluang(state.saya.peluang);
+}
+
+/**
+ * Menulis sisa waktu fase ke node #timer milik renderUI lewat textContent,
+ * tanpa menyentuh sisa panel. Dipanggil tiap tick dan sesudah setiap
+ * pembangunan ulang. Tanpa node (state belum tiba) tidak berbuat apa-apa;
+ * teks yang sama tidak ditulis ulang.
+ *
+ * @param {{querySelector: function(string): ?{textContent: string}}} root - elemen #ui
+ * @param {number} sisaMs - sisa waktu fase menurut jam lokal
+ */
+export function perbaruiTimer(root, sisaMs) {
+	const node = root.querySelector('#timer');
+	if (!node) {
+		return;
+	}
+	const teks = formatWaktu(sisaMs);
+	if (node.textContent !== teks) {
+		node.textContent = teks;
+	}
 }
 
 /** Argumen kirim per aksi, dari dataset tombol (dan kartunya untuk taruh). */

@@ -298,7 +298,9 @@ export function decodeCaturState(msg) {
 				diPapan:  Boolean(d.diPapan),
 				kolom:    angka(d.kolom),
 				baris:    angka(d.baris),
-				// 0 = di bangku.
+				// 0 = tidak ada entity di arena untuk bidak ini: di
+				// bangku, atau di papan selama TEMPUR/HASIL (entity
+				// PERSIAPAN sudah dilepas), atau spawn-nya ditolak.
 				entityId: angka(d.entityId)
 			})),
 			sinergi:    (s.sinergi || []).map((n) => ({
