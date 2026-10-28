@@ -152,7 +152,7 @@ describe('renderUI', () => {
 
 		const selesai = render({ selesai: { peringkat: [1, 7, 5, 0, 3, 6, 2, 4], peringkatSaya: 3 } });
 		expect(selesai).toContain('id="selesai"');
-		expect(selesai).toContain('#4');
+		expect(selesai).toContain('peringkatmu #3');
 		expect(selesai).toContain('Pemain1');
 		// Pertandingan selesai: tak ada lagi yang bisa dikirim.
 		expect(selesai.match(/<button[^>]*>/g).every((b) => b.includes('disabled'))).toBe(true);

@@ -123,7 +123,7 @@ function bagianSelesai(selesai, kursi) {
 	const daftar = selesai.peringkat
 		.map((no, i) => `<li>#${i + 1} ${esc(nama.get(no) ?? `kursi ${no}`)}</li>`)
 		.join('');
-	return `<section id="selesai"><h3>Selesai — peringkatmu #${selesai.peringkatSaya + 1}</h3><ol>${daftar}</ol></section>`;
+	return `<section id="selesai"><h3>Selesai — peringkatmu #${selesai.peringkatSaya}</h3><ol>${daftar}</ol></section>`;
 }
 
 function bagianKursi(kursi, sayaKursi) {

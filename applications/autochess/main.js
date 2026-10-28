@@ -257,7 +257,7 @@ function tanganiPesan({ galat, info, msg }, data) {
 	const selesai = decodeCaturSelesai(msg);
 	if (selesai) {
 		st.terimaSelesai(selesai);
-		log(`< selesai: peringkatmu #${selesai.peringkatSaya + 1}`);
+		log(`< selesai: peringkatmu #${selesai.peringkatSaya}`);
 		return;
 	}
 
