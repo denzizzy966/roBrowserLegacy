@@ -22,6 +22,8 @@
 // - AC3: EvtCaturState, EvtCaturFase, EvtCaturHasil, dan EvtCaturSelesai
 //   masuk state.js; panel #ui (ui.js) digambar ulang tiap 250 ms dan
 //   tombolnya mengirim perintah catur lewat kirim(aksi, arg).
+// - AC4: teks.js (kamus ID/EN, bahasa dari Preferences) dan potret.js
+//   (sprite unit ke kanvas 2D); __ac.cobaPotret adalah spike-nya.
 //
 // Nol berkas client/src/ berubah: semuanya lewat API publik.
 
@@ -33,6 +35,8 @@ import Renderer      from 'Renderer/Renderer.js';
 import MapRenderer   from 'Renderer/MapRenderer.js';
 import Altitude      from 'Renderer/Map/Altitude.js';
 import Camera        from 'Renderer/Camera.js';
+import SpriteRenderer from 'Renderer/SpriteRenderer.js';
+import Preferences   from 'Core/Preferences.js';
 import Entity        from 'Renderer/Entity/Entity.js';
 import EntityManager from 'Renderer/EntityManager.js';
 import Session       from 'Engine/SessionStorage.js';
@@ -57,6 +61,8 @@ import { buatManajerEfek } from './efek.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
 import { buatState } from './state.js';
 import { muatKatalog, buatKatalog } from './katalog.js';
+import { buatTeks } from './teks.js';
+import { buatPotret } from './potret.js';
 import { renderUI, perbaruiTimer, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
 
 const SERVER_HOST = 'localhost';
@@ -99,6 +105,14 @@ const efek = buatManajerEfek({
 	EntityManager, EffectManager, Damage, Renderer, Altitude, SkillEffect,
 	hidupkanBar, mainkanAksi, log
 });
+
+// AC4: bahasa UI tersimpan di localStorage 'AutochessBahasa' (Q5).
+const teks = buatTeks({ pref: Preferences.get('AutochessBahasa', { bahasa: 'id' }, 1.0), log });
+teks.padaUbah((kode) => log(`bahasa UI: ${kode}`));
+
+// AC4: potret sprite unit ke kanvas 2D (Q2). Butuh GRF terindeks; sebelum
+// itu kanvasnya kosong (statis menyerah sesudah 5 s dengan satu log).
+const potret = buatPotret({ Entity, SpriteRenderer, Camera, log });
 
 // Semua pesan yang menyentuh entity -- dan juga fase/hasil, supaya
 // banner tidak mengumumkan apa pun tentang papan yang belum tergambar --
@@ -609,12 +623,53 @@ function cobaEfek(skid, dstEntityId, srcEntityId = 1, castMs = 800) {
 	return true;
 }
 
+// Kanvas spike yang sudah ditempel; menentukan posisi kanvas berikutnya.
+let jumlahPotret = 0;
+
+/**
+ * SPIKE AC4 (Task 2): menempelkan kanvas 160x180 di pojok kiri atas
+ * (berderet ke kanan tiap panggilan) dan menggambar potret unit katalog
+ * di dalamnya. Membuktikan Entity.renderEntity ke kanvas 2D bekerja di
+ * luar CharSelect -- risiko utama AC4. Bukan jalur produksi.
+ *
+ * @param {string} unitId id unit katalog (mis. 'novice', 'poring', 'wizard')
+ * @param {'hidup'|'statis'} [mode='hidup']
+ * @returns {HTMLCanvasElement|null} kanvasnya, atau null bila unit tak dikenal
+ */
+function cobaPotret(unitId, mode = 'hidup') {
+	const sprite = katalog.spriteUnit(unitId);
+	if (!sprite) {
+		log(`! cobaPotret: unit "${unitId}" tidak ada di katalog`);
+		return null;
+	}
+	const kanvas = document.createElement('canvas');
+	kanvas.width = 160;
+	kanvas.height = 180;
+	kanvas.title = `${unitId} (${mode})`;
+	Object.assign(kanvas.style, {
+		position: 'absolute',
+		left: `${8 + jumlahPotret * 168}px`,
+		top: '8px',
+		background: '#1c1c28',
+		border: '1px solid #556',
+		zIndex: '1000'
+	});
+	jumlahPotret++;
+	document.body.appendChild(kanvas);
+	const ok = mode === 'statis' ? potret.statis(sprite, kanvas) : potret.hidup(sprite, kanvas);
+	log(`cobaPotret ${unitId} (${mode}): ${JSON.stringify(sprite)} -> ${ok ? 'terdaftar' : 'DITOLAK'}`);
+	return ok ? kanvas : null;
+}
+
 // Untuk penyetelan kamera manual di konsol browser:
 // __ac.Camera.zoomFinal = 90; __ac.Camera.angleFinal[0] = 240; __ac.ulang();
 // Spike efek: __ac.cobaEfek(__ac.SK.WZ_STORMGUST, 4, 1, 1000);
 // AC3: __ac.state() memberi snapshot state catur untuk e2e, dan
 // __ac.kirim('beli', {slot: 0}) mengirim perintah tanpa panel.
+// AC4: __ac.cobaPotret('novice'), __ac.cobaPotret('wizard', 'statis'),
+// __ac.bahasa('en'), __ac.t('fase.persiapan').
 window.__ac = {
 	Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek,
-	kirim, state: () => st.ambil(), katalog: () => katalog
+	kirim, state: () => st.ambil(), katalog: () => katalog,
+	potret, cobaPotret, bahasa: (kode) => teks.setBahasa(kode), t: teks.t
 };
