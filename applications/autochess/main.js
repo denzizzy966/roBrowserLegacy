@@ -56,11 +56,13 @@ import {
 import { buatManajerEfek } from './efek.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
 import { buatState } from './state.js';
+import { muatKatalog, buatKatalog } from './katalog.js';
 import { renderUI, perbaruiTimer, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
 
 const SERVER_HOST = 'localhost';
 const SERVER_PORT = 5121;
 const SCHEMA_URL  = `http://${SERVER_HOST}:${SERVER_PORT}/proto/ro.proto`;
+const KATALOG_URL = `http://${SERVER_HOST}:${SERVER_PORT}/catur/katalog.json`;
 
 // Pojok papan di guild_vs3, sama dengan bawaan flag -catur-asal roserver.
 // Hanya dipakai untuk MEMERIKSA bahwa spawn dari EvtMapInfo memang pusat
@@ -136,6 +138,8 @@ let schema   = null;
 let goSocket = null;
 // Diganti baru setiap EvtMapInfo (lihat muatArena).
 let st = buatState();
+// Katalog nama/sprite/sinergi dari server; kosong sampai termuat (atau bila gagal).
+let katalog = buatKatalog({});
 // HTML #ui terakhir yang digambar; '' memaksa redraw (lihat gambarUI).
 let htmlTerakhir = '';
 // performance.now() saat tombol pointer ditekan di dalam #ui; null =
@@ -185,6 +189,15 @@ q.add(async function () {
 	} catch (err) {
 		log(`! gagal memuat skema: ${err.message}`);
 		return;
+	}
+
+	// Katalog tidak kritis untuk koneksi: bila gagal, UI jatuh ke id mentah.
+	try {
+		const json = await muatKatalog(fetch, KATALOG_URL);
+		katalog = buatKatalog(json, log);
+		log(`katalog termuat: ${Object.keys(json.units ?? {}).length} unit, ${Object.keys(json.sinergi ?? {}).length} sinergi`);
+	} catch (err) {
+		log(`! katalog gagal dimuat, lanjut tanpa nama: ${err.message}`);
 	}
 
 	// Titik sisip resmi roBrowserLegacy, sama dengan harness.
@@ -603,5 +616,5 @@ function cobaEfek(skid, dstEntityId, srcEntityId = 1, castMs = 800) {
 // __ac.kirim('beli', {slot: 0}) mengirim perintah tanpa panel.
 window.__ac = {
 	Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek,
-	kirim, state: () => st.ambil()
+	kirim, state: () => st.ambil(), katalog: () => katalog
 };
