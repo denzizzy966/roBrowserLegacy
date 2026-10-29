@@ -1,0 +1,20 @@
+:host { top: 80px; left: 8px; width: 170px; }
+.bingkai { width: 170px; border-radius: 4px; background-color: #1c1c28; background-size: 280px 120px; background-blend-mode: multiply; border: 1px solid #556; box-sizing: border-box; padding: 3px 4px 4px; color: #fff; font: 11px Arial, sans-serif; }
+.judul { font-weight: bold; font-size: 12px; color: #dde; height: 16px; line-height: 16px; padding-left: 2px; }
+.baris { display: flex; align-items: center; gap: 4px; height: 44px; padding: 1px 2px; margin-top: 2px; box-sizing: border-box; border: 1px solid #334; border-radius: 3px; background: #15151dcc; }
+.avatar { flex: none; width: 36px; height: 42px; pointer-events: none; }
+.teks { flex: 1; min-width: 0; }
+.atas { display: flex; justify-content: space-between; gap: 4px; }
+.nama { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv { flex: none; color: #cdd; }
+.bawah { display: flex; align-items: center; gap: 4px; margin-top: 4px; height: 12px; }
+.bar-hp { position: relative; flex: 1; height: 6px; border: 1px solid #222; background: #400; }
+.bar-hp div { position: absolute; top: 0; left: 0; height: 6px; background: linear-gradient(#7f7, #2a2); }
+.angka-hp { flex: none; width: 22px; text-align: right; color: #cfc; font-size: 10px; }
+.baris.sendiri { border-color: #4a4; }
+.baris.sendiri .nama { color: #6f6; }
+.baris.tersingkir { background: #111118cc; border-color: #2a2a33; }
+.baris.tersingkir .avatar { filter: grayscale(1) brightness(0.55); }
+.baris.tersingkir .lv { color: #777; }
+.baris.tersingkir .nama { color: #999; text-decoration: line-through; }
+.label-tersingkir { color: #f66; font-weight: bold; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }

@@ -1,0 +1,22 @@
+:host { left: 8px; bottom: 90px; width: 200px; height: 166px; }
+:host(.terlipat) { height: 18px; }
+:host(.terlipat) .bingkai { height: 18px; }
+:host(.terlipat) .isi { display: none; }
+.bingkai { width: 200px; height: 166px; border-radius: 3px; background-color: #1c1c28; background-size: 280px 120px; background-blend-mode: multiply; border: 1px solid #556; box-sizing: border-box; color: #fff; font: 11px Arial, sans-serif; overflow: hidden; }
+.titlebar { position: relative; height: 17px; background-color: #e8e8f0; background-repeat: repeat-x; border-radius: 3px 3px 0 0; color: #000; cursor: default; }
+.judul { position: absolute; left: 6px; top: 2px; font-weight: bold; text-shadow: 1px 1px #fff; white-space: nowrap; }
+.mini { position: absolute; right: 4px; top: 3px; width: 11px; height: 11px; padding: 0; border: none; background-color: transparent; background-repeat: no-repeat; cursor: pointer; }
+.isi { padding: 4px 8px 6px; }
+.nama { font-weight: bold; font-size: 12px; color: #6f6; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nama.tersingkir { color: #999; text-decoration: line-through; }
+.baris { display: flex; justify-content: space-between; height: 15px; line-height: 15px; }
+.label { color: #aab; }
+.nilai { font-weight: bold; }
+.hp { color: #8f8; }
+.zeny { color: #fe9; }
+.streak.menang { color: #8cf; }
+.streak.kalah { color: #f88; }
+.tombol-baris { display: flex; gap: 4px; margin-top: 6px; }
+.tombol { flex: 1; height: 20px; padding: 0; font: 11px Arial, sans-serif; color: #fff; background: #3b4a78; border: 1px solid #7788bb; border-radius: 3px; cursor: pointer; }
+.tombol:hover:not([disabled]) { background: #4a5c92; }
+.tombol[disabled] { color: #889; background: #2a2f44; border-color: #445; cursor: default; }

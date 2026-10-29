@@ -55,6 +55,7 @@ export const KAMUS = {
 	'tombol.bahasa':   { id: 'EN', en: 'ID' },
 	'tombol.toko':     { id: 'Toko', en: 'Shop' },
 	'tombol.keluar':   { id: 'Keluar', en: 'Leave' },
+	'tombol.log':      { id: 'Log', en: 'Log' },
 
 	// Label
 	'label.ronde':      { id: 'Ronde {0}', en: 'Round {0}' },
@@ -82,6 +83,9 @@ export const KAMUS = {
 	'label.terkunci':   { id: 'Terkunci', en: 'Locked' },
 	'label.kosong':     { id: 'Kosong', en: 'Empty' },
 	'label.bahasa':     { id: 'Bahasa', en: 'Language' },
+	'label.fase':       { id: 'Fase', en: 'Phase' },
+	'label.namaLevel':  { id: 'Level', en: 'Level' },
+	'label.namaRonde':  { id: 'Ronde', en: 'Round' },
 
 	// Efek sinergi (teks dibangkitkan, mis. "+150 HP maks (semua)")
 	'efek.hp_max':      { id: '+{0} HP maks', en: '+{0} Max HP' },

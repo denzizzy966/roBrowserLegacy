@@ -69,6 +69,9 @@ import ZenyJ      from './ui/Zeny/Zeny.js';
 import ExpJ       from './ui/Exp/Exp.js';
 import TokoJ      from './ui/Toko/Toko.js';
 import TombolTokoJ from './ui/TombolToko/TombolToko.js';
+import BangkuJ     from './ui/Bangku/Bangku.js';
+import DaftarPemainJ from './ui/DaftarPemain/DaftarPemain.js';
+import InfoPemainJ from './ui/InfoPemain/InfoPemain.js';
 import { renderUI, perbaruiTimer, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
 
 const SERVER_HOST = 'localhost';
@@ -545,10 +548,11 @@ function gambarUI() {
 
 const gambarUIAman = amankan(gambarUI, log);
 
-// AC4: jendela bergaya RO (Timer, Kapasitas, Zeny, Exp, Toko + tombol K).
-// Mereka baru ditempel sesudah map termuat; Task 10 mempensiunkan panel
-// #ui. Toko tersembunyi sampai dibuka lewat TombolToko atau tombol K.
-const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ];
+// AC4: jendela bergaya RO (Timer, Kapasitas, Zeny, Exp, Toko + tombol K,
+// Bangku, DaftarPemain, InfoPemain). Mereka baru ditempel sesudah map
+// termuat; Task 10 mempensiunkan panel #ui. Toko tersembunyi sampai dibuka
+// lewat TombolToko atau tombol K.
+const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ];
 let jendelaTertempel = false;
 
 function pasangJendela() {
@@ -569,7 +573,9 @@ function gambarJendela() {
 		return;
 	}
 	snap.sisaMs = st.sisaMs(performance.now());
-	const deps = { t: teks.t, bahasa: teks.bahasa(), formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim };
+	// teks: InfoPemain mengganti bahasa sendiri (setBahasa); padaUbah di
+	// atas lalu menggambar ulang semua jendela.
+	const deps = { t: teks.t, bahasa: teks.bahasa(), teks, formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim };
 	JENDELA.forEach((j) => j.gambar(snap, deps));
 }
 
@@ -725,9 +731,11 @@ function cobaPotret(unitId, mode = 'hidup') {
 // AC3: __ac.state() memberi snapshot state catur untuk e2e, dan
 // __ac.kirim('beli', {slot: 0}) mengirim perintah tanpa panel.
 // AC4: __ac.cobaPotret('novice'), __ac.cobaPotret('wizard', 'statis'),
-// __ac.bahasa('en'), __ac.t('fase.persiapan'), __ac.Toko.buka().
+// __ac.bahasa('en'), __ac.t('fase.persiapan'), __ac.Toko.buka(),
+// __ac.Bangku / __ac.DaftarPemain / __ac.InfoPemain.
 window.__ac = {
 	Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek,
 	kirim, state: () => st.ambil(), katalog: () => katalog,
-	potret, cobaPotret, bahasa: (kode) => teks.setBahasa(kode), t: teks.t, Toko: TokoJ
+	potret, cobaPotret, bahasa: (kode) => teks.setBahasa(kode), t: teks.t, Toko: TokoJ,
+	Bangku: BangkuJ, DaftarPemain: DaftarPemainJ, InfoPemain: InfoPemainJ
 };
