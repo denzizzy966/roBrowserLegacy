@@ -14,7 +14,7 @@ const CONTOH = {
 		}
 	},
 	sinergi: { prontera: { origin: true, nama: { id: 'Kerajaan Prontera', en: 'Prontera Kingdom' }, ambang: [2, 4, 6] } },
-	lore: { origin: { prontera: { nama: { id: 'Kerajaan Prontera', en: 'Prontera Kingdom' }, lore: { id: 'ibu kota', en: 'capital' }, icon: 'x', color: '#4dabf7' } } },
+	lore: { origin: { prontera: { nama: { id: 'Kerajaan Prontera', en: 'Prontera Kingdom' }, lore: { id: 'ibu kota', en: 'capital' }, icon: 'x', color: '#4dabf7' } }, kelas: { vanguard: { nama: { id: 'Garda', en: 'Vanguard' }, deskripsi: { id: 'garda depan', en: 'front line' } } } },
 	peluang: { 1: [100, 0, 0, 0, 0], 2: [80, 20, 0, 0, 0] },
 	ekonomi: { refresh: 2, beli_exp: { harga: 4, exp: 4 }, bangku: 8 }
 };
@@ -74,5 +74,14 @@ describe('muatKatalog', () => {
 	it('melempar galat berbahasa Indonesia bila bukan 2xx', async () => {
 		const f = async () => ({ ok: false, status: 500, json: async () => ({}) });
 		await expect(muatKatalog(f, 'http://x/k.json')).rejects.toThrow(/katalog.*500/);
+	});
+});
+
+describe('loreKelas', () => {
+	it('mengembalikan entri kelas atau null', () => {
+		const k = buatKatalog(CONTOH);
+		expect(k.loreKelas('vanguard').deskripsi.en).toBe('front line');
+		expect(k.loreKelas('x')).toBeNull();
+		expect(buatKatalog({}).loreKelas('vanguard')).toBeNull();
 	});
 });

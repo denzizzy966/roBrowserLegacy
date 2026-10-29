@@ -1,0 +1,6 @@
+:host { top: 52px; right: 8px; max-width: 260px; }
+.bingkai { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; font: 11px Arial, sans-serif; color: #fff; }
+.sinergi { width: 40px; text-align: center; }
+.ikon { width: 36px; height: 36px; margin: 0 2px; border-radius: 50%; border: 2px solid #556; box-sizing: border-box; font: bold 13px/32px Arial, sans-serif; color: #fff; text-shadow: 1px 1px 2px #000; opacity: .55; cursor: pointer; }
+.ikon.aktif { opacity: 1; border-color: #fe9; box-shadow: 0 0 8px 2px #fe9; }
+.hitung { font-weight: bold; text-shadow: 1px 1px #000; }

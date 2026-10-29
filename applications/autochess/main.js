@@ -79,6 +79,8 @@ import TombolTokoJ from './ui/TombolToko/TombolToko.js';
 import BangkuJ     from './ui/Bangku/Bangku.js';
 import DaftarPemainJ from './ui/DaftarPemain/DaftarPemain.js';
 import InfoPemainJ from './ui/InfoPemain/InfoPemain.js';
+import SinergiJ   from './ui/Sinergi/Sinergi.js';
+import LoreJ      from './ui/Lore/Lore.js';
 import { renderUI, perbaruiTimer, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
 
 const SERVER_HOST = 'localhost';
@@ -571,7 +573,7 @@ const gambarUIAman = amankan(gambarUI, log);
 // Bangku, DaftarPemain, InfoPemain). Mereka baru ditempel sesudah map
 // termuat; Task 10 mempensiunkan panel #ui. Toko tersembunyi sampai dibuka
 // lewat TombolToko atau tombol K.
-const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ];
+const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ, SinergiJ, LoreJ];
 let jendelaTertempel = false;
 
 function pasangJendela() {
@@ -794,5 +796,6 @@ window.__ac = {
 	Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek,
 	kirim, state: () => st.ambil(), katalog: () => katalog,
 	potret, cobaPotret, sorot, cobaSorot, seret, bahasa: (kode) => teks.setBahasa(kode), t: teks.t, Toko: TokoJ,
-	Bangku: BangkuJ, DaftarPemain: DaftarPemainJ, InfoPemain: InfoPemainJ
+	Bangku: BangkuJ, DaftarPemain: DaftarPemainJ, InfoPemain: InfoPemainJ,
+	Sinergi: SinergiJ, Lore: LoreJ, lore: (id) => LoreJ.buka(id)
 };

@@ -32,6 +32,7 @@ export function buatKatalog(json, log = () => {}) {
 	const units = json?.units ?? {};
 	const sinergiMap = json?.sinergi ?? {};
 	const loreOrigin = json?.lore?.origin ?? {};
+	const loreKelasMap = json?.lore?.kelas ?? {};
 	const peluangMap = json?.peluang ?? {};
 	const ekonomi = json?.ekonomi ?? {};
 	const sudahDilaporkan = new Set();
@@ -68,6 +69,7 @@ export function buatKatalog(json, log = () => {}) {
 		sinergi,
 		namaSinergi: (id, bahasa = 'id') => namaDari(sinergi(id), id, bahasa),
 		loreOrigin: (id) => loreOrigin[id] ?? null,
+		loreKelas: (id) => loreKelasMap[id] ?? null,
 		peluang: (level) => peluangMap[level] ?? null,
 		ekonomi
 	};
