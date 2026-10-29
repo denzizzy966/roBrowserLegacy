@@ -70,6 +70,7 @@ import { buatTeks, formatZeny } from './teks.js';
 import { buatPotret } from './potret.js';
 import { buatSorot } from './sorot.js';
 import { buatSeret } from './seret.js';
+import { buatDPS } from './dps.js';
 import TimerJ     from './ui/Timer/Timer.js';
 import KapasitasJ from './ui/Kapasitas/Kapasitas.js';
 import ZenyJ      from './ui/Zeny/Zeny.js';
@@ -81,6 +82,8 @@ import DaftarPemainJ from './ui/DaftarPemain/DaftarPemain.js';
 import InfoPemainJ from './ui/InfoPemain/InfoPemain.js';
 import SinergiJ   from './ui/Sinergi/Sinergi.js';
 import LoreJ      from './ui/Lore/Lore.js';
+import DPSJ       from './ui/DPS/DPS.js';
+import TombolDPSJ from './ui/TombolDPS/TombolDPS.js';
 import { renderUI, perbaruiTimer, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
 
 const SERVER_HOST = 'localhost';
@@ -137,6 +140,9 @@ const potret = buatPotret({ Entity, SpriteRenderer, Camera, log });
 
 // AC4: sorotan petak papan (Q4) lewat FlatColorTile + EffectManager.
 const sorot = buatSorot({ EffectManager, FlatColorTile, Altitude, Renderer, asal: ASAL_PAPAN, skala: SKALA_PETAK, log });
+
+// Total damage per entity untuk jendela DPS (F); direset tiap TEMPUR.
+const dps = buatDPS();
 
 // AC4: seret-lepas bidak (Q3). Jendela dan katalog diambil saat dipakai:
 // host jendela baru ada sesudah append, katalog diganti saat termuat.
@@ -328,6 +334,9 @@ function tanganiPesan({ galat, info, msg }, data) {
 	const fase = decodeCaturFase(msg);
 	if (fase) {
 		st.terimaFase(fase, performance.now());
+		if (fase.fase === FASE.TEMPUR) {
+			dps.reset();
+		}
 		gambarJendelaAman();
 		jalankan(() => {
 			log(`< fase: ${namaFase(fase.fase)} ronde ${fase.ronde} (sisa ${fase.sisaMs} ms)`);
@@ -387,6 +396,7 @@ function tanganiPesan({ galat, info, msg }, data) {
 
 	if (msg.damage) {
 		const d = decodeDamage(msg.damage);
+		dps.damage(d.src, d.amount, d.jenis);
 		jalankan(() => penggerak.tampilkanDamage(d));
 		return;
 	}
@@ -408,6 +418,7 @@ function tanganiPesan({ galat, info, msg }, data) {
 
 	const sk = decodeSkillKena(msg);
 	if (sk) {
+		dps.skill(sk.src, sk.kena);
 		jalankan(() => {
 			const daftar = sk.kena.map((k) => `${k.dst}:${k.amount}${k.jenis === JENIS_DAMAGE_HEAL ? '+' : ''}`).join(' ');
 			log(`< skill ${sk.skid} kena dari ${sk.src} di (${sk.x},${sk.y}): ${daftar || '(tak ada korban)'}`);
@@ -573,7 +584,7 @@ const gambarUIAman = amankan(gambarUI, log);
 // Bangku, DaftarPemain, InfoPemain). Mereka baru ditempel sesudah map
 // termuat; Task 10 mempensiunkan panel #ui. Toko tersembunyi sampai dibuka
 // lewat TombolToko atau tombol K.
-const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ, SinergiJ, LoreJ];
+const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ, SinergiJ, LoreJ, DPSJ, TombolDPSJ];
 let jendelaTertempel = false;
 
 function pasangJendela() {
@@ -598,7 +609,7 @@ function gambarJendela() {
 	snap.sisaMs = st.sisaMs(performance.now());
 	// teks: InfoPemain mengganti bahasa sendiri (setBahasa); padaUbah di
 	// atas lalu menggambar ulang semua jendela.
-	const deps = { t: teks.t, bahasa: teks.bahasa(), teks, formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim, seret };
+	const deps = { t: teks.t, bahasa: teks.bahasa(), teks, formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim, seret, dps };
 	JENDELA.forEach((j) => j.gambar(snap, deps));
 	// Separuh sendiri disorot redup selama PERSIAPAN. Idempoten, jadi
 	// cukup dipanggil tiap gambar: pergantian fase terlihat paling lambat
@@ -638,6 +649,18 @@ window.addEventListener('keydown', (ev) => {
 		return;
 	}
 	TokoJ.toggle();
+});
+
+// Tombol F membuka/menutup jendela DPS (aturan pengetikan sama dengan K).
+window.addEventListener('keydown', (ev) => {
+	if (!jendelaTertempel || ev.repeat || ev.ctrlKey || ev.altKey || ev.metaKey || ev.key?.toLowerCase() !== 'f') {
+		return;
+	}
+	const tag = ev.target?.tagName;
+	if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || ev.target?.isContentEditable) {
+		return;
+	}
+	DPSJ.toggle();
 });
 setInterval(gambarUIAman, 250);
 setInterval(gambarJendelaAman, 250);
@@ -797,5 +820,5 @@ window.__ac = {
 	kirim, state: () => st.ambil(), katalog: () => katalog,
 	potret, cobaPotret, sorot, cobaSorot, seret, bahasa: (kode) => teks.setBahasa(kode), t: teks.t, Toko: TokoJ,
 	Bangku: BangkuJ, DaftarPemain: DaftarPemainJ, InfoPemain: InfoPemainJ,
-	Sinergi: SinergiJ, Lore: LoreJ, lore: (id) => LoreJ.buka(id)
+	Sinergi: SinergiJ, Lore: LoreJ, DPS: DPSJ, dps: () => dps.ambil(), lore: (id) => LoreJ.buka(id)
 };

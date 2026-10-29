@@ -1,0 +1,11 @@
+:host { right: 8px; top: 300px; width: 220px; }
+.bingkai { width: 220px; border-radius: 3px; background-color: #1c1c28; background-size: 280px 120px; background-blend-mode: multiply; border: 1px solid #556; box-sizing: border-box; color: #fff; font: 11px Arial, sans-serif; overflow: hidden; }
+.titlebar { position: relative; height: 17px; background-color: #e8e8f0; background-repeat: repeat-x; border-radius: 3px 3px 0 0; color: #000; cursor: default; }
+.judul { position: absolute; left: 6px; top: 2px; font-weight: bold; text-shadow: 1px 1px #fff; white-space: nowrap; }
+.isi { padding: 4px 6px 6px; }
+.baris { position: relative; height: 16px; line-height: 16px; margin-bottom: 2px; background: #0006; border-radius: 2px; overflow: hidden; }
+.bar { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #a33, #e85); opacity: 0.75; }
+.nama { position: relative; padding-left: 4px; white-space: nowrap; text-shadow: 1px 1px #000; }
+.bintang { color: #fe9; }
+.total { position: absolute; right: 4px; top: 0; font-weight: bold; text-shadow: 1px 1px #000; }
+.kosong { color: #889; text-align: center; }
