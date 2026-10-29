@@ -8,9 +8,11 @@ function prefPalsu(bahasa = 'id') {
 	return { bahasa, save: vi.fn() };
 }
 
-// Semua alasan tetap dari server/internal/catur/galat.go: delapan yang
-// dipakai sekarang ditambah empat milik Taruh/BeliExp. Kunci kamus HARUS
-// sama persis dengan teks server supaya pesan galat bisa dicocokkan.
+// Semua alasan tetap EvtError yang bisa sampai ke pemain: dua belas dari
+// server/internal/catur/galat.go, lalu milik aktor pertandingan dan
+// roserver (lihat komentar per kelompok). Kunci kamus HARUS sama persis
+// dengan teks server supaya pesan galat bisa dicocokkan; alasan baru di
+// server wajib ditambahkan di sini dan di KAMUS.
 const ALASAN_SERVER = [
 	'zeny tidak cukup',
 	'slot kosong',
@@ -23,7 +25,17 @@ const ALASAN_SERVER = [
 	'kapasitas papan penuh',
 	'cell terisi',
 	'cell di luar separuh sendiri',
-	'level maksimum'
+	'level maksimum',
+	// server/internal/pertandingan/aktor.go (pesanBukanPersiapan,
+	// pesanPerintahGagal, pesanGalatInternal, mulai) dan registry.go
+	'bukan fase persiapan',
+	'perintah gagal karena galat internal',
+	'pertandingan berhenti karena galat internal',
+	'pertandingan gagal dimulai',
+	'server sedang berhenti, pertandingan tidak dimulai',
+	// server/cmd/roserver/main.go
+	'server sibuk, coba lagi',
+	'mode catur tidak aktif'
 ];
 
 describe('KAMUS', () => {

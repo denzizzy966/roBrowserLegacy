@@ -38,6 +38,8 @@ const DURASI_KILAT_MS = 800;
 // bidakId -> waktu habis kilat. Disimpan terpisah dari DOM karena isi
 // slot ditulis ulang saat state berubah; kelas dipasang ulang di gambar().
 const kilatSampai = new Map();
+// bidakId -> timeout pemadam kilat; kilat ulang membatalkan yang lama.
+const pemadamKilat = new Map();
 
 /** Memasang/melepas kelas `kilat` pada slot sesuai kilatSampai. */
 function terapkanKilat(isi) {
@@ -73,9 +75,15 @@ Bangku.init = function init() {
  */
 Bangku.kilat = function kilat(bidakId) {
 	kilatSampai.set(bidakId, performance.now() + DURASI_KILAT_MS);
+	clearTimeout(pemadamKilat.get(bidakId));
+	pemadamKilat.delete(bidakId);
 	if (this.isi) {
 		terapkanKilat(this.isi);
-		setTimeout(() => terapkanKilat(this.isi), DURASI_KILAT_MS + 20);
+		pemadamKilat.set(bidakId, setTimeout(() => {
+			pemadamKilat.delete(bidakId);
+			kilatSampai.delete(bidakId);
+			terapkanKilat(this.isi);
+		}, DURASI_KILAT_MS + 20));
 	}
 };
 

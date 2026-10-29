@@ -54,6 +54,18 @@ describe('hitungTataLetak', () => {
 		expect(80 + l.DaftarPemain.maxHeight).toBeLessThanOrEqual(info.y - TEPI);
 	});
 
+	it.each(UKURAN_LAYAR)('%ix%i: InfoPemain TERBUKA tidak menutupi DaftarPemain atau jendela lain', (w, h) => {
+		const l = hitungTataLetak(w, h);
+		const terbuka = { ...l, InfoPemain: { ...l.InfoPemain, kotak: l.InfoPemain.kotakTerbuka } };
+		expect(l.InfoPemain.kotakTerbuka.tinggi).toBe(166);
+		expect(tumpang(terbuka, OVERLAY)).toEqual([]);
+		// maxHeight penuh (bukan hanya tinggi perkiraan) tetap di atasnya.
+		expect(80 + l.DaftarPemain.maxHeight).toBeLessThanOrEqual(l.InfoPemain.kotakTerbuka.y - TEPI);
+		const k = l.InfoPemain.kotakTerbuka;
+		expect(k.y).toBeGreaterThanOrEqual(TEPI);
+		expect(k.y + k.tinggi).toBeLessThanOrEqual(h - TEPI);
+	});
+
 	it('beririsan: bersentuhan tepi tidak dihitung', () => {
 		const a = { x: 0, y: 0, lebar: 10, tinggi: 10 };
 		expect(beririsan(a, { x: 10, y: 0, lebar: 5, tinggi: 5 })).toBe(false);

@@ -68,6 +68,8 @@ export function buatKatalog(json, log = () => {}) {
 		spriteUnit: (id) => units[id]?.sprite ?? (laporkan('unit', id), null),
 		sinergi,
 		namaSinergi: (id, bahasa = 'id') => namaDari(sinergi(id), id, bahasa),
+		/** @returns {string[]} semua id sinergi katalog (origin dan kelas) */
+		semuaSinergi: () => Object.keys(sinergiMap),
 		loreOrigin: (id) => loreOrigin[id] ?? null,
 		loreKelas: (id) => loreKelasMap[id] ?? null,
 		peluang: (level) => peluangMap[level] ?? null,

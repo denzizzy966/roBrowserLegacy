@@ -25,11 +25,20 @@ InfoPemain.mouseMode = GUIComponent.MouseMode.STOP;
 // deps terakhir dari gambar(); klik bisa tiba kapan saja sesudah itu.
 let depsTerakhir = null;
 
-/** Membuka/menutup panel #log halaman (di luar Shadow DOM). */
+/**
+ * Membuka/menutup panel #log halaman (di luar Shadow DOM). Saat dibuka,
+ * digulir ke baris terbaru: selama tersembunyi log() tidak bisa
+ * menggulirnya (scrollHeight elemen display:none = 0).
+ */
 function toggleLog() {
 	const el = document.getElementById('log');
-	if (el) {
-		el.style.display = el.style.display === 'none' ? '' : 'none';
+	if (!el) {
+		return;
+	}
+	const buka = el.style.display === 'none';
+	el.style.display = buka ? '' : 'none';
+	if (buka) {
+		el.scrollTop = el.scrollHeight;
 	}
 }
 

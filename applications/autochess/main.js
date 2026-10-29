@@ -167,10 +167,14 @@ const dps = buatDPS();
 
 // AC4: seret-lepas bidak (Q3). Jendela dan katalog diambil saat dipakai:
 // host jendela baru ada sesudah append, katalog diganti saat termuat.
+// Selama seret Toko disembunyikan (ia menutupi separuh papan sendiri) dan
+// tombol K menjadi sasaran jual.
 const seret = buatSeret({
 	dokumen: document, Mouse, Renderer, Cursor, asal: ASAL_PAPAN, skala: SKALA_PETAK,
 	ambilSnap: () => st.ambil(), kirim, potret, katalog: () => katalog,
-	elemenBangku: () => BangkuJ._host, elemenToko: () => TokoJ._host, sorot, log
+	elemenBangku: () => BangkuJ._host, elemenJual: () => TombolTokoJ._host,
+	toko: TokoJ, tandaiJual: (aktif) => TombolTokoJ.tandaiJual(aktif),
+	beku: () => Boolean(Session.FreezeUI), sorot, log
 });
 
 // Semua pesan yang menyentuh entity -- dan juga fase/hasil, supaya
@@ -248,7 +252,7 @@ function mulaiBGM() {
 	bgmUrl ??= URL.createObjectURL(bgmBerkas);
 	BGM.filename = bgmBerkas.name;
 	BGM.load(bgmUrl); // menghormati PrefAudio.BGM.play
-	log(`bgm: ${bgmBerkas.name}`);
+	log(PrefAudio.BGM.play ? `bgm: ${bgmBerkas.name}` : `bgm: mati (${bgmBerkas.name})`);
 }
 
 /** Kendali tombol BGM di InfoPemain; null bila tidak ada mp3. */
@@ -428,6 +432,8 @@ function tanganiPesan({ galat, info, msg }, data) {
 		st.terimaFase(fase, performance.now());
 		if (fase.fase === FASE.TEMPUR) {
 			dps.reset();
+			// Toko tidak boleh menutupi pertempuran (juga bila sedang diseret).
+			seret.tutupToko();
 		}
 		gambarJendelaAman();
 		jalankan(() => {
@@ -713,9 +719,10 @@ function tataLetak() {
 }
 
 /**
- * Renderer.resize berjalan 500 ms SESUDAH window.resize (Events.setTimeout),
- * jadi tata letak dihitung ulang sesudahnya, dan denyut 250 ms ikut
- * memeriksa ukuran sebagai jaring pengaman.
+ * Satu-satunya mekanisme resize: denyut 250 ms (gambarJendela) memeriksa
+ * ukuran Renderer. Renderer.resize berjalan 500 ms SESUDAH window.resize
+ * (Events.setTimeout), jadi listener resize sendiri tidak berguna; denyut
+ * ini juga menangkap ukuran sesudah __ac.ulang() menempel ulang jendela.
  */
 function tataLetakBilaBerubah() {
 	if (jendelaTertempel && ukuranTataLetak !== `${Renderer.width}x${Renderer.height}`) {
@@ -744,16 +751,12 @@ function pasangJendela() {
 		InfoPemainJ._host.classList.add('terlipat');
 		// Bidak papan diseret dari kanvas 3D (petak di bawah pointer).
 		Renderer.canvas.addEventListener('pointerdown', (ev) => seret.mulaiDariPapan(ev));
+		// Jaring pengaman Mouse.intersect sesudah seret (lihat seret.pantauKanvas).
+		Renderer.canvas.addEventListener('pointermove', (ev) => seret.pantauKanvas(ev));
 	}
 	tataLetak();
 	gambarJendela();
 }
-
-let tundaResize = null;
-window.addEventListener('resize', () => {
-	clearTimeout(tundaResize);
-	tundaResize = setTimeout(amankan(tataLetakBilaBerubah, log), 600);
-});
 
 /** Menggambar ulang semua jendela dari state terbaru; diam bila belum ada state. */
 function gambarJendela() {

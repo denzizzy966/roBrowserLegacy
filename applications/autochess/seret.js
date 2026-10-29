@@ -14,6 +14,10 @@
  * - lepas: putuskanDrop (murni) memilih ke-bangku / jual / taruh atau
  *   batal; batal dicatat paling banyak satu baris per seret, dan pulang
  *   ke tempat asal tidak dicatat sama sekali (Review Focus 2).
+ * - Toko: overlay Toko duduk tepat di atas separuh papan sendiri, jadi
+ *   selama seret ia DISEMBUNYIKAN (diingat terbuka/tidak, dipulihkan di
+ *   bereskan) dan sasaran jual adalah tombol K (TombolToko), yang
+ *   ditandai selama seret -- seperti tombol toko Auto Chess mobile.
  *
  * Bidak papan dipilih lewat petak di bawah pointer (state.saya.bidak
  * berflag diPapan), bukan ray-cast entity.
@@ -56,13 +60,13 @@ function petakSendiri(asal, skala, world) {
  * Keputusan saat pointer dilepas. Murni.
  *
  * Urutan: fase (semua perintah catur hanya sah di PERSIAPAN, server
- * menolak sisanya) -> jendela Bangku -> Toko yang tampil -> papan.
+ * menolak sisanya) -> jendela Bangku -> tombol jual (K) -> papan.
  *
  * @param {object} a
  * @param {object} a.bidak bidak yang diseret ({bidakId, diPapan, kolom, baris})
  * @param {{x:number, y:number}} a.titik pointer (clientX/Y)
  * @param {object|null} a.rectBangku getBoundingClientRect jendela Bangku
- * @param {object|null} a.rectToko getBoundingClientRect Toko (lebar 0 = tersembunyi)
+ * @param {object|null} a.rectJual getBoundingClientRect sasaran jual, tombol K (lebar 0 = tersembunyi)
  * @param {boolean} a.diKanvas elemen teratas di bawah pointer adalah kanvas 3D
  * @param {{x:number, y:number}} a.world Mouse.world (-1 = tidak menyentuh tanah)
  * @param {object} a.snap state.ambil()
@@ -70,14 +74,14 @@ function petakSendiri(asal, skala, world) {
  * @param {number} a.skala
  * @returns {{aksi: string, arg: object} | {alasan: string|null}} alasan null = batal diam
  */
-export function putuskanDrop({ bidak, titik, rectBangku, rectToko, diKanvas, world, snap, asal, skala }) {
+export function putuskanDrop({ bidak, titik, rectBangku, rectJual, diKanvas, world, snap, asal, skala }) {
 	if (snap.fase !== FASE.PERSIAPAN || snap.selesai) {
 		return { alasan: 'hanya bisa saat fase persiapan' };
 	}
 	if (diDalam(rectBangku, titik.x, titik.y)) {
 		return bidak.diPapan ? { aksi: 'ke-bangku', arg: { bidakId: bidak.bidakId } } : { alasan: null };
 	}
-	if (diDalam(rectToko, titik.x, titik.y)) {
+	if (diDalam(rectJual, titik.x, titik.y)) {
 		return { aksi: 'jual', arg: { bidakId: bidak.bidakId } };
 	}
 	if (!diKanvas || !(world.x >= 0 && world.y >= 0)) {
@@ -113,17 +117,23 @@ export function putuskanDrop({ bidak, titik, rectBangku, rectToko, diKanvas, wor
  * @param {{statis: function, hentikan: function}} dep.potret
  * @param {object|function} dep.katalog buatKatalog(...) atau pengambilnya
  * @param {Element|function} dep.elemenBangku host jendela Bangku atau pengambilnya
- * @param {Element|function} dep.elemenToko host jendela Toko atau pengambilnya
+ * @param {Element|function} dep.elemenJual host tombol K (sasaran jual) atau pengambilnya
+ * @param {{terbuka: function, buka: function, tutup: function}|function} [dep.toko]
+ *   jendela Toko (atau pengambilnya): disembunyikan selama seret
+ * @param {(aktif: boolean) => void} [dep.tandaiJual] menandai tombol K sebagai sasaran jual
+ * @param {() => boolean} [dep.beku] true selama UI dibekukan (Session.FreezeUI, mis. WinPopup)
  * @param {{petak: function}} dep.sorot sorot.js
  * @param {(pesan: string) => void} [dep.log]
  * @param {Window} [dep.jendela] sasaran 'blur' (bawaan dokumen.defaultView)
- * @returns {{mulaiDariBangku: function, mulaiDariPapan: function, aktif: function}}
+ * @returns {{mulaiDariBangku: function, mulaiDariPapan: function, aktif: function,
+ *   tutupToko: function, pantauKanvas: function}}
  */
 export function buatSeret({
 	dokumen, Mouse, Renderer, Cursor, asal, skala, ambilSnap, kirim, potret, katalog,
-	elemenBangku, elemenToko, sorot, log = () => {}, jendela = dokumen.defaultView
+	elemenBangku, elemenJual, toko = null, tandaiJual = () => {}, beku = () => false,
+	sorot, log = () => {}, jendela = dokumen.defaultView
 }) {
-	/** Seret yang sedang berjalan: {bidak, hantu} atau null. */
+	/** Seret yang sedang berjalan: {bidak, hantu, tokoTadi} atau null. */
 	let seret = null;
 
 	function diKanvas(x, y) {
@@ -175,7 +185,7 @@ export function buatSeret({
 		dokumen.removeEventListener('pointerup', lepas);
 		dokumen.removeEventListener('pointercancel', batal);
 		jendela?.removeEventListener('blur', batal);
-		const { hantu } = seret;
+		const { hantu, tokoTadi } = seret;
 		seret = null;
 		hantu.remove();
 		potret.hentikan(hantu);
@@ -183,9 +193,16 @@ export function buatSeret({
 		sorot.petak(null);
 		// Kembalikan intersect sesuai yang ada di bawah pointer; jendela
 		// mode STOP memulihkannya sendiri saat pointer keluar darinya.
-		// blur tidak membawa koordinat: intersect dibiarkan.
+		// blur tidak membawa koordinat: intersect dibiarkan. Dihitung
+		// SEBELUM Toko dipulihkan: Toko yang muncul lagi di bawah pointer
+		// merekam intersect saat mouseenter berikutnya, dan rekaman false
+		// tidak akan pernah dikembalikan ke true saat pointer keluar.
 		if (Number.isFinite(ev?.clientX) && Number.isFinite(ev?.clientY)) {
 			Mouse.intersect = diKanvas(ev.clientX, ev.clientY);
+		}
+		tandaiJual(false);
+		if (tokoTadi) {
+			ambil(toko)?.buka();
 		}
 	}
 
@@ -202,7 +219,7 @@ export function buatSeret({
 				bidak,
 				titik: { x, y },
 				rectBangku: rectDari(elemenBangku),
-				rectToko: rectDari(elemenToko),
+				rectJual: rectDari(elemenJual),
 				diKanvas: diKanvas(x, y),
 				world: { x: Mouse.world.x, y: Mouse.world.y },
 				snap: ambilSnap(),
@@ -237,7 +254,15 @@ export function buatSeret({
 			zIndex: '2000',
 			opacity: '0.85'
 		});
-		seret = { bidak, hantu };
+		// Toko menutupi separuh papan sendiri: sembunyikan selama seret,
+		// tombol K yang menjadi sasaran jual.
+		const t = ambil(toko);
+		const tokoTadi = Boolean(t?.terbuka());
+		if (tokoTadi) {
+			t.tutup();
+		}
+		tandaiJual(true);
+		seret = { bidak, hantu, tokoTadi };
 		letakkanHantu(ev.clientX, ev.clientY);
 		dokumen.body.appendChild(hantu);
 		const sprite = ambil(katalog)?.spriteUnit?.(bidak.unitId);
@@ -296,6 +321,33 @@ export function buatSeret({
 		},
 
 		/** @returns {boolean} true selama ada seret berjalan */
-		aktif: () => seret !== null
+		aktif: () => seret !== null,
+
+		/**
+		 * Menutup Toko dari luar (fase TEMPUR tiba): seret yang sedang
+		 * berjalan tidak lagi memulihkannya saat dilepas.
+		 */
+		tutupToko() {
+			if (seret) {
+				seret.tokoTadi = false;
+			}
+			ambil(toko)?.tutup();
+		},
+
+		/**
+		 * pointermove pada kanvas 3D di luar seret: Mouse.intersect = true.
+		 * Jaring pengaman bila jendela mode STOP merekam intersect false
+		 * di tengah seret (urutan mouseenter vs pointermove) lalu tidak
+		 * pernah mengembalikannya: tanpa ini Mouse.world membeku dan bidak
+		 * papan berikutnya diambil dari petak basi. Tidak berlaku selama
+		 * UI dibekukan (WinPopup mode FREEZE).
+		 *
+		 * @param {PointerEvent} ev
+		 */
+		pantauKanvas(ev) {
+			if (!seret && ev.target === Renderer.canvas && !beku()) {
+				Mouse.intersect = true;
+			}
+		}
 	};
 }

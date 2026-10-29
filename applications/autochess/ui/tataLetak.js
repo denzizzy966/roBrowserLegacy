@@ -31,7 +31,7 @@ export const UKURAN = {
 	DaftarPemain: { lebar: 170, tinggi: 396 },
 	TombolDPS:    { lebar: 48,  tinggi: 48 },
 	DPS:          { lebar: 220, tinggi: 180 },
-	InfoPemain:   { lebar: 200, tinggi: 18 },  // terlipat; terbuka 166, tumbuh ke atas
+	InfoPemain:   { lebar: 200, tinggi: 18, tinggiTerbuka: 166 },  // terlipat; terbuka tumbuh ke atas
 	Exp:          { lebar: 200, tinggi: 70 },
 	Bangku:       { lebar: 640, tinggi: 110 },
 	TombolToko:   { lebar: 48,  tinggi: 48 },
@@ -52,8 +52,9 @@ const ATAS_DAFTAR = 80;
  * besar, {top, right} untuk Sinergi (lebarnya mengikuti isi, rata kanan),
  * {bottom, left|right} untuk InfoPemain dan Toko (tumbuh ke atas saat
  * dibuka/berisi lebih) -- ditambah `kotak: {x, y, lebar, tinggi}` perkiraan
- * untuk uji tumpang tindih. DaftarPemain membawa `maxHeight`: kolomnya
- * berhenti di atas InfoPemain dan bergulir di layar pendek.
+ * untuk uji tumpang tindih (InfoPemain juga `kotakTerbuka`). DaftarPemain
+ * membawa `maxHeight`: kolomnya berhenti di atas InfoPemain yang TERBUKA
+ * dan bergulir di layar pendek.
  *
  * @param {number} lebar Renderer.width
  * @param {number} tinggi Renderer.height
@@ -66,7 +67,10 @@ export function hitungTataLetak(lebar, tinggi) {
 	const atasExp = tinggi - TEPI - U.Exp.tinggi;
 	const bawahInfo = TEPI + U.Exp.tinggi + SELA;           // jarak dari bawah layar
 	const atasInfo = tinggi - bawahInfo - U.InfoPemain.tinggi;
-	const maxDaftar = Math.max(120, atasInfo - TEPI - ATAS_DAFTAR);
+	// InfoPemain terbuka tumbuh ke atas: DaftarPemain berhenti di atas
+	// tinggi TERBUKA-nya, supaya membuka InfoPemain tidak menutupi daftar.
+	const atasInfoTerbuka = tinggi - bawahInfo - U.InfoPemain.tinggiTerbuka;
+	const maxDaftar = Math.max(120, atasInfoTerbuka - TEPI - ATAS_DAFTAR);
 	const atasBangku = tinggi - TEPI - U.Bangku.tinggi;
 	const kiriBangku = Math.round((lebar - U.Bangku.lebar) / 2);
 	const bawahToko = TEPI + U.Bangku.tinggi + SELA;
@@ -89,7 +93,10 @@ export function hitungTataLetak(lebar, tinggi) {
 		},
 		TombolDPS:    { top: atasTombolDPS, left: kiriTombolKanan, kotak: kotak(kiriTombolKanan, atasTombolDPS, 'TombolDPS') },
 		DPS:          { top: atasTombolDPS, left: kiriDPS, kotak: kotak(kiriDPS, atasTombolDPS, 'DPS') },
-		InfoPemain:   { bottom: bawahInfo, left: TEPI, kotak: kotak(TEPI, atasInfo, 'InfoPemain') },
+		InfoPemain:   {
+			bottom: bawahInfo, left: TEPI, kotak: kotak(TEPI, atasInfo, 'InfoPemain'),
+			kotakTerbuka: kotak(TEPI, atasInfoTerbuka, 'InfoPemain', U.InfoPemain.tinggiTerbuka)
+		},
 		Exp:          { top: atasExp, left: TEPI, kotak: kotak(TEPI, atasExp, 'Exp') },
 		Bangku:       { top: atasBangku, left: kiriBangku, kotak: kotak(kiriBangku, atasBangku, 'Bangku') },
 		TombolToko:   {

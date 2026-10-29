@@ -93,6 +93,14 @@ describe('adaPiksel', () => {
 });
 
 describe('buatPotret', () => {
+	it('konteks 2D dibuat dengan willReadFrequently (adaPiksel membaca piksel tiap frame)', () => {
+		const { potret } = siapkan();
+		const k = kanvasPalsu();
+		k.getContext = vi.fn(() => k.ctx);
+		potret.statis(PORING, k);
+		expect(k.getContext).toHaveBeenCalledWith('2d', { willReadFrequently: true });
+	});
+
 	it('membuat entity PC dengan resep spawnkan dan mob tanpa head/sex', () => {
 		const { potret } = siapkan();
 		expect(potret.hidup(NOVICE, kanvasPalsu())).toBe(true);

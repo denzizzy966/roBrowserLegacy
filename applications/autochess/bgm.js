@@ -17,7 +17,12 @@ function jalur(file) {
  */
 export function pilihBGM(files) {
 	const daftar = Array.from(files ?? []);
-	const utama = daftar.find((f) => jalur(f).endsWith('bgm/08.mp3'));
+	// Batas jalur: tepat "bgm/08.mp3" atau berakhiran "/bgm/08.mp3"
+	// (bukan "xbgm/08.mp3").
+	const utama = daftar.find((f) => {
+		const j = jalur(f);
+		return j === 'bgm/08.mp3' || j.endsWith('/bgm/08.mp3');
+	});
 	if (utama) {
 		return utama;
 	}

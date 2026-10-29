@@ -1,4 +1,5 @@
-:host { left: 8px; bottom: 90px; width: 200px; height: 166px; }
+/* Posisi :host (top/left/bottom/right/transform) diatur ui/tataLetak.js lewat gaya inline. */
+:host { width: 200px; height: 166px; }
 :host(.terlipat) { height: 18px; }
 :host(.terlipat) .bingkai { height: 18px; }
 :host(.terlipat) .isi { display: none; }

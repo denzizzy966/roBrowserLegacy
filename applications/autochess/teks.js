@@ -91,8 +91,8 @@ export const KAMUS = {
 
 	// Petunjuk (tooltip)
 	'petunjuk.seret': {
-		id: 'Seret ke papan untuk menaruh, ke Toko untuk menjual',
-		en: 'Drag onto the board to place, onto the Shop to sell'
+		id: 'Seret ke papan untuk menaruh, ke tombol Toko (K) untuk menjual',
+		en: 'Drag onto the board to place, onto the Shop button (K) to sell'
 	},
 
 	// Efek sinergi (teks dibangkitkan, mis. "+150 HP maks (semua)")
@@ -119,7 +119,25 @@ export const KAMUS = {
 	'kapasitas papan penuh':        { id: 'Kapasitas papan penuh', en: 'Board capacity is full' },
 	'cell terisi':                  { id: 'Petak sudah terisi', en: 'Tile is occupied' },
 	'cell di luar separuh sendiri': { id: 'Petak di luar separuh papanmu', en: 'Tile is outside your half' },
-	'level maksimum':               { id: 'Level sudah maksimum', en: 'Already at max level' }
+	'level maksimum':               { id: 'Level sudah maksimum', en: 'Already at max level' },
+
+	// Alasan penolakan aktor pertandingan (server/internal/pertandingan/
+	// aktor.go) dan roserver (server/cmd/roserver/main.go, registry.go).
+	'bukan fase persiapan': {
+		id: 'Hanya bisa saat fase persiapan', en: 'Only allowed during the preparation phase'
+	},
+	'perintah gagal karena galat internal': {
+		id: 'Perintah gagal karena galat internal server', en: 'Command failed due to an internal server error'
+	},
+	'pertandingan berhenti karena galat internal': {
+		id: 'Pertandingan berhenti karena galat internal server', en: 'The match stopped due to an internal server error'
+	},
+	'pertandingan gagal dimulai':   { id: 'Pertandingan gagal dimulai', en: 'The match failed to start' },
+	'server sibuk, coba lagi':      { id: 'Server sibuk, coba lagi', en: 'Server is busy, please try again' },
+	'mode catur tidak aktif':       { id: 'Mode catur tidak aktif di server', en: 'Chess mode is not enabled on the server' },
+	'server sedang berhenti, pertandingan tidak dimulai': {
+		id: 'Server sedang berhenti, pertandingan tidak dimulai', en: 'The server is shutting down; the match was not started'
+	}
 };
 
 /**

@@ -13,7 +13,15 @@ describe('pilihBGM', () => {
 
 	it('tanpa 08.mp3: mp3 pertama menurut nama', () => {
 		const berkas = [f('b.mp3'), f('A.mp3'), f('data.ini')];
-		expect(pilihBGM(berkas)).toBe(berkas[1].name < berkas[0].name ? berkas[1] : berkas[0]);
+		// 'A' < 'b' (kode huruf besar lebih kecil).
+		expect(pilihBGM(berkas)).toBe(berkas[1]);
+	});
+
+	it('batas jalur: xbgm/08.mp3 bukan BGM/08.mp3; BGM/08.mp3 tanpa folder induk sah', () => {
+		const palsu = [f('08.mp3', 'grf6/xbgm/08.mp3'), f('01.mp3', 'grf6/xbgm/01.mp3')];
+		expect(pilihBGM(palsu)).toBe(palsu[1]);
+		const tepat = [f('01.mp3', 'BGM/01.mp3'), f('08.mp3', 'BGM/08.mp3')];
+		expect(pilihBGM(tepat)).toBe(tepat[1]);
 	});
 
 	it('08.mp3 di luar folder BGM tidak diutamakan', () => {

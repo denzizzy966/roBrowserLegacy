@@ -214,7 +214,10 @@ export function buatPotret({
 		daftar.delete(kanvas);
 		daftar.set(kanvas, {
 			entity: buatEntity(sprite),
-			ctx: kanvas.getContext('2d'),
+			// willReadFrequently: adaPiksel membaca piksel (getImageData)
+			// tiap frame potret statis; tanpa ini Chrome memperingatkan
+			// readback dari kanvas berakselerasi GPU.
+			ctx: kanvas.getContext('2d', { willReadFrequently: true }),
 			nama: namaSprite(sprite),
 			kaki,
 			skala,
