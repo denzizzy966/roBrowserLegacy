@@ -61,10 +61,11 @@ function pev(x, y, ekstra = {}) {
 	return { clientX: x, clientY: y, pageX: x, pageY: y, button: 0, preventDefault: vi.fn(), ...ekstra };
 }
 
-let dok, Mouse, Renderer, Cursor, kirim, potret, sorot, log, snap, rectToko, seret;
+let dok, jen, Mouse, Renderer, Cursor, kirim, potret, sorot, log, snap, rectToko, ambilSnap, seret;
 
 beforeEach(() => {
 	dok = buatDokumen();
+	jen = buatDokumen(); // cukup sebagai window palsu: listener + picu
 	Mouse = { screen: { x: 0, y: 0 }, world: { x: -1, y: -1, z: 0 }, intersect: false };
 	Renderer = { canvas: { nama: 'kanvas-3d' } };
 	Cursor = { ACTION: { DEFAULT: 0, PICK: 9 }, setType: vi.fn() };
@@ -74,13 +75,14 @@ beforeEach(() => {
 	log = vi.fn();
 	snap = snapDengan();
 	rectToko = RECT_TERSEMBUNYI;
+	ambilSnap = () => snap;
 	seret = buatSeret({
 		dokumen: dok, Mouse, Renderer, Cursor, asal: ASAL, skala: SKALA,
-		ambilSnap: () => snap, kirim, potret,
+		ambilSnap: () => ambilSnap(), kirim, potret,
 		katalog: { spriteUnit: () => ({ tipe: 'mob', id: 1002 }) },
 		elemenBangku: { getBoundingClientRect: () => RECT_BANGKU },
 		elemenToko: () => ({ getBoundingClientRect: () => rectToko }),
-		sorot, log
+		sorot, log, jendela: jen
 	});
 });
 
@@ -103,6 +105,7 @@ function harusBersih() {
 	expect(Cursor.setType).toHaveBeenLastCalledWith(Cursor.ACTION.DEFAULT);
 	expect(sorot.petak).toHaveBeenLastCalledWith(null);
 	expect(dok.jumlahPendengar()).toBe(0);
+	expect(jen.jumlahPendengar()).toBe(0);
 	expect(seret.aktif()).toBe(false);
 }
 
@@ -244,6 +247,36 @@ describe('seret dari bangku', () => {
 		expect(kirim).not.toHaveBeenCalled();
 		expect(log).not.toHaveBeenCalled();
 		harusBersih();
+	});
+
+	it('lemparan saat memutuskan drop tetap membereskan hantu dan listener; seret berikutnya jalan', () => {
+		seret.mulaiDariBangku(1, pev(600, 840));
+		ambilSnap = () => {
+			throw new Error('state rusak');
+		};
+		diAtasPapan(44.5, 41.5);
+		dok.picu('pointermove', pev(500, 650));
+		expect(() => dok.picu('pointerup', pev(500, 650))).toThrow('state rusak');
+		expect(kirim).not.toHaveBeenCalled();
+		harusBersih();
+
+		ambilSnap = () => snap;
+		expect(seret.mulaiDariBangku(1, pev(600, 840))).toBe(true);
+		lepasDi(500, 650);
+		expect(kirim).toHaveBeenCalledWith('taruh', { bidakId: 1, kolom: 1, baris: 0 });
+	});
+
+	it('blur jendela membatalkan seret yang berjalan tanpa kirim dan tanpa log', () => {
+		seret.mulaiDariBangku(1, pev(600, 840));
+		diAtasPapan(44.5, 41.5);
+		dok.picu('pointermove', pev(500, 650));
+		Mouse.intersect = true;
+		jen.picu('blur', { type: 'blur' });
+		expect(kirim).not.toHaveBeenCalled();
+		expect(log).not.toHaveBeenCalled();
+		expect(Mouse.intersect).toBe(true); // blur tanpa koordinat: dibiarkan
+		harusBersih();
+		expect(seret.mulaiDariBangku(1, pev(600, 840))).toBe(true);
 	});
 
 	it('pointercancel membatalkan dan membersihkan', () => {

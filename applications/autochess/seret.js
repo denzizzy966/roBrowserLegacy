@@ -116,11 +116,12 @@ export function putuskanDrop({ bidak, titik, rectBangku, rectToko, diKanvas, wor
  * @param {Element|function} dep.elemenToko host jendela Toko atau pengambilnya
  * @param {{petak: function}} dep.sorot sorot.js
  * @param {(pesan: string) => void} [dep.log]
+ * @param {Window} [dep.jendela] sasaran 'blur' (bawaan dokumen.defaultView)
  * @returns {{mulaiDariBangku: function, mulaiDariPapan: function, aktif: function}}
  */
 export function buatSeret({
 	dokumen, Mouse, Renderer, Cursor, asal, skala, ambilSnap, kirim, potret, katalog,
-	elemenBangku, elemenToko, sorot, log = () => {}
+	elemenBangku, elemenToko, sorot, log = () => {}, jendela = dokumen.defaultView
 }) {
 	/** Seret yang sedang berjalan: {bidak, hantu} atau null. */
 	let seret = null;
@@ -164,39 +165,53 @@ export function buatSeret({
 		}
 	}
 
-	/** Mencabut hantu, kursor, sorotan, dan listener. */
+	/**
+	 * Mencabut listener, hantu, kursor, dan sorotan. Listener dan status
+	 * seret dilepas PALING DULU, supaya lemparan dari langkah berikutnya
+	 * tidak meninggalkan seret yang menggantung.
+	 */
 	function bereskan(ev) {
 		dokumen.removeEventListener('pointermove', gerak);
 		dokumen.removeEventListener('pointerup', lepas);
 		dokumen.removeEventListener('pointercancel', batal);
-		potret.hentikan(seret.hantu);
-		seret.hantu.remove();
+		jendela?.removeEventListener('blur', batal);
+		const { hantu } = seret;
+		seret = null;
+		hantu.remove();
+		potret.hentikan(hantu);
 		Cursor.setType(Cursor.ACTION.DEFAULT);
 		sorot.petak(null);
 		// Kembalikan intersect sesuai yang ada di bawah pointer; jendela
 		// mode STOP memulihkannya sendiri saat pointer keluar darinya.
-		if (ev) {
+		// blur tidak membawa koordinat: intersect dibiarkan.
+		if (Number.isFinite(ev?.clientX) && Number.isFinite(ev?.clientY)) {
 			Mouse.intersect = diKanvas(ev.clientX, ev.clientY);
 		}
-		seret = null;
 	}
 
 	function lepas(ev) {
 		const { bidak } = seret;
 		const x = ev.clientX;
 		const y = ev.clientY;
-		const keputusan = putuskanDrop({
-			bidak,
-			titik: { x, y },
-			rectBangku: rectDari(elemenBangku),
-			rectToko: rectDari(elemenToko),
-			diKanvas: diKanvas(x, y),
-			world: { x: Mouse.world.x, y: Mouse.world.y },
-			snap: ambilSnap(),
-			asal,
-			skala
-		});
-		bereskan(ev);
+		let keputusan;
+		// finally: lemparan dari keputusan (state, jendela, katalog) tidak
+		// boleh meninggalkan hantu atau listener dokumen; galatnya tetap
+		// diteruskan ke pemanggil sesudah dibereskan.
+		try {
+			keputusan = putuskanDrop({
+				bidak,
+				titik: { x, y },
+				rectBangku: rectDari(elemenBangku),
+				rectToko: rectDari(elemenToko),
+				diKanvas: diKanvas(x, y),
+				world: { x: Mouse.world.x, y: Mouse.world.y },
+				snap: ambilSnap(),
+				asal,
+				skala
+			});
+		} finally {
+			bereskan(ev);
+		}
 		if (keputusan.aksi) {
 			kirim(keputusan.aksi, keputusan.arg);
 		} else if (keputusan.alasan) {
@@ -204,8 +219,11 @@ export function buatSeret({
 		}
 	}
 
+	/** pointercancel atau blur jendela: batal diam. */
 	function batal(ev) {
-		bereskan(ev);
+		if (seret) {
+			bereskan(ev);
+		}
 	}
 
 	function mulai(bidak, ev) {
@@ -230,6 +248,8 @@ export function buatSeret({
 		dokumen.addEventListener('pointermove', gerak);
 		dokumen.addEventListener('pointerup', lepas);
 		dokumen.addEventListener('pointercancel', batal);
+		// Pindah tab/jendela di tengah seret: pointerup tidak akan tiba.
+		jendela?.addEventListener('blur', batal);
 		return true;
 	}
 
