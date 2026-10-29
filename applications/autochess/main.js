@@ -24,6 +24,8 @@
 //   tombolnya mengirim perintah catur lewat kirim(aksi, arg).
 // - AC4: teks.js (kamus ID/EN, bahasa dari Preferences) dan potret.js
 //   (sprite unit ke kanvas 2D); __ac.cobaPotret adalah spike-nya.
+//   sorot.js (sorotan petak, spike __ac.cobaSorot) dan seret.js
+//   (seret-lepas bangku <-> papan <-> toko lewat pointer events).
 //
 // Nol berkas client/src/ berubah: semuanya lewat API publik.
 
@@ -46,6 +48,9 @@ import EffectManager from 'Renderer/EffectManager.js';
 import Damage        from 'Renderer/Effects/Damage.js';
 import SK            from 'DB/Skills/SkillConst.js';
 import SkillEffect   from 'DB/Skills/SkillEffect.js';
+import FlatColorTile from 'Renderer/Effects/FlatColorTile.js';
+import Mouse         from 'Controls/MouseEventHandler.js';
+import Cursor        from 'UI/CursorManager.js';
 
 import GoSocket          from '../m1-harness/GoSocket.js';
 import { loadSchema }    from '../m1-harness/proto.js';
@@ -55,7 +60,7 @@ import { rswFileName, decodeMapInfo, decodeServerError, decodeMove, decodeDespaw
 import {
 	encodeCaturMasuk, encodeCaturSiap, decodeSpawnLengkap, decodeCaturFase, decodeCaturHasil,
 	decodeCaturState, decodeCaturSelesai,
-	decodeSkillMulai, decodeSkillKena, decodeStatus, decodeSP, JENIS_DAMAGE_HEAL, buatPenerima, amankan
+	decodeSkillMulai, decodeSkillKena, decodeStatus, decodeSP, JENIS_DAMAGE_HEAL, buatPenerima, amankan, FASE
 } from './pesan.js';
 import { buatManajerEfek } from './efek.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
@@ -63,6 +68,8 @@ import { buatState } from './state.js';
 import { muatKatalog, buatKatalog } from './katalog.js';
 import { buatTeks, formatZeny } from './teks.js';
 import { buatPotret } from './potret.js';
+import { buatSorot } from './sorot.js';
+import { buatSeret } from './seret.js';
 import TimerJ     from './ui/Timer/Timer.js';
 import KapasitasJ from './ui/Kapasitas/Kapasitas.js';
 import ZenyJ      from './ui/Zeny/Zeny.js';
@@ -125,6 +132,17 @@ teks.padaUbah((kode) => {
 // AC4: potret sprite unit ke kanvas 2D (Q2). Butuh GRF terindeks; sebelum
 // itu kanvasnya kosong (statis menyerah sesudah 5 s dengan satu log).
 const potret = buatPotret({ Entity, SpriteRenderer, Camera, log });
+
+// AC4: sorotan petak papan (Q4) lewat FlatColorTile + EffectManager.
+const sorot = buatSorot({ EffectManager, FlatColorTile, Altitude, Renderer, asal: ASAL_PAPAN, skala: SKALA_PETAK, log });
+
+// AC4: seret-lepas bidak (Q3). Jendela dan katalog diambil saat dipakai:
+// host jendela baru ada sesudah append, katalog diganti saat termuat.
+const seret = buatSeret({
+	dokumen: document, Mouse, Renderer, Cursor, asal: ASAL_PAPAN, skala: SKALA_PETAK,
+	ambilSnap: () => st.ambil(), kirim, potret, katalog: () => katalog,
+	elemenBangku: () => BangkuJ._host, elemenToko: () => TokoJ._host, sorot, log
+});
 
 // Semua pesan yang menyentuh entity -- dan juga fase/hasil, supaya
 // banner tidak mengumumkan apa pun tentang papan yang belum tergambar --
@@ -207,6 +225,7 @@ q.add(function () {
 q.add(async function () {
 	Intro.remove();
 	log(`GRF terindeks dalam ${detikSejakBerkas()} s.`);
+	siapkanKursor();
 
 	try {
 		log(`memuat skema dari ${SCHEMA_URL} ...`);
@@ -559,6 +578,8 @@ function pasangJendela() {
 	if (!jendelaTertempel) {
 		jendelaTertempel = true;
 		JENDELA.forEach((j) => j.append());
+		// Bidak papan diseret dari kanvas 3D (petak di bawah pointer).
+		Renderer.canvas.addEventListener('pointerdown', (ev) => seret.mulaiDariPapan(ev));
 	}
 	gambarJendela();
 }
@@ -575,8 +596,12 @@ function gambarJendela() {
 	snap.sisaMs = st.sisaMs(performance.now());
 	// teks: InfoPemain mengganti bahasa sendiri (setBahasa); padaUbah di
 	// atas lalu menggambar ulang semua jendela.
-	const deps = { t: teks.t, bahasa: teks.bahasa(), teks, formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim };
+	const deps = { t: teks.t, bahasa: teks.bahasa(), teks, formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim, seret };
 	JENDELA.forEach((j) => j.gambar(snap, deps));
+	// Separuh sendiri disorot redup selama PERSIAPAN. Idempoten, jadi
+	// cukup dipanggil tiap gambar: pergantian fase terlihat paling lambat
+	// 250 ms, dan tile yang dibuang EffectManager.free dibuat ulang.
+	sorot.separuhSendiri(snap.fase === FASE.PERSIAPAN && !snap.selesai);
 }
 
 const gambarJendelaAman = amankan(gambarJendela, log);
@@ -725,6 +750,37 @@ function cobaPotret(unitId, mode = 'hidup') {
 	return ok ? kanvas : null;
 }
 
+/**
+ * Memuat kursor RO (data/sprite/cursors.spr) supaya Cursor.setType dari
+ * seret.js (PICK saat menyeret) dan kursor tangan GUIComponent pada
+ * `.draggable` terlihat. Cursor.init diam selamanya bila berkasnya tidak
+ * ada (lihat siapkanKursor di harness); kursor browser tetap dipakai.
+ */
+function siapkanKursor() {
+	let selesai = false;
+	Cursor.init(() => {
+		selesai = true;
+		log('kursor RO termuat.');
+	});
+	setTimeout(() => {
+		if (!selesai) {
+			log('! kursor RO tidak termuat (cursors.spr/.act tidak ada di GRF?) -- kursor browser dipakai.');
+		}
+	}, 5000);
+}
+
+/**
+ * SPIKE AC4 (Task 6): menyorot terang satu petak (orientasi TIM_A) lewat
+ * sorot.js; cobaSorot(null) memadamkannya. Bukan jalur produksi.
+ *
+ * @param {number|null} kolom 0..7
+ * @param {number} [baris] 0..7
+ */
+function cobaSorot(kolom, baris) {
+	sorot.petak(kolom, baris);
+	log(`cobaSorot (${kolom},${baris})`);
+}
+
 // Untuk penyetelan kamera manual di konsol browser:
 // __ac.Camera.zoomFinal = 90; __ac.Camera.angleFinal[0] = 240; __ac.ulang();
 // Spike efek: __ac.cobaEfek(__ac.SK.WZ_STORMGUST, 4, 1, 1000);
@@ -732,10 +788,11 @@ function cobaPotret(unitId, mode = 'hidup') {
 // __ac.kirim('beli', {slot: 0}) mengirim perintah tanpa panel.
 // AC4: __ac.cobaPotret('novice'), __ac.cobaPotret('wizard', 'statis'),
 // __ac.bahasa('en'), __ac.t('fase.persiapan'), __ac.Toko.buka(),
+// __ac.cobaSorot(3, 2) / __ac.cobaSorot(null), __ac.seret.aktif(),
 // __ac.Bangku / __ac.DaftarPemain / __ac.InfoPemain.
 window.__ac = {
 	Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek,
 	kirim, state: () => st.ambil(), katalog: () => katalog,
-	potret, cobaPotret, bahasa: (kode) => teks.setBahasa(kode), t: teks.t, Toko: TokoJ,
+	potret, cobaPotret, sorot, cobaSorot, seret, bahasa: (kode) => teks.setBahasa(kode), t: teks.t, Toko: TokoJ,
 	Bangku: BangkuJ, DaftarPemain: DaftarPemainJ, InfoPemain: InfoPemainJ
 };

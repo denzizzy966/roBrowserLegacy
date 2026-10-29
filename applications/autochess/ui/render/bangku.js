@@ -1,12 +1,10 @@
 /**
  * Renderer murni jendela Bangku (I): strip bawah delapan slot. Slot terisi
  * memuat kanvas potret (diisi Bangku.js lewat potret.hidup), bintang ★n,
- * nama unit, dan tombol jual kecil "✕" di pojok. Slot terisi berkelas
- * `draggable` (kursor tangan RO) dan beratribut data-bidak; seret ke papan
- * datang di Task 6, jadi tombol ✕ menjaga jual tetap bisa sebelum itu.
+ * dan nama unit. Slot terisi berkelas `draggable` (kursor tangan RO) dan
+ * beratribut data-bidak untuk seret.js: seret ke papan = taruh, ke Toko =
+ * jual (tidak ada tombol jual lagi). Tooltip-nya nama unit + petunjuk seret.
  */
-
-import { FASE } from '../../pesan.js';
 
 /** Jumlah slot bangku yang selalu digambar (ekonomi.bangku server = 8). */
 export const JUMLAH_SLOT_BANGKU = 8;
@@ -42,9 +40,8 @@ export function bidakBangku(snap) {
  */
 export function renderBangku(snap, deps) {
 	const { t, bahasa, katalog } = deps;
-	const bisaJual = !!snap.state && snap.fase === FASE.PERSIAPAN && !snap.selesai;
 	const bidak = bidakBangku(snap);
-	const judulJual = esc(t('tombol.jual'));
+	const petunjuk = esc(t('petunjuk.seret'));
 	const slot = [];
 	for (let i = 0; i < JUMLAH_SLOT_BANGKU; i++) {
 		const b = bidak[i];
@@ -53,10 +50,9 @@ export function renderBangku(snap, deps) {
 			continue;
 		}
 		const nama = esc(katalog.namaUnit(b.unitId, bahasa));
-		slot.push(`<div class="slot terisi draggable" data-slot="${i}" data-bidak="${b.bidakId}" title="${nama}">`
+		slot.push(`<div class="slot terisi draggable" data-slot="${i}" data-bidak="${b.bidakId}" title="${nama}&#10;${petunjuk}">`
 			+ `<canvas class="potret" data-unit="${esc(b.unitId)}" width="${LEBAR_POTRET_BANGKU}" height="${TINGGI_POTRET_BANGKU}"></canvas>`
 			+ `<span class="bintang bintang-${b.bintang}">★${b.bintang}</span>`
-			+ `<button class="jual" data-aksi="jual" data-arg="${b.bidakId}" title="${judulJual}"${bisaJual ? '' : ' disabled'}>✕</button>`
 			+ `<div class="nama">${nama}</div>`
 			+ '</div>');
 	}

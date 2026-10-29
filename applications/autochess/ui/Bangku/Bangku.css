@@ -3,14 +3,10 @@
 .isi { display: flex; gap: 4px; height: 100px; }
 .slot { position: relative; flex: 1; height: 100px; box-sizing: border-box; border: 1px solid #445; border-radius: 3px; background: linear-gradient(#232333, #15151d); overflow: hidden; }
 .slot:not(.terisi) { border-style: dashed; }
-.slot.terisi { border-color: #778; background: linear-gradient(#2c2c40, #191924); }
+.slot.terisi { border-color: #778; background: linear-gradient(#2c2c40, #191924); touch-action: none; user-select: none; }
 .slot.terisi:hover { border-color: #fe9; box-shadow: 0 0 6px #fe9a; }
 .potret { display: block; width: 72px; height: 84px; margin: 0 auto; pointer-events: none; }
 .bintang { position: absolute; top: 2px; left: 3px; font-weight: bold; color: #fd4; text-shadow: 1px 1px 0 #000; pointer-events: none; }
 .bintang-2 { color: #9cf; }
 .bintang-3 { color: #f9c; }
 .nama { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; text-shadow: 1px 1px 0 #000; pointer-events: none; }
-.jual { position: absolute; top: 2px; right: 2px; width: 14px; height: 14px; padding: 0; font: bold 9px/12px Arial, sans-serif; color: #fcc; background: #6a2a2a; border: 1px solid #a55; border-radius: 2px; cursor: pointer; opacity: 0; }
-.slot.terisi:hover .jual { opacity: 1; }
-.jual:hover:not([disabled]) { background: #8a3a3a; }
-.jual[disabled] { display: none; }

@@ -61,16 +61,16 @@ describe('renderBangku', () => {
 		expect(s).not.toContain('canvas');
 		expect(s).not.toContain('draggable');
 	});
-	it('tombol jual ✕ aktif di PERSIAPAN, disabled di luar itu atau sesudah selesai', () => {
-		const aktif = slot(renderBangku(snap(), depsID), 0);
-		expect(aktif).toMatch(/<button class="jual" data-aksi="jual" data-arg="3" title="Jual">/);
-		expect(renderBangku(snap(BIDAK, { fase: 2 }), depsID)).toMatch(/data-aksi="jual" data-arg="3"[^>]* disabled/);
-		expect(renderBangku(snap(BIDAK, { selesai: { peringkatSaya: 1 } }), depsID)).toMatch(/data-aksi="jual" data-arg="3"[^>]* disabled/);
+	it('tanpa tombol jual: jual lewat seret ke Toko, tooltip memuat petunjuk seret', () => {
+		const h = renderBangku(snap(), depsID);
+		expect(h).not.toContain('<button');
+		expect(h).not.toContain('data-aksi');
+		expect(slot(h, 0)).toContain(`title="Poring&#10;${id.t('petunjuk.seret')}"`);
 	});
 	it('nama unit mengikuti bahasa', () => {
 		const h = renderBangku(snap(), depsEN);
 		expect(h).toContain('Archer');
-		expect(h).toContain('title="Sell"');
+		expect(h).toContain(`title="Archer&#10;${en.t('petunjuk.seret')}"`);
 	});
 	it('tanpa state: 8 slot kosong', () => {
 		const h = renderBangku({ state: null, fase: 0 }, depsID);

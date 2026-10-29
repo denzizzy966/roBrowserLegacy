@@ -2,8 +2,8 @@
  * Jendela Bangku (I): strip bawah-tengah delapan slot; tiap bidak bangku
  * tampil sebagai sprite idle beranimasi (potret.hidup) dengan bintang dan
  * nama. Slot terisi berkelas `draggable` (kursor tangan RO) dan membawa
- * data-bidak untuk seret-lepas Task 6; sebelum itu tombol ✕ di pojok slot
- * mengirim `jual` (pembaca argumen ikatAksi yang sama dengan panel lama).
+ * data-bidak; pointerdown pada slot itu memulai seret.js
+ * (seret ke papan = taruh, ke Toko = jual).
  *
  * gambar() dipanggil tiap 250 ms; isi baru ditulis ulang bila keluaran
  * renderBangku berubah, dan keluaran itu hanya bergantung pada kunci
@@ -20,14 +20,13 @@ import htmlText from './Bangku.html?raw';
 import cssText from './Bangku.css?raw';
 import { renderBangku } from '../render/bangku.js';
 import { pasangKerangka, tulisBila } from '../janela.js';
-import { ikatAksi } from '../../ui.js';
 
 const Bangku = new GUIComponent('Bangku', cssText);
 Bangku.render = () => htmlText;
 Bangku.mouseMode = GUIComponent.MouseMode.STOP;
 
-// Disuntikkan lewat gambar(); klik bisa tiba kapan saja sesudah itu.
-let kirimTerakhir = null;
+// Disuntikkan lewat gambar(); pointerdown bisa tiba kapan saja sesudah itu.
+let seretTerakhir = null;
 
 // Sprite RO (mis. Peco Peco ~85 px) lebih tinggi dari kanvas 72x84:
 // diperkecil dan kakinya diletakkan di atas label nama.
@@ -42,15 +41,20 @@ Bangku.init = function init() {
 	const root = this.getRoot();
 	this.isi = root.querySelector('.isi');
 	pasangKerangka(root.querySelector('.bingkai'));
-	ikatAksi(root, (aksi, arg) => kirimTerakhir?.(aksi, arg));
+	root.addEventListener('pointerdown', (ev) => {
+		const slot = ev.target?.closest?.('.slot.terisi');
+		if (slot && seretTerakhir) {
+			seretTerakhir.mulaiDariBangku(Number(slot.dataset.bidak), ev);
+		}
+	});
 };
 
 /**
  * @param {object} snap state.ambil()
- * @param {object} deps {t, bahasa, katalog, potret, kirim}
+ * @param {object} deps {t, bahasa, katalog, potret, seret}
  */
 Bangku.gambar = function gambar(snap, deps) {
-	kirimTerakhir = deps.kirim;
+	seretTerakhir = deps.seret;
 
 	const lama = new Map();
 	for (const k of this.isi.querySelectorAll('canvas.potret')) {

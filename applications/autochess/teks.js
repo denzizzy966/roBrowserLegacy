@@ -87,6 +87,12 @@ export const KAMUS = {
 	'label.namaLevel':  { id: 'Level', en: 'Level' },
 	'label.namaRonde':  { id: 'Ronde', en: 'Round' },
 
+	// Petunjuk (tooltip)
+	'petunjuk.seret': {
+		id: 'Seret ke papan untuk menaruh, ke Toko untuk menjual',
+		en: 'Drag onto the board to place, onto the Shop to sell'
+	},
+
 	// Efek sinergi (teks dibangkitkan, mis. "+150 HP maks (semua)")
 	'efek.hp_max':      { id: '+{0} HP maks', en: '+{0} Max HP' },
 	'efek.atk':         { id: '+{0} ATK', en: '+{0} ATK' },

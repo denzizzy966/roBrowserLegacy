@@ -60,3 +60,24 @@ export function pusatPapan(asal, skala) {
 		y: asal.y + BARIS * skala / 2
 	};
 }
+
+/**
+ * Kebalikan cellDariPetak untuk orientasi TIM_A: petak papan penuh yang
+ * menutup cell (x, y). Koordinat pecahan (Mouse.world) dibulatkan ke
+ * bawah, sehingga setiap cell petak skala×skala -- bukan hanya cell
+ * tengahnya -- kembali ke petak yang sama.
+ *
+ * @param {{x:number, y:number}} asal - cell pojok papan
+ * @param {number} skala - cell per sisi petak
+ * @param {number} x - cell map (boleh pecahan)
+ * @param {number} y - cell map (boleh pecahan)
+ * @returns {{kolom:number, baris:number}|null} kolom 0..7, baris 0..7; null di luar papan
+ */
+export function petakDariCell(asal, skala, x, y) {
+	const kolom = Math.floor((x - asal.x) / skala);
+	const baris = Math.floor((y - asal.y) / skala);
+	if (kolom < 0 || kolom >= KOLOM || baris < 0 || baris >= BARIS) {
+		return null;
+	}
+	return { kolom, baris };
+}
