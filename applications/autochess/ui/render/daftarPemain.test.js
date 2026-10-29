@@ -53,6 +53,11 @@ describe('renderDaftarPemain', () => {
 		expect(h).toContain('<div style="width:55%">');
 		expect(h).toContain('Lv. 3');
 	});
+	it('penuh bar HP = ekonomi.hp_kursi bila katalog membawanya', () => {
+		const h = renderDaftarPemain(snap(), { t: id.t, ekonomi: { hp_kursi: 200 } });
+		expect(h).toContain('<div style="width:40%">');
+		expect(h).not.toContain('<div style="width:80%">');
+	});
 	it('kanvas avatar 36x42 per kursi menurut Q11', () => {
 		const h = renderDaftarPemain(snap(), { t: id.t });
 		expect(h.match(/<canvas class="avatar" width="36" height="42"/g)).toHaveLength(8);

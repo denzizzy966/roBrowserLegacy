@@ -15,7 +15,8 @@
 //   papan dan SENGAJA tidak masuk EntityManager.
 // - Spawn memakai decodeSpawnLengkap (tim, nama, tampilan), dan PC yang
 //   mati ikut dihapus: di sini PC adalah bidak, bukan kamera.
-// - EvtCaturFase dan EvtCaturHasil ditampilkan di banner #fase.
+// - EvtCaturFase dan EvtCaturHasil ditampilkan di jendela Timer (AC4;
+//   banner #fase AC1 sudah dihapus).
 // - AC2: EvtSkillMulai, EvtSkillKena, EvtStatus, dan EvtSP digambar oleh
 //   efek.js; galat dekode dan galat handler dilaporkan terpisah
 //   (buatPenerima di pesan.js).
@@ -28,6 +29,10 @@
 //   (seret-lepas bangku <-> papan <-> toko lewat pointer events).
 //   bintang.js (naik bintang: EF_ANGEL di papan, kilat + levelup.wav di
 //   bangku) dan bgm.js (BGM dari mp3 yang dipilih di dialog Intro).
+//   Task 10: ui/tataLetak.js menata semua jendela dari Renderer.width/
+//   height; EvtError dan EvtCaturSelesai tampil sebagai kotak pesan RO
+//   (WinPopup); panel #ui AC3 menjadi panel debug (__ac.debug(true)) dan
+//   #log tersembunyi bawaan (tombol Log di InfoPemain).
 //
 // Nol berkas client/src/ berubah: semuanya lewat API publik.
 
@@ -56,6 +61,9 @@ import SkillEffect   from 'DB/Skills/SkillEffect.js';
 import FlatColorTile from 'Renderer/Effects/FlatColorTile.js';
 import Mouse         from 'Controls/MouseEventHandler.js';
 import Cursor        from 'UI/CursorManager.js';
+import UIManager     from 'UI/UIManager.js';
+// Didaftarkan ke UIManager saat diimpor: showMessageBox mengkloningnya.
+import 'UI/Components/WinPopup/WinPopup.js';
 
 import GoSocket          from '../m1-harness/GoSocket.js';
 import { loadSchema }    from '../m1-harness/proto.js';
@@ -91,6 +99,8 @@ import SinergiJ   from './ui/Sinergi/Sinergi.js';
 import LoreJ      from './ui/Lore/Lore.js';
 import DPSJ       from './ui/DPS/DPS.js';
 import TombolDPSJ from './ui/TombolDPS/TombolDPS.js';
+import { aturTataLetak } from './ui/tataLetak.js';
+import { lupakanTulisan } from './ui/janela.js';
 import { renderUI, perbaruiTimer, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
 
 const SERVER_HOST = 'localhost';
@@ -114,7 +124,6 @@ const ZOOM  = 220;
 const SUDUT = 250;
 
 const logEl  = document.getElementById('log');
-const faseEl = document.getElementById('fase');
 const uiEl   = document.getElementById('ui');
 
 function log(msg) {
@@ -138,7 +147,12 @@ const efek = buatManajerEfek({
 const teks = buatTeks({ pref: Preferences.get('AutochessBahasa', { bahasa: 'id' }, 1.0), log });
 teks.padaUbah((kode) => {
 	log(`bahasa UI: ${kode}`);
-	gambarJendela();
+	// Review Focus 3: semua jendela digambar ulang SEKARANG, tanpa
+	// menunggu denyut 250 ms dan tanpa bergantung pada pembanding HTML.
+	if (jendelaTertempel) {
+		JENDELA.forEach(lupakanTulisan);
+	}
+	gambarJendelaAman();
 });
 
 // AC4: potret sprite unit ke kanvas 2D (Q2). Butuh GRF terindeks; sebelum
@@ -189,8 +203,24 @@ function aturKamera() {
 	});
 }
 
-function aturBanner(teks) {
-	faseEl.textContent = teks;
+/** Kotak pesan RO yang sedang tampil (satu saja; yang baru menggantikan). */
+let kotakPesan = null;
+
+/**
+ * Menampilkan kotak pesan RO (WinPopup lewat UIManager.showMessageBox)
+ * dengan tombol OK. Dibungkus: kegagalan UI tidak boleh menelan pesan.
+ *
+ * @param {string} teksPesan teks yang sudah diterjemahkan
+ */
+function tampilkanPesan(teksPesan) {
+	try {
+		kotakPesan?.remove();
+		kotakPesan = UIManager.showMessageBox(teksPesan, 'ok', () => {
+			kotakPesan = null;
+		});
+	} catch (err) {
+		log(`! kotak pesan gagal: ${err.message}`);
+	}
 }
 
 let schema   = null;
@@ -360,6 +390,9 @@ function jalankan(fn) {
 function tanganiPesan({ galat, info, msg }, data) {
 	if (galat) {
 		log(`! server menolak: ${galat}`);
+		// Review Focus 6: kotak pesan RO berteks dwibahasa (KAMUS memuat
+		// alasan galat.go apa adanya; alasan tak dikenal tampil mentah).
+		tampilkanPesan(teks.t(galat));
 		return;
 	}
 
@@ -386,6 +419,7 @@ function tanganiPesan({ galat, info, msg }, data) {
 		pertandinganSelesai = true;
 		BGM.stop();
 		log(`< selesai: peringkatmu #${selesai.peringkatSaya}`);
+		tampilkanPesan(`${teks.t('label.selesai')} — ${teks.t('label.peringkat', selesai.peringkatSaya)}`);
 		return;
 	}
 
@@ -398,22 +432,18 @@ function tanganiPesan({ galat, info, msg }, data) {
 		gambarJendelaAman();
 		jalankan(() => {
 			log(`< fase: ${namaFase(fase.fase)} ronde ${fase.ronde} (sisa ${fase.sisaMs} ms)`);
-			aturBanner(`Ronde ${fase.ronde} — ${namaFase(fase.fase)}`);
 		});
 		return;
 	}
 
 	const hasil = decodeCaturHasil(msg);
+	// Hasil ronde tampil di Timer selama HASIL (renderTimer); di sini log saja.
 	if (hasil) {
 		st.terimaHasil(hasil);
 		gambarJendelaAman();
 		jalankan(() => {
-			let teks = hasil.menang ? 'MENANG' : 'KALAH';
-			if (hasil.seri) {
-				teks = 'SERI';
-			}
-			log(`< hasil: ${teks} (ronde ${hasil.ronde})`);
-			aturBanner(teks);
+			const kata = hasil.seri ? 'SERI' : hasil.menang ? 'MENANG' : 'KALAH';
+			log(`< hasil: ${kata} (ronde ${hasil.ronde})`);
 		});
 		return;
 	}
@@ -570,7 +600,6 @@ function muatArena(info) {
 	pertandinganSelesai = false;
 	st = buatState();
 	htmlTerakhir = '';
-	aturBanner('');
 
 	const rsw = rswFileName(info.mapName);
 	log(`memuat ${rsw} dari GRF ...`);
@@ -626,6 +655,10 @@ const BATAS_TAHAN_MS = 1000;
  * berlangsung tidak kehilangan tombolnya; redraw menyusul saat dilepas.
  */
 function gambarUI() {
+	// Panel debug: hanya digambar selama __ac.debug(true).
+	if (!modeDebug) {
+		return;
+	}
 	const sekarang = performance.now();
 	const ditahan = ditahanSejak !== null && sekarang - ditahanSejak < BATAS_TAHAN_MS;
 	const html = renderUI(st.ambil());
@@ -640,28 +673,94 @@ function gambarUI() {
 
 const gambarUIAman = amankan(gambarUI, log);
 
+// Q9: panel polos AC3 kini panel debug, tersembunyi bawaan (style inline
+// di index.html). __ac.debug(true) menampilkan dan menggambarnya lagi.
+let modeDebug = false;
+
+/**
+ * Menyalakan/mematikan panel debug #ui.
+ * @param {boolean} [nyala=true]
+ * @returns {boolean} status baru
+ */
+function debug(nyala = true) {
+	modeDebug = Boolean(nyala);
+	uiEl.style.display = modeDebug ? '' : 'none';
+	htmlTerakhir = '';
+	if (modeDebug) {
+		gambarUIAman();
+	}
+	log(`panel debug: ${modeDebug ? 'tampil' : 'tersembunyi'}`);
+	return modeDebug;
+}
+
 // AC4: jendela bergaya RO (Timer, Kapasitas, Zeny, Exp, Toko + tombol K,
 // Bangku, DaftarPemain, InfoPemain). Mereka baru ditempel sesudah map
 // termuat; Task 10 mempensiunkan panel #ui. Toko tersembunyi sampai dibuka
 // lewat TombolToko atau tombol K.
 const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ, SinergiJ, LoreJ, DPSJ, TombolDPSJ];
+const JENDELA_PER_NAMA = Object.fromEntries(JENDELA.map((j) => [j.name, j]));
 let jendelaTertempel = false;
+// "lebarxtinggi" Renderer saat tata letak terakhir diterapkan.
+let ukuranTataLetak = '';
 
+/** Menata ulang semua jendela dari Renderer.width/height (ui/tataLetak.js). */
+function tataLetak() {
+	if (!jendelaTertempel) {
+		return null;
+	}
+	ukuranTataLetak = `${Renderer.width}x${Renderer.height}`;
+	return aturTataLetak(JENDELA_PER_NAMA, Renderer);
+}
+
+/**
+ * Renderer.resize berjalan 500 ms SESUDAH window.resize (Events.setTimeout),
+ * jadi tata letak dihitung ulang sesudahnya, dan denyut 250 ms ikut
+ * memeriksa ukuran sebagai jaring pengaman.
+ */
+function tataLetakBilaBerubah() {
+	if (jendelaTertempel && ukuranTataLetak !== `${Renderer.width}x${Renderer.height}`) {
+		tataLetak();
+	}
+}
+
+TimerJ.log = log;
+
+/**
+ * Menempel jendela sesudah map termuat. MapRenderer.setMap memanggil
+ * UIManager.removeComponents() pada SETIAP map baru, jadi sesudah
+ * __ac.ulang() semua jendela sudah dilepas: yang tidak lagi terpasang di
+ * DOM ditempel ulang (init tidak diulang; isinya tetap) lalu ditata ulang.
+ */
 function pasangJendela() {
+	JENDELA.forEach((j) => {
+		if (!j._host?.isConnected) {
+			j.append();
+		}
+	});
 	if (!jendelaTertempel) {
 		jendelaTertempel = true;
-		JENDELA.forEach((j) => j.append());
+		// G: InfoPemain mulai terlipat menjadi titlebar mini di atas Exp;
+		// tombol mini membukanya (tumbuh ke atas, lihat tataLetak.js).
+		InfoPemainJ._host.classList.add('terlipat');
 		// Bidak papan diseret dari kanvas 3D (petak di bawah pointer).
 		Renderer.canvas.addEventListener('pointerdown', (ev) => seret.mulaiDariPapan(ev));
 	}
+	tataLetak();
 	gambarJendela();
 }
+
+let tundaResize = null;
+window.addEventListener('resize', () => {
+	clearTimeout(tundaResize);
+	tundaResize = setTimeout(amankan(tataLetakBilaBerubah, log), 600);
+});
 
 /** Menggambar ulang semua jendela dari state terbaru; diam bila belum ada state. */
 function gambarJendela() {
 	if (!jendelaTertempel) {
 		return;
 	}
+	tataLetakBilaBerubah();
 	const snap = st.ambil();
 	if (!snap.state) {
 		return;
@@ -669,7 +768,7 @@ function gambarJendela() {
 	snap.sisaMs = st.sisaMs(performance.now());
 	// teks: InfoPemain mengganti bahasa sendiri (setBahasa); padaUbah di
 	// atas lalu menggambar ulang semua jendela.
-	const deps = { t: teks.t, bahasa: teks.bahasa(), teks, formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim, seret, dps, bgm: bgmBerkas ? kendaliBGM : null, gambarUlang: gambarJendelaAman };
+	const deps = { log, t: teks.t, bahasa: teks.bahasa(), teks, formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim, seret, dps, bgm: bgmBerkas ? kendaliBGM : null, gambarUlang: gambarJendelaAman };
 	JENDELA.forEach((j) => j.gambar(snap, deps));
 	// Separuh sendiri disorot redup selama PERSIAPAN. Idempoten, jadi
 	// cukup dipanggil tiap gambar: pergantian fase terlihat paling lambat
@@ -875,11 +974,14 @@ function cobaSorot(kolom, baris) {
 // __ac.bahasa('en'), __ac.t('fase.persiapan'), __ac.Toko.buka(),
 // __ac.cobaSorot(3, 2) / __ac.cobaSorot(null), __ac.seret.aktif(),
 // __ac.Bangku / __ac.DaftarPemain / __ac.InfoPemain.
+// Task 10: __ac.debug(true|false) (panel #ui AC3), __ac.tataLetak()
+// (terapkan ulang dan kembalikan posisi), __ac.pesan('teks') (kotak RO).
 window.__ac = {
 	BGM, SoundManager, bgmKendali: kendaliBGM, deteksiNaikBintang, rayakanNaikBintang, st: () => st,
 	Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek,
 	kirim, state: () => st.ambil(), katalog: () => katalog,
 	potret, cobaPotret, sorot, cobaSorot, seret, bahasa: (kode) => teks.setBahasa(kode), t: teks.t, Toko: TokoJ,
 	Bangku: BangkuJ, DaftarPemain: DaftarPemainJ, InfoPemain: InfoPemainJ,
-	Sinergi: SinergiJ, Lore: LoreJ, DPS: DPSJ, dps: () => dps.ambil(), lore: (id) => LoreJ.buka(id)
+	Sinergi: SinergiJ, Lore: LoreJ, DPS: DPSJ, dps: () => dps.ambil(), lore: (id) => LoreJ.buka(id),
+	debug, tataLetak, pesan: tampilkanPesan
 };

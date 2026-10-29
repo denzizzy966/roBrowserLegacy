@@ -2,19 +2,19 @@
 
 import { FASE } from '../../pesan.js';
 
-/** Level tertinggi menurut aturan server (ekonomi.LevelMaks). */
-export const LEVEL_MAKS = 10;
-
 /**
  * @param {object} snap state.ambil()
  * @param {function} t penerjemah teks.js
- * @param {object} ekonomi katalog.ekonomi ({beli_exp: {harga, exp}})
+ * @param {object} ekonomi katalog.ekonomi ({beli_exp: {harga, exp}, level_maks}).
+ *   MAX = level >= level_maks; tanpa level_maks (katalog gagal dimuat)
+ *   jatuh ke expBerikut <= 0 dari server.
  * @returns {string}
  */
 export function renderExp(snap, t, ekonomi) {
 	const s = snap.state?.saya;
 	const level = s?.level ?? 1;
-	const maks = level >= LEVEL_MAKS || (s && s.expBerikut <= 0);
+	const levelMaks = ekonomi?.level_maks ?? 0;
+	const maks = (levelMaks > 0 && level >= levelMaks) || (!!s && s.expBerikut <= 0);
 	const exp = s?.exp ?? 0;
 	const butuh = s?.expBerikut ?? 0;
 	const persen = maks ? 100 : Math.max(0, Math.min(100, butuh > 0 ? Math.round(exp / butuh * 100) : 0));

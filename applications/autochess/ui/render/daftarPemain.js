@@ -6,7 +6,7 @@
  * berkelas `tersingkir` (abu-abu) dengan label dwibahasa.
  */
 
-/** HP awal kursi (ekonomi.yml hp_kursi); katalog belum membawanya. */
+/** HP awal kursi bila katalog tidak membawa ekonomi.hp_kursi (gagal dimuat). */
 export const HP_KURSI_BAWAAN = 100;
 
 /** Ukuran intrinsik kanvas avatar. */
@@ -61,14 +61,15 @@ export function urutKursi(kursi) {
  * @param {object} snap state.ambil()
  * @param {object} deps
  * @param {function} deps.t penerjemah teks.js
- * @param {object} [deps.ekonomi] katalog.ekonomi (hp_kursi bila kelak ada)
+ * @param {object} [deps.ekonomi] katalog.ekonomi; hp_kursi = penuh bar HP
  * @returns {string} HTML isi jendela DaftarPemain ('' tanpa state)
  */
 export function renderDaftarPemain(snap, deps) {
 	const { t } = deps;
 	const kursi = snap.state?.kursi ?? [];
 	const sayaKursi = snap.state?.saya?.kursi;
-	const hpMaks = Math.max(deps.ekonomi?.hp_kursi ?? HP_KURSI_BAWAAN, ...kursi.map((k) => k.hp), 1);
+	const hpKursi = deps.ekonomi?.hp_kursi;
+	const hpMaks = hpKursi > 0 ? hpKursi : Math.max(HP_KURSI_BAWAAN, ...kursi.map((k) => k.hp), 1);
 	return urutKursi(kursi).map((k) => {
 		const kelas = ['baris'];
 		if (k.kursi === sayaKursi) {

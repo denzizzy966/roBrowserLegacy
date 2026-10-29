@@ -13,7 +13,7 @@ import Entity from 'Renderer/Entity/Entity.js';
 import htmlText from './Timer.html?raw';
 import cssText from './Timer.css?raw';
 import { renderTimer } from '../render/timer.js';
-import { formatWaktu } from '../../ui.js';
+import { formatWaktu } from '../render/waktu.js';
 import { pasangKerangka, tulisBila } from '../janela.js';
 
 const DIGIT_ACT = 'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/timefont.act';
@@ -27,6 +27,9 @@ const BATAS_SPRITE_MS = 5000;
 const Timer = new GUIComponent('Timer', cssText);
 Timer.render = () => htmlText;
 Timer.mouseMode = GUIComponent.MouseMode.STOP;
+
+/** Pencatat yang disuntikkan main.js sebelum append (bawaan: diam). */
+Timer.log = () => {};
 
 const lapisEntity = new Entity();
 let act = null;
@@ -49,7 +52,7 @@ Timer.init = function init() {
 	});
 	setTimeout(() => {
 		if (!act) {
-			console.warn('[ac] Timer: sprite timefont belum termuat, memakai teks biasa');
+			this.log('! Timer: sprite timefont belum termuat, memakai teks biasa');
 		}
 	}, BATAS_SPRITE_MS);
 };

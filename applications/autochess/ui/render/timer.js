@@ -4,7 +4,7 @@
  */
 
 import { FASE } from '../../pesan.js';
-import { formatWaktu } from '../../ui.js';
+import { formatWaktu } from './waktu.js';
 
 const KUNCI_FASE = {
 	[FASE.PERSIAPAN]: 'fase.persiapan',

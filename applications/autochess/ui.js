@@ -18,6 +18,11 @@ import {
 	FASE, encodeCaturBeli, encodeCaturJual, encodeCaturRefresh, encodeCaturKunci, encodeCaturBeliExp,
 	encodeCaturTaruh, encodeCaturKeBangku, encodeCaturKeluar, encodeCaturLewati
 } from './pesan.js';
+import { formatWaktu } from './ui/render/waktu.js';
+
+// Dipindah ke ui/render/waktu.js (dipakai jendela Timer); diekspor ulang
+// supaya pemakai lama dan ui.test.js tetap jalan.
+export { formatWaktu };
 
 /** Ukuran setengah papan milik pemain: kolom 0-7, baris 0-3. */
 export const KOLOM = 8;
@@ -38,20 +43,6 @@ const NAMA_FASE = {
  */
 export function namaFase(fase) {
 	return NAMA_FASE[fase] || `TIDAK DIKENAL (${fase})`;
-}
-
-/**
- * Milidetik ke mm:ss, dibulatkan ke atas (00:01 sampai benar-benar habis)
- * dan tidak pernah negatif.
- *
- * @param {number} ms
- * @returns {string}
- */
-export function formatWaktu(ms) {
-	const detik = Math.max(0, Math.ceil(ms / 1000));
-	const mm = String(Math.floor(detik / 60)).padStart(2, '0');
-	const ss = String(detik % 60).padStart(2, '0');
-	return `${mm}:${ss}`;
 }
 
 const ENTITAS = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };

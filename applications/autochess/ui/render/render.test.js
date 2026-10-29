@@ -6,7 +6,7 @@ import { renderExp } from './exp.js';
 import { buatTeks, formatZeny } from '../../teks.js';
 
 const { t } = buatTeks();
-const ekonomi = { beli_exp: { harga: 4, exp: 4 } };
+const ekonomi = { beli_exp: { harga: 4, exp: 4 }, level_maks: 10 };
 
 function snap(saya = {}, ekstra = {}) {
 	return {
@@ -64,5 +64,14 @@ describe('renderExp', () => {
 		expect(h).toContain('MAX');
 		expect(h).toContain('width:100%');
 		expect(h).toContain('disabled');
+	});
+	it('MAX mengikuti ekonomi.level_maks, bukan angka tetap', () => {
+		expect(renderExp(snap({ level: 6, expBerikut: 16 }), t, { ...ekonomi, level_maks: 6 })).toContain('MAX');
+		expect(renderExp(snap({ level: 10, expBerikut: 40 }), t, { ...ekonomi, level_maks: 12 })).not.toContain('MAX');
+	});
+	it('tanpa level_maks: MAX dari expBerikut <= 0', () => {
+		const tanpa = { beli_exp: { harga: 4, exp: 4 } };
+		expect(renderExp(snap({ level: 10, expBerikut: 40 }), t, tanpa)).not.toContain('MAX');
+		expect(renderExp(snap({ level: 7, expBerikut: 0 }), t, tanpa)).toContain('MAX');
 	});
 });

@@ -4,22 +4,22 @@
 	<meta charset="utf-8">
 	<title>Autochess — Arena</title>
 	<style>
-		html, body { margin: 0; height: 100%; background: #111; color: #ddd;
+		/* Tanpa color di body: jendela RO bawaan (WinPopup kotak pesan)
+		   mewarisinya lewat Shadow DOM dan teks hitamnya jadi abu-abu pudar
+		   di atas latar putih. Warna terang hanya untuk #log dan #ui. */
+		html, body { margin: 0; height: 100%; background: #111;
 		             font-family: ui-monospace, monospace; }
-		/* #log berhenti di tepi kiri panel #ui supaya keduanya tidak
-		   bertumpuk; kanvas WebGL tetap terlihat di sisa layar. */
-		#log { position: fixed; left: 0; bottom: 0; right: 376px; max-height: 9rem;
+		#log, #ui { color: #ddd; }
+		/* #log (AC4 Q9): tersembunyi bawaan (style inline), dibuka tombol Log
+		   di InfoPemain. Kecil di kiri-bawah, di kanan InfoPemain (lebar 200) dan
+		   di atas Bangku, dengan z-index 10 < 50 milik host jendela RO:
+		   jendela selalu di atasnya dan tetap bisa diklik. */
+		#log { position: fixed; left: 216px; bottom: 126px; width: min(480px, calc(100vw - 470px));
+		       max-height: 160px; box-sizing: border-box;
 		       overflow: auto; white-space: pre-wrap; background: rgba(0,0,0,.75);
-		       padding: .5rem; font-size: 12px; z-index: 100; }
-		/* Banner fase/hasil: atas tengah, di atas kanvas WebGL. Kosong =
-		   tersembunyi, supaya kotak hitam tidak menggantung sebelum fase
-		   pertama tiba. */
-		#fase { position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-		        font-size: 20px; font-weight: bold; padding: .3rem 1rem;
-		        background: rgba(0,0,0,.7); color: #fff; border-radius: 4px;
-		        z-index: 100; pointer-events: none; }
-		#fase:empty { display: none; }
-		/* Panel catur AC3 (ui.js): kanan, bergulir, polos. */
+		       padding: .5rem; font-size: 12px; z-index: 10; }
+		/* Panel catur AC3 (ui.js), kini panel debug: tersembunyi bawaan,
+		   __ac.debug(true) menampilkannya. Kanan, bergulir, polos. */
 		#ui { position: fixed; top: 0; right: 0; bottom: 0; width: 360px;
 		      overflow-y: auto; background: rgba(0,0,0,.8); color: #ddd;
 		      font-size: 12px; padding: 8px; z-index: 100; box-sizing: content-box; }
@@ -47,9 +47,8 @@
 	</script>
 </head>
 <body>
-	<div id="fase"></div>
-	<div id="log"></div>
-	<div id="ui"></div>
+	<div id="log" style="display: none"></div>
+	<div id="ui" style="display: none"></div>
 	<script type="module" src="./main.js"></script>
 </body>
 </html>

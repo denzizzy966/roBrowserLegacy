@@ -26,3 +26,16 @@ export function tulisBila(el, html) {
 	el.innerHTML = html;
 	return true;
 }
+
+/**
+ * Melupakan semua tulisan terakhir tulisBila di dalam jendela, supaya
+ * gambar() berikutnya menulis ulang isinya walau HTML-nya sama (dipakai
+ * saat bahasa berganti: semua jendela digambar ulang seketika).
+ *
+ * @param {{_shadow?: ShadowRoot}} komponen GUIComponent yang sudah di-append
+ */
+export function lupakanTulisan(komponen) {
+	for (const el of komponen._shadow?.querySelectorAll('*') ?? []) {
+		delete el._htmlTerakhir;
+	}
+}
