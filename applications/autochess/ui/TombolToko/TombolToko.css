@@ -1,0 +1,7 @@
+:host { right: 8px; bottom: 8px; width: 48px; height: 48px; }
+.tombol { position: relative; width: 48px; height: 48px; padding: 0; border-radius: 6px; border: 1px solid #c9a24a; background: radial-gradient(circle at 40% 35%, #4a5c92, #1c1c28); color: #fe9; cursor: pointer; box-shadow: 0 0 4px #000a; }
+.tombol:hover { border-color: #fe9; background: radial-gradient(circle at 40% 35%, #5a6ca2, #22223a); }
+.tombol.terbuka { border-color: #fe9; box-shadow: 0 0 8px #fe9a; }
+.glif { font-size: 28px; line-height: 46px; }
+.plus { position: absolute; top: 2px; right: 5px; font: bold 13px Arial, sans-serif; color: #8f8; }
+.kunci-k { position: absolute; bottom: 1px; left: 4px; font: bold 9px Arial, sans-serif; color: #ccd; }

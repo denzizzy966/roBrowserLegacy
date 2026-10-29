@@ -6,8 +6,9 @@
 // terdaftar paling banyak FPS_MAKS kali per detik. Dua mode:
 // - hidup:  digambar terus (animasi idle, mis. bangku).
 // - statis: digambar ulang hanya sampai frame pertama yang tidak kosong
-//   (sprite dimuat asinkron oleh Entity.set, jadi frame awal bisa kosong),
-//   lalu dibekukan; menyerah sesudah BATAS_STATIS_MS.
+//   SESUDAH sprite badan terpasang (sprite dimuat asinkron oleh Entity.set,
+//   jadi frame awal bisa kosong atau hanya kepala), lalu dibekukan;
+//   menyerah sesudah BATAS_STATIS_MS.
 //
 // Semua modul client/src/ disuntikkan (Entity, SpriteRenderer, Camera) agar
 // modul ini teruji di Node dengan barang palsu; pengkabelannya di main.js.
@@ -169,7 +170,7 @@ export function buatPotret({
 					if (!p.statis) {
 						continue;
 					}
-					if (adaPikselAman(kanvas, p)) {
+					if (badanSiap(p.entity) && adaPikselAman(kanvas, p)) {
 						daftar.delete(kanvas);
 					} else if (t - p.mulai >= BATAS_STATIS_MS) {
 						daftar.delete(kanvas);
@@ -183,6 +184,16 @@ export function buatPotret({
 		if (daftar.size > 0) {
 			jadwalkan();
 		}
+	}
+
+	/**
+	 * Sprite badan sudah terpasang? Kepala PC bisa termuat lebih dulu dan
+	 * tergambar sendirian di titik tumpu badan, tepat di tengah kanvas
+	 * kecil (96x110 kartu Toko) -- adaPiksel lalu membekukan kepala tanpa
+	 * badan. Entity tanpa files (barang palsu uji) dianggap siap.
+	 */
+	function badanSiap(entity) {
+		return !entity.files || !!entity.files.body?.spr;
 	}
 
 	function adaPikselAman(kanvas, p) {

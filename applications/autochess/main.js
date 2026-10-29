@@ -67,6 +67,8 @@ import TimerJ     from './ui/Timer/Timer.js';
 import KapasitasJ from './ui/Kapasitas/Kapasitas.js';
 import ZenyJ      from './ui/Zeny/Zeny.js';
 import ExpJ       from './ui/Exp/Exp.js';
+import TokoJ      from './ui/Toko/Toko.js';
+import TombolTokoJ from './ui/TombolToko/TombolToko.js';
 import { renderUI, perbaruiTimer, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
 
 const SERVER_HOST = 'localhost';
@@ -543,9 +545,10 @@ function gambarUI() {
 
 const gambarUIAman = amankan(gambarUI, log);
 
-// AC4: jendela bergaya RO (Timer, Kapasitas, Zeny, Exp). Mereka baru
-// ditempel sesudah map termuat; Task 10 mempensiunkan panel #ui.
-const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ];
+// AC4: jendela bergaya RO (Timer, Kapasitas, Zeny, Exp, Toko + tombol K).
+// Mereka baru ditempel sesudah map termuat; Task 10 mempensiunkan panel
+// #ui. Toko tersembunyi sampai dibuka lewat TombolToko atau tombol K.
+const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ];
 let jendelaTertempel = false;
 
 function pasangJendela() {
@@ -556,7 +559,7 @@ function pasangJendela() {
 	gambarJendela();
 }
 
-/** Menggambar ulang keempat jendela dari state terbaru; diam bila belum ada state. */
+/** Menggambar ulang semua jendela dari state terbaru; diam bila belum ada state. */
 function gambarJendela() {
 	if (!jendelaTertempel) {
 		return;
@@ -566,7 +569,7 @@ function gambarJendela() {
 		return;
 	}
 	snap.sisaMs = st.sisaMs(performance.now());
-	const deps = { t: teks.t, formatZeny, ekonomi: katalog.ekonomi, kirim };
+	const deps = { t: teks.t, bahasa: teks.bahasa(), formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim };
 	JENDELA.forEach((j) => j.gambar(snap, deps));
 }
 
@@ -590,6 +593,19 @@ window.addEventListener('pointercancel', lepasPointer, true);
 window.addEventListener('blur', lepasPointer);
 
 ikatAksi(uiEl, kirim);
+
+// Tombol K membuka/menutup Toko (seperti tombol kanan-bawah gambar
+// referensi), kecuali saat mengetik di kolom isian.
+window.addEventListener('keydown', (ev) => {
+	if (!jendelaTertempel || ev.repeat || ev.ctrlKey || ev.altKey || ev.metaKey || ev.key?.toLowerCase() !== 'k') {
+		return;
+	}
+	const tag = ev.target?.tagName;
+	if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || ev.target?.isContentEditable) {
+		return;
+	}
+	TokoJ.toggle();
+});
 setInterval(gambarUIAman, 250);
 setInterval(gambarJendelaAman, 250);
 
@@ -709,9 +725,9 @@ function cobaPotret(unitId, mode = 'hidup') {
 // AC3: __ac.state() memberi snapshot state catur untuk e2e, dan
 // __ac.kirim('beli', {slot: 0}) mengirim perintah tanpa panel.
 // AC4: __ac.cobaPotret('novice'), __ac.cobaPotret('wizard', 'statis'),
-// __ac.bahasa('en'), __ac.t('fase.persiapan').
+// __ac.bahasa('en'), __ac.t('fase.persiapan'), __ac.Toko.buka().
 window.__ac = {
 	Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek,
 	kirim, state: () => st.ambil(), katalog: () => katalog,
-	potret, cobaPotret, bahasa: (kode) => teks.setBahasa(kode), t: teks.t
+	potret, cobaPotret, bahasa: (kode) => teks.setBahasa(kode), t: teks.t, Toko: TokoJ
 };

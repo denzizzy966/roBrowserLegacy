@@ -186,6 +186,22 @@ describe('buatPotret', () => {
 		expect(antrean()).toHaveLength(0);
 	});
 
+	it('statis tidak membeku selama sprite badan belum terpasang (hanya kepala)', () => {
+		const { potret, maju, antrean } = siapkan();
+		const k = kanvasPalsu();
+		potret.statis(PORING, k);
+		const e = EntityPalsu.semua[0];
+		e.files = { body: { spr: null }, head: { spr: 'kepala.spr' } };
+		k.ctx.alfa = 255;
+		maju(10);
+		const sebelum = e.renderEntity.mock.calls.length;
+		expect(antrean()).toHaveLength(1);
+		e.files.body.spr = 'badan.spr';
+		maju(10);
+		expect(e.renderEntity.mock.calls.length).toBe(sebelum + 1);
+		expect(antrean()).toHaveLength(0);
+	});
+
 	it('statis menyerah dengan satu log setelah BATAS_STATIS_MS tetap kosong', () => {
 		const { potret, maju, log, antrean } = siapkan();
 		potret.statis(PORING, kanvasPalsu());
