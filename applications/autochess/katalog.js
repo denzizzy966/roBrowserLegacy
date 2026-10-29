@@ -36,6 +36,16 @@ export function buatKatalog(json, log = () => {}) {
 	const peluangMap = json?.peluang ?? {};
 	const ekonomi = json?.ekonomi ?? {};
 	const sudahDilaporkan = new Set();
+	// Nama (id dan en) -> id unit. EvtSpawn hanya membawa nama EN unit
+	// (arena/pesan.go), jadi kartu bidak lawan mencari unitnya lewat nama.
+	const idDariNama = new Map();
+	for (const [id, u] of Object.entries(units)) {
+		for (const n of [u?.nama?.en, u?.nama?.id]) {
+			if (n && !idDariNama.has(n)) {
+				idDariNama.set(n, id);
+			}
+		}
+	}
 
 	function laporkan(jenis, id) {
 		const kunci = `${jenis}:${id}`;
@@ -65,6 +75,8 @@ export function buatKatalog(json, log = () => {}) {
 	return {
 		unit,
 		namaUnit: (id, bahasa = 'id') => namaDari(unit(id), id, bahasa),
+		/** @returns {string|null} id unit bernama persis `nama` (EN atau ID), tanpa log */
+		idUnitDariNama: (nama) => (nama && idDariNama.get(nama)) || null,
 		spriteUnit: (id) => units[id]?.sprite ?? (laporkan('unit', id), null),
 		sinergi,
 		namaSinergi: (id, bahasa = 'id') => namaDari(sinergi(id), id, bahasa),

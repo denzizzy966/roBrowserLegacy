@@ -114,6 +114,40 @@ export function hitungTataLetak(lebar, tinggi) {
 	};
 }
 
+/** Jarak pojok kiri-atas KartuBidak dari pointer (px). */
+export const JARAK_KARTU = 16;
+
+/**
+ * Posisi KartuBidak (R4). Kartu ini SENGAJA tidak ada di hitungTataLetak:
+ * ia menempel ke pointer, bukan ke tepi layar, jadi tidak punya kotak
+ * tetap untuk uji tumpang tindih dan aturTataLetak tidak menyentuhnya
+ * (jendelanya sendiri yang memanggil fungsi ini setiap ditampilkan).
+ *
+ * Pojok kiri-atas = pointer + JARAK_KARTU. Bila melewati tepi kanan/bawah
+ * layar, kartu dibalik ke sisi kiri/atas pointer (supaya tidak menutupi
+ * bidak yang sedang ditunjuk), lalu dijepit ke dalam layar.
+ *
+ * @param {{x:number, y:number}} titik pointer (clientX/Y)
+ * @param {{lebar:number, tinggi:number}} ukuran ukuran kartu
+ * @param {{lebar:number, tinggi:number}} layar ukuran viewport
+ * @returns {{left:number, top:number}}
+ */
+export function posisiKartu(titik, ukuran, layar) {
+	const jepit = (v, maks) => Math.max(TEPI, Math.min(v, maks));
+	let left = titik.x + JARAK_KARTU;
+	let top = titik.y + JARAK_KARTU;
+	if (left + ukuran.lebar > layar.lebar - TEPI) {
+		left = titik.x - JARAK_KARTU - ukuran.lebar;
+	}
+	if (top + ukuran.tinggi > layar.tinggi - TEPI) {
+		top = titik.y - JARAK_KARTU - ukuran.tinggi;
+	}
+	return {
+		left: Math.round(jepit(left, layar.lebar - TEPI - ukuran.lebar)),
+		top: Math.round(jepit(top, layar.tinggi - TEPI - ukuran.tinggi))
+	};
+}
+
 /** true bila dua kotak {x, y, lebar, tinggi} beririsan (bersentuhan tidak). */
 export function beririsan(a, b) {
 	return a.x < b.x + b.lebar && b.x < a.x + a.lebar && a.y < b.y + b.tinggi && b.y < a.y + a.tinggi;

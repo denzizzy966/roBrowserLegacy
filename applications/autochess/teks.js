@@ -63,6 +63,16 @@ export const KAMUS = {
 	'label.level':      { id: 'Lv. {0}', en: 'Lv. {0}' },
 	'label.zeny':       { id: 'Zeny', en: 'Zeny' },
 	'label.hp':         { id: 'HP', en: 'HP' },
+	'label.sp':         { id: 'SP', en: 'SP' },
+
+	// Status pada kartu bidak (kunci = 'status.' + EFEK_STATUS di pesan.js)
+	'status.1': { id: 'Beku', en: 'Frozen' },
+	'status.2': { id: 'Pingsan', en: 'Stunned' },
+	'status.3': { id: 'Tidur', en: 'Asleep' },
+	'status.4': { id: 'Racun', en: 'Poisoned' },
+	'status.5': { id: 'Buta', en: 'Blind' },
+	'status.6': { id: 'Bisu', en: 'Silenced' },
+
 	'label.streak':     { id: 'Beruntun', en: 'Streak' },
 	'label.kapasitas':  { id: '{0}/{1} bidak', en: '{0}/{1} units' },
 	'label.peluang':    { id: 'Peluang', en: 'Odds' },

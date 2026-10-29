@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { buatSeret, putuskanDrop } from './seret.js';
+import { buatSeret, putuskanDrop, petakDiBawahPointer } from './seret.js';
 import { FASE } from './pesan.js';
 
 // Papan {42,41} skala 2: petak (3,2) TIM_A = cell x 48..49, y 45..46.
@@ -500,5 +500,19 @@ describe('Mouse.intersect dan klik sesudah seret (M5/M6 final review)', () => {
 		seret.mulaiDariBangku(1, pev(600, 840));
 		seret.pantauKanvas({ target: Renderer.canvas });
 		expect(Mouse.intersect).toBe(false);
+	});
+});
+
+describe('petakDiBawahPointer', () => {
+	const asal = { x: 42, y: 41 };
+	it('petak kedua separuh papan dari Mouse.world (pecahan dibulatkan ke bawah)', () => {
+		expect(petakDiBawahPointer(asal, 2, { x: 42.9, y: 41.2 })).toEqual({ kolom: 0, baris: 0 });
+		expect(petakDiBawahPointer(asal, 2, { x: 57.5, y: 56.9 })).toEqual({ kolom: 7, baris: 7 });
+		expect(petakDiBawahPointer(asal, 2, { x: 47, y: 52 })).toEqual({ kolom: 2, baris: 5 });
+	});
+	it('null bila pointer tidak menyentuh tanah atau di luar papan', () => {
+		expect(petakDiBawahPointer(asal, 2, { x: -1, y: -1 })).toBeNull();
+		expect(petakDiBawahPointer(asal, 2, { x: 30, y: 45 })).toBeNull();
+		expect(petakDiBawahPointer(asal, 2, null)).toBeNull();
 	});
 });

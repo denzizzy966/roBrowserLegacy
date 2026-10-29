@@ -20,6 +20,17 @@ const CONTOH = {
 };
 
 describe('buatKatalog', () => {
+	it('idUnitDariNama mencari unit dari nama EN atau ID (nama EvtSpawn), null bila asing', () => {
+		const log = vi.fn();
+		const k = buatKatalog(CONTOH, log);
+		expect(k.idUnitDariNama('Novice')).toBe('novice');
+		expect(k.idUnitDariNama('Novis')).toBe('novice');
+		expect(k.idUnitDariNama('Dracula')).toBeNull();
+		expect(k.idUnitDariNama('')).toBeNull();
+		expect(buatKatalog({}).idUnitDariNama('Novice')).toBeNull();
+		expect(log).not.toHaveBeenCalled();
+	});
+
 	it('unit, namaUnit, spriteUnit untuk id yang dikenal', () => {
 		const k = buatKatalog(CONTOH);
 		expect(k.unit('novice').tier).toBe(1);

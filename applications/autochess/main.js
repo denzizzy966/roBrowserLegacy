@@ -33,6 +33,8 @@
 //   height; EvtError dan EvtCaturSelesai tampil sebagai kotak pesan RO
 //   (WinPopup); panel #ui AC3 menjadi panel debug (__ac.debug(true)) dan
 //   #log tersembunyi bawaan (tombol Log di InfoPemain).
+// - AC5: kartu.js + ui/KartuBidak (kartu detail bidak saat hover, R4) dan
+//   statusIkon.js (ikon status RO dari data/texture/effect/).
 //
 // Nol berkas client/src/ berubah: semuanya lewat API publik.
 
@@ -43,6 +45,8 @@ import BGM           from 'Audio/BGM.js';
 import SoundManager  from 'Audio/SoundManager.js';
 import PrefAudio     from 'Preferences/Audio.js';
 import EffectConst   from 'DB/Effects/EffectConst.js';
+import StatusTable   from 'DB/Status/StatusInfo.js';
+import Texture       from 'Utils/Texture.js';
 import Renderer      from 'Renderer/Renderer.js';
 import MapRenderer   from 'Renderer/MapRenderer.js';
 import Altitude      from 'Renderer/Map/Altitude.js';
@@ -82,7 +86,9 @@ import { muatKatalog, buatKatalog } from './katalog.js';
 import { buatTeks, formatZeny } from './teks.js';
 import { buatPotret } from './potret.js';
 import { buatSorot } from './sorot.js';
-import { buatSeret } from './seret.js';
+import { buatSeret, petakDiBawahPointer } from './seret.js';
+import { buatKartu, cariBidak, tandaiSpawn } from './kartu.js';
+import { buatPemuatIkon } from './statusIkon.js';
 import { buatDPS } from './dps.js';
 import { deteksiNaikBintang } from './bintang.js';
 import { pilihBGM } from './bgm.js';
@@ -99,6 +105,7 @@ import SinergiJ   from './ui/Sinergi/Sinergi.js';
 import LoreJ      from './ui/Lore/Lore.js';
 import DPSJ       from './ui/DPS/DPS.js';
 import TombolDPSJ from './ui/TombolDPS/TombolDPS.js';
+import KartuBidakJ from './ui/KartuBidak/KartuBidak.js';
 import { aturTataLetak } from './ui/tataLetak.js';
 import { lupakanTulisan } from './ui/janela.js';
 import { renderUI, perbaruiTimer, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
@@ -175,6 +182,26 @@ const seret = buatSeret({
 	elemenBangku: () => BangkuJ._host, elemenJual: () => TombolTokoJ._host,
 	toko: TokoJ, tandaiJual: (aktif) => TombolTokoJ.tandaiJual(aktif),
 	beku: () => Boolean(Session.FreezeUI), sorot, log
+});
+
+// AC5 (R4): kartu detail bidak saat pointer diam di atas bidak; ikon
+// status RO dari data/texture/effect/ (statusIkon.js). Bidak dicari dari
+// entity di bawah kursor (MapRenderer) lalu dari petak di bawah pointer.
+const pemuatIkon = buatPemuatIkon({ Client, Texture, StatusTable, log });
+const kartu = buatKartu({
+	EntityManager,
+	ambilSnap: () => st.ambil(),
+	katalog: () => katalog,
+	cariTarget: () => cariBidak({
+		EntityManager,
+		snap: st.ambil(),
+		over: Mouse.intersect ? EntityManager.getOverEntity() : null,
+		petak: Mouse.intersect ? petakDiBawahPointer(ASAL_PAPAN, SKALA_PETAK, Mouse.world) : null,
+		asal: ASAL_PAPAN,
+		skala: SKALA_PETAK
+	}),
+	jendela: KartuBidakJ,
+	seretAktif: () => seret.aktif() || Boolean(Session.FreezeUI)
 });
 
 // Semua pesan yang menyentuh entity -- dan juga fase/hasil, supaya
@@ -456,7 +483,8 @@ function tanganiPesan({ galat, info, msg }, data) {
 
 	const sp = decodeSpawnLengkap(msg);
 	if (sp) {
-		jalankan(() => penggerak.spawnkan(sp));
+		// tim/bintang/nama disimpan di entity untuk kartu bidak lawan.
+		jalankan(() => tandaiSpawn(penggerak.spawnkan(sp), sp));
 		return;
 	}
 
@@ -703,7 +731,9 @@ function debug(nyala = true) {
 // Bangku, DaftarPemain, InfoPemain). Mereka baru ditempel sesudah map
 // termuat; Task 10 mempensiunkan panel #ui. Toko tersembunyi sampai dibuka
 // lewat TombolToko atau tombol K.
-const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ, SinergiJ, LoreJ, DPSJ, TombolDPSJ];
+// KartuBidak (AC5) ikut ditempel dan digambar, tetapi tidak ditata
+// hitungTataLetak: posisinya mengikuti pointer (posisiKartu).
+const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ, SinergiJ, LoreJ, DPSJ, TombolDPSJ, KartuBidakJ];
 const JENDELA_PER_NAMA = Object.fromEntries(JENDELA.map((j) => [j.name, j]));
 let jendelaTertempel = false;
 // "lebarxtinggi" Renderer saat tata letak terakhir diterapkan.
@@ -753,6 +783,11 @@ function pasangJendela() {
 		Renderer.canvas.addEventListener('pointerdown', (ev) => seret.mulaiDariPapan(ev));
 		// Jaring pengaman Mouse.intersect sesudah seret (lihat seret.pantauKanvas).
 		Renderer.canvas.addEventListener('pointermove', (ev) => seret.pantauKanvas(ev));
+		// Kartu bidak (R4): hover di kanvas; pergi dari kanvas menutupnya,
+		// dan menekan pointer (awal seret) menyembunyikannya.
+		Renderer.canvas.addEventListener('pointermove', (ev) => kartu.gerak(ev));
+		Renderer.canvas.addEventListener('pointerleave', () => kartu.keluar());
+		Renderer.canvas.addEventListener('pointerdown', () => kartu.sembunyikan());
 	}
 	tataLetak();
 	gambarJendela();
@@ -771,8 +806,14 @@ function gambarJendela() {
 	snap.sisaMs = st.sisaMs(performance.now());
 	// teks: InfoPemain mengganti bahasa sendiri (setBahasa); padaUbah di
 	// atas lalu menggambar ulang semua jendela.
-	const deps = { log, t: teks.t, bahasa: teks.bahasa(), teks, formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim, seret, dps, bgm: bgmBerkas ? kendaliBGM : null, gambarUlang: gambarJendelaAman };
+	const deps = {
+		log, t: teks.t, bahasa: teks.bahasa(), teks, formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim, seret, dps,
+		bgm: bgmBerkas ? kendaliBGM : null, gambarUlang: gambarJendelaAman,
+		ikonStatus: (efst, padaSiap) => pemuatIkon.url(efst, padaSiap)
+	};
 	JENDELA.forEach((j) => j.gambar(snap, deps));
+	// Kartu bidak: entity hilang/mati -> tutup; isi (HP/SP/status) segar.
+	kartu.denyut();
 	// Separuh sendiri disorot redup selama PERSIAPAN. Idempoten, jadi
 	// cukup dipanggil tiap gambar: pergantian fase terlihat paling lambat
 	// 250 ms, dan tile yang dibuang EffectManager.free dibuat ulang.
@@ -977,6 +1018,7 @@ function cobaSorot(kolom, baris) {
 // __ac.bahasa('en'), __ac.t('fase.persiapan'), __ac.Toko.buka(),
 // __ac.cobaSorot(3, 2) / __ac.cobaSorot(null), __ac.seret.aktif(),
 // __ac.Bangku / __ac.DaftarPemain / __ac.InfoPemain.
+// AC5: __ac.kartu.tampil() (entityId kartu), __ac.pemuatIkon.ambil(1, console.log).
 // Task 10: __ac.debug(true|false) (panel #ui AC3), __ac.tataLetak()
 // (terapkan ulang dan kembalikan posisi), __ac.pesan('teks') (kotak RO).
 window.__ac = {
@@ -986,5 +1028,6 @@ window.__ac = {
 	potret, cobaPotret, sorot, cobaSorot, seret, bahasa: (kode) => teks.setBahasa(kode), t: teks.t, Toko: TokoJ,
 	Bangku: BangkuJ, DaftarPemain: DaftarPemainJ, InfoPemain: InfoPemainJ,
 	Sinergi: SinergiJ, Lore: LoreJ, DPS: DPSJ, dps: () => dps.ambil(), lore: (id) => LoreJ.buka(id),
-	debug, tataLetak, pesan: tampilkanPesan
+	debug, tataLetak, pesan: tampilkanPesan,
+	kartu, KartuBidak: KartuBidakJ, pemuatIkon
 };

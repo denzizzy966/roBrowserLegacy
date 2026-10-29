@@ -1,0 +1,156 @@
+import { describe, it, expect, vi } from 'vitest';
+import { renderKartuBidak } from './kartuBidak.js';
+import { buatKartu } from '../../kartu.js';
+import { buatKatalog } from '../../katalog.js';
+import { buatTeks } from '../../teks.js';
+import { EFEK_STATUS } from '../../pesan.js';
+
+const katalog = buatKatalog({
+	units: {
+		wizard: { nama: { id: 'Penyihir', en: 'Wizard' }, tier: 3, origin: 'geffen', kelas: 'elementalist' }
+	},
+	sinergi: {
+		geffen: { nama: { id: 'Geffen', en: 'Geffen' } },
+		elementalist: { nama: { id: 'Elementalis', en: 'Elementalist' } }
+	}
+});
+
+function deps(bahasa = 'id', ikon = undefined) {
+	const teks = buatTeks({ pref: { bahasa } });
+	return { t: teks.t, bahasa, katalog, ikon };
+}
+
+const INFO = {
+	entityId: 7, unitId: 'wizard', nama: 'Wizard', sendiri: true, bintang: 2,
+	hp: 1500, maxHp: 2000, sp: 30, maxSp: 120, status: []
+};
+
+describe('renderKartuBidak', () => {
+	it('nama sesuai bahasa, Tier, ★, origin dan kelas', () => {
+		const id = renderKartuBidak(INFO, deps('id'));
+		expect(id).toContain('<div class="nama">Penyihir</div>');
+		expect(id).toContain('Tier 3');
+		expect(id).toContain('★2');
+		expect(id).toContain('Geffen · Elementalis');
+
+		const en = renderKartuBidak(INFO, deps('en'));
+		expect(en).toContain('<div class="nama">Wizard</div>');
+		expect(en).toContain('Geffen · Elementalist');
+	});
+
+	it('angka dan bar HP/SP', () => {
+		const h = renderKartuBidak(INFO, deps());
+		expect(h).toContain('<span class="angka">1500/2000</span>');
+		expect(h).toContain('<span class="angka">30/120</span>');
+		expect(h).toMatch(/class="bar hp"><div class="isi-bar" style="width:75%">/);
+		expect(h).toMatch(/class="bar sp"><div class="isi-bar" style="width:25%">/);
+	});
+
+	it('tanpa SP maks (mob) tidak ada baris SP; HP negatif/NaN jadi 0', () => {
+		const h = renderKartuBidak({ ...INFO, maxSp: 0, hp: -5 }, deps());
+		expect(h).not.toContain('bar sp');
+		expect(h).toContain('<span class="angka">0/2000</span>');
+	});
+
+	it('tanpa status: tidak ada baris ikon sama sekali', () => {
+		const h = renderKartuBidak(INFO, deps());
+		expect(h).not.toContain('status-baris');
+		expect(h).not.toContain('data-efst');
+	});
+
+	it('satu span per status AKTIF, dengan ikon bila sudah termuat', () => {
+		const ikon = vi.fn((efst) => (efst === EFEK_STATUS.BEKU ? 'data:image/png;base64,AAA' : null));
+		const h = renderKartuBidak({ ...INFO, status: [EFEK_STATUS.BEKU, EFEK_STATUS.RACUN] }, deps('id', ikon));
+		expect(h.match(/class="status[^"]*" data-efst=/g)).toHaveLength(2);
+		expect(h).toContain('<span class="status" data-efst="1" title="Beku"><img src="data:image/png;base64,AAA" alt="Beku"></span>');
+		// Ikon belum termuat/tidak ada: label teks sebagai cadangan.
+		expect(h).toContain('<span class="status tanpa-ikon" data-efst="4" title="Racun">Racun</span>');
+		expect(h).not.toContain('data-efst="2"');
+	});
+
+	it('bidak lawan tanpa unit katalog (creep): nama EvtSpawn, tanpa tier/sinergi', () => {
+		const h = renderKartuBidak({ ...INFO, unitId: null, nama: 'dracula', sendiri: false, bintang: 0 }, deps());
+		expect(h).toContain('class="kartu lawan"');
+		expect(h).toContain('<div class="nama">dracula</div>');
+		expect(h).not.toContain('Tier');
+		expect(h).not.toContain('★');
+		expect(h).not.toContain('class="sinergi"');
+	});
+
+	it('nama di-escape', () => {
+		expect(renderKartuBidak({ ...INFO, unitId: null, nama: '<b>x</b>' }, deps())).toContain('&lt;b&gt;x&lt;/b&gt;');
+	});
+});
+
+/**
+ * Review Focus 4: bidak mati atau despawn di tengah hover menutup kartu
+ * tanpa galat; status yang kedaluwarsa menghapus ikonnya.
+ */
+describe('Review Focus 4: kartu saat entity hilang atau status lepas', () => {
+	function siapkan() {
+		const peta = new Map();
+		const entity = {
+			GID: 7, ACTION: { DIE: 8 }, action: 0, remove_tick: 0, position: [44, 42, 0],
+			life: { hp: 1500, hp_max: 2000 }, __acSP: 30, __acMaxSP: 120,
+			__acTim: 1, __acNama: 'Wizard', __acBintang: 2, __acStatus: new Set([EFEK_STATUS.BEKU])
+		};
+		peta.set(7, entity);
+		const EntityManager = { get: (id) => peta.get(id) ?? null, forEach: () => {} };
+		const snap = { fase: 3, state: { saya: { bidak: [{ bidakId: 1, entityId: 7, unitId: 'wizard', bintang: 2, diPapan: true }] } } };
+		let html = null;
+		const jendela = {
+			tampilkan: vi.fn((info) => {
+				html = renderKartuBidak(info, deps('id', () => 'data:ikon'));
+			}),
+			sembunyikan: vi.fn(() => {
+				html = null;
+			})
+		};
+		const pewaktu = [];
+		const kartu = buatKartu({
+			EntityManager, ambilSnap: () => snap, katalog, jendela,
+			cariTarget: () => peta.get(7) ?? null,
+			tunda: (fn) => pewaktu.push(fn), batalTunda: () => {}
+		});
+		kartu.gerak({ clientX: 100, clientY: 100 });
+		pewaktu.splice(0).forEach((fn) => fn());
+		return { peta, entity, kartu, jendela, html: () => html };
+	}
+
+	it('status yang lepas menghapus span ikonnya pada denyut berikutnya', () => {
+		const { entity, kartu, html } = siapkan();
+		expect(kartu.tampil()).toBe(7);
+		expect(html()).toContain('data-efst="1"');
+		entity.__acStatus.delete(EFEK_STATUS.BEKU);
+		kartu.denyut();
+		expect(html()).not.toContain('data-efst');
+		expect(html()).not.toContain('status-baris');
+	});
+
+	it('despawn (entity hilang dari EntityManager) menutup kartu tanpa galat', () => {
+		const { peta, kartu, jendela, html } = siapkan();
+		peta.delete(7);
+		expect(() => kartu.denyut()).not.toThrow();
+		expect(jendela.sembunyikan).toHaveBeenCalledTimes(1);
+		expect(kartu.tampil()).toBeNull();
+		expect(html()).toBeNull();
+		// Denyut berikutnya diam.
+		kartu.denyut();
+		expect(jendela.sembunyikan).toHaveBeenCalledTimes(1);
+	});
+
+	it('bidak mati (aksi DIE) menutup kartu', () => {
+		const { entity, kartu, jendela } = siapkan();
+		entity.action = entity.ACTION.DIE;
+		kartu.denyut();
+		expect(jendela.sembunyikan).toHaveBeenCalled();
+		expect(kartu.tampil()).toBeNull();
+	});
+
+	it('GID dipakai ulang oleh entity baru (map dimuat ulang) menutup kartu lama', () => {
+		const { peta, entity, kartu } = siapkan();
+		peta.set(7, { ...entity, __acStatus: new Set() });
+		kartu.denyut();
+		expect(kartu.tampil()).toBeNull();
+	});
+});

@@ -47,12 +47,26 @@ function diDalam(rect, x, y) {
 		&& x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
-/** Petak separuh sendiri (baris 0..3) di bawah Mouse.world, atau null. */
-function petakSendiri(asal, skala, world) {
-	if (!(world.x >= 0 && world.y >= 0)) {
+/**
+ * Petak papan (orientasi TIM_A, kedua separuh) di bawah Mouse.world, atau
+ * null bila pointer tidak menyentuh tanah (-1) atau di luar papan. Dipakai
+ * bersama oleh seret (separuh sendiri) dan kartu bidak (hover, kartu.js).
+ *
+ * @param {{x:number, y:number}} asal
+ * @param {number} skala
+ * @param {{x:number, y:number}} world Mouse.world
+ * @returns {{kolom:number, baris:number}|null}
+ */
+export function petakDiBawahPointer(asal, skala, world) {
+	if (!world || !(world.x >= 0 && world.y >= 0)) {
 		return null;
 	}
-	const p = petakDariCell(asal, skala, Math.floor(world.x), Math.floor(world.y));
+	return petakDariCell(asal, skala, Math.floor(world.x), Math.floor(world.y));
+}
+
+/** Petak separuh sendiri (baris 0..3) di bawah Mouse.world, atau null. */
+function petakSendiri(asal, skala, world) {
+	const p = petakDiBawahPointer(asal, skala, world);
 	return p && p.baris < BARIS_SENDIRI ? p : null;
 }
 
