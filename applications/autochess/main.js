@@ -61,8 +61,12 @@ import { buatManajerEfek } from './efek.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
 import { buatState } from './state.js';
 import { muatKatalog, buatKatalog } from './katalog.js';
-import { buatTeks } from './teks.js';
+import { buatTeks, formatZeny } from './teks.js';
 import { buatPotret } from './potret.js';
+import TimerJ     from './ui/Timer/Timer.js';
+import KapasitasJ from './ui/Kapasitas/Kapasitas.js';
+import ZenyJ      from './ui/Zeny/Zeny.js';
+import ExpJ       from './ui/Exp/Exp.js';
 import { renderUI, perbaruiTimer, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
 
 const SERVER_HOST = 'localhost';
@@ -108,7 +112,10 @@ const efek = buatManajerEfek({
 
 // AC4: bahasa UI tersimpan di localStorage 'AutochessBahasa' (Q5).
 const teks = buatTeks({ pref: Preferences.get('AutochessBahasa', { bahasa: 'id' }, 1.0), log });
-teks.padaUbah((kode) => log(`bahasa UI: ${kode}`));
+teks.padaUbah((kode) => {
+	log(`bahasa UI: ${kode}`);
+	gambarJendela();
+});
 
 // AC4: potret sprite unit ke kanvas 2D (Q2). Butuh GRF terindeks; sebelum
 // itu kanvasnya kosong (statis menyerah sesudah 5 s dengan satu log).
@@ -281,6 +288,7 @@ function tanganiPesan({ galat, info, msg }, data) {
 	const cs = decodeCaturState(msg);
 	if (cs) {
 		st.terima(cs, performance.now());
+		gambarJendelaAman();
 		return;
 	}
 
@@ -294,6 +302,7 @@ function tanganiPesan({ galat, info, msg }, data) {
 	const fase = decodeCaturFase(msg);
 	if (fase) {
 		st.terimaFase(fase, performance.now());
+		gambarJendelaAman();
 		jalankan(() => {
 			log(`< fase: ${namaFase(fase.fase)} ronde ${fase.ronde} (sisa ${fase.sisaMs} ms)`);
 			aturBanner(`Ronde ${fase.ronde} — ${namaFase(fase.fase)}`);
@@ -304,6 +313,7 @@ function tanganiPesan({ galat, info, msg }, data) {
 	const hasil = decodeCaturHasil(msg);
 	if (hasil) {
 		st.terimaHasil(hasil);
+		gambarJendelaAman();
 		jalankan(() => {
 			let teks = hasil.menang ? 'MENANG' : 'KALAH';
 			if (hasil.seri) {
@@ -428,6 +438,8 @@ function muatArena(info) {
 		spot.position[1] = info.spawnY;
 		spot.position[2] = Altitude.getCellHeight(info.spawnX, info.spawnY);
 
+		pasangJendela();
+
 		Camera.setTarget(spot);
 		Camera.init();
 		aturKamera();
@@ -531,6 +543,35 @@ function gambarUI() {
 
 const gambarUIAman = amankan(gambarUI, log);
 
+// AC4: jendela bergaya RO (Timer, Kapasitas, Zeny, Exp). Mereka baru
+// ditempel sesudah map termuat; Task 10 mempensiunkan panel #ui.
+const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ];
+let jendelaTertempel = false;
+
+function pasangJendela() {
+	if (!jendelaTertempel) {
+		jendelaTertempel = true;
+		JENDELA.forEach((j) => j.append());
+	}
+	gambarJendela();
+}
+
+/** Menggambar ulang keempat jendela dari state terbaru; diam bila belum ada state. */
+function gambarJendela() {
+	if (!jendelaTertempel) {
+		return;
+	}
+	const snap = st.ambil();
+	if (!snap.state) {
+		return;
+	}
+	snap.sisaMs = st.sisaMs(performance.now());
+	const deps = { t: teks.t, formatZeny, ekonomi: katalog.ekonomi, kirim };
+	JENDELA.forEach((j) => j.gambar(snap, deps));
+}
+
+const gambarJendelaAman = amankan(gambarJendela, log);
+
 uiEl.addEventListener('pointerdown', () => {
 	ditahanSejak = performance.now();
 });
@@ -550,6 +591,7 @@ window.addEventListener('blur', lepasPointer);
 
 ikatAksi(uiEl, kirim);
 setInterval(gambarUIAman, 250);
+setInterval(gambarJendelaAman, 250);
 
 // Menutup tab = menyerah: server membebaskan kursi seketika, bukan
 // menunggu socket putus.

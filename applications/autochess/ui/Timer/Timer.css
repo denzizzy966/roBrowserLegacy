@@ -1,0 +1,12 @@
+:host { top: 8px; left: 8px; width: 220px; height: 64px; }
+.bingkai { position: relative; width: 220px; height: 64px; border-radius: 4px; background-color: #1c1c28; background-size: 280px 120px; background-blend-mode: multiply; border: 1px solid #556; color: #fff; font: 11px Arial, sans-serif; overflow: hidden; }
+.digit { display: none; position: absolute; left: 50px; top: 2px; width: 120px; height: 44px; }
+.bingkai.sprite .digit { display: block; }
+.bingkai.sprite .waktu-teks { visibility: hidden; height: 0; }
+.waktu-teks { font-size: 26px; font-weight: bold; text-align: center; letter-spacing: 2px; line-height: 34px; }
+.info { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; }
+.fase { margin-left: 6px; color: #cdd; }
+.hasil { margin-left: 6px; font-weight: bold; }
+.hasil.menang { color: #7f7; }
+.hasil.kalah { color: #f77; }
+.hasil.seri { color: #ee8; }
