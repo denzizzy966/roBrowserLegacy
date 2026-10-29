@@ -72,4 +72,15 @@ describe('renderInfoPemain', () => {
 	it('nama server diloloskan', () => {
 		expect(renderInfoPemain(snap({}, {}, { nama: '<i>x' }), depsDari(buatTeks()))).toContain('&lt;i&gt;x');
 	});
+
+	it('tombol BGM nonaktif tanpa mp3, aktif dengan deps.bgm', () => {
+		const teks = buatTeks();
+		expect(renderInfoPemain(snap(), depsDari(teks)))
+			.toMatch(/<button[^>]*data-aksi="bgm"[^>]* disabled/);
+		const h = renderInfoPemain(snap(), { ...depsDari(teks), bgm: { aktif: () => true, toggle() {} } });
+		expect(h).not.toMatch(/<button[^>]*data-aksi="bgm"[^>]* disabled/);
+		expect(tombol(h, 'bgm')[1]).toBe('Musik');
+		const mati = renderInfoPemain(snap(), { ...depsDari(teks), bgm: { aktif: () => false, toggle() {} } });
+		expect(tombol(mati, 'bgm')[1]).toContain('✕');
+	});
 });

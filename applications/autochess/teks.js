@@ -56,6 +56,7 @@ export const KAMUS = {
 	'tombol.toko':     { id: 'Toko', en: 'Shop' },
 	'tombol.keluar':   { id: 'Keluar', en: 'Leave' },
 	'tombol.log':      { id: 'Log', en: 'Log' },
+	'tombol.bgm':      { id: 'Musik', en: 'Music' },
 
 	// Label
 	'label.ronde':      { id: 'Ronde {0}', en: 'Round {0}' },
@@ -83,6 +84,7 @@ export const KAMUS = {
 	'label.terkunci':   { id: 'Terkunci', en: 'Locked' },
 	'label.kosong':     { id: 'Kosong', en: 'Empty' },
 	'label.bahasa':     { id: 'Bahasa', en: 'Language' },
+	'label.bgmNonaktif': { id: 'Tidak ada berkas mp3 yang dipilih', en: 'No mp3 file was selected' },
 	'label.fase':       { id: 'Fase', en: 'Phase' },
 	'label.namaLevel':  { id: 'Level', en: 'Level' },
 	'label.namaRonde':  { id: 'Ronde', en: 'Round' },

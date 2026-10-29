@@ -16,6 +16,18 @@ function snapshot(isi = {}) {
 }
 
 describe('buatState', () => {
+	it('sebelumnya(): null pada snapshot pertama, lalu state terdekode sebelumnya', () => {
+		const s = buatState();
+		expect(s.sebelumnya()).toBeNull();
+		const a = snapshot({ ronde: 1 });
+		const b = snapshot({ ronde: 2 });
+		s.terima(a, 0);
+		expect(s.sebelumnya()).toBeNull();
+		s.terima(b, 10);
+		expect(s.sebelumnya()).toBe(a);
+		expect(s.ambil().state).toBe(b);
+	});
+
 	it('kosong sebelum pesan apa pun', () => {
 		const s = buatState();
 		expect(s.ambil()).toEqual({ state: null, fase: 0, ronde: 0, hasilTerakhir: null, selesai: null });

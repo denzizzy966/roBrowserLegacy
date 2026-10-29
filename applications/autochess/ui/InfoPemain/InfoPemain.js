@@ -7,7 +7,8 @@
  * Tombol bahasa dan log ditangani di sini, bukan lewat kirim: bahasa
  * memanggil deps.teks.setBahasa (main.js menggambar ulang semua jendela
  * lewat teks.padaUbah), log membuka/menutup #log halaman. Hanya Lewati
- * yang menjadi perintah server.
+ * yang menjadi perintah server. Tombol BGM (data-aksi="bgm") memanggil
+ * deps.bgm.toggle(); nonaktif bila tidak ada mp3 yang dipilih.
  */
 
 import UIManager from 'UI/UIManager.js';
@@ -54,6 +55,10 @@ InfoPemain.init = function init() {
 			depsTerakhir.teks.setBahasa(tombol.dataset.arg);
 		} else if (aksi === 'log') {
 			toggleLog();
+		} else if (aksi === 'bgm') {
+			depsTerakhir.bgm?.toggle();
+			// Gambar ulang segera supaya penanda ✕ berganti tanpa menunggu 250 ms.
+			depsTerakhir.gambarUlang?.();
 		} else if (aksi === 'lewati') {
 			depsTerakhir.kirim('lewati', {});
 		}
@@ -62,7 +67,7 @@ InfoPemain.init = function init() {
 
 /**
  * @param {object} snap state.ambil()
- * @param {object} deps {t, bahasa, formatZeny, teks, kirim}
+ * @param {object} deps {t, bahasa, formatZeny, teks, kirim, bgm, gambarUlang}
  */
 InfoPemain.gambar = function gambar(snap, deps) {
 	depsTerakhir = deps;

@@ -26,6 +26,8 @@
 //   (sprite unit ke kanvas 2D); __ac.cobaPotret adalah spike-nya.
 //   sorot.js (sorotan petak, spike __ac.cobaSorot) dan seret.js
 //   (seret-lepas bangku <-> papan <-> toko lewat pointer events).
+//   bintang.js (naik bintang: EF_ANGEL di papan, kilat + levelup.wav di
+//   bangku) dan bgm.js (BGM dari mp3 yang dipilih di dialog Intro).
 //
 // Nol berkas client/src/ berubah: semuanya lewat API publik.
 
@@ -33,6 +35,9 @@ import Queue         from 'Utils/Queue.js';
 import Client        from 'Core/Client.js';
 import Thread        from 'Core/Thread.js';
 import BGM           from 'Audio/BGM.js';
+import SoundManager  from 'Audio/SoundManager.js';
+import PrefAudio     from 'Preferences/Audio.js';
+import EffectConst   from 'DB/Effects/EffectConst.js';
 import Renderer      from 'Renderer/Renderer.js';
 import MapRenderer   from 'Renderer/MapRenderer.js';
 import Altitude      from 'Renderer/Map/Altitude.js';
@@ -71,6 +76,8 @@ import { buatPotret } from './potret.js';
 import { buatSorot } from './sorot.js';
 import { buatSeret } from './seret.js';
 import { buatDPS } from './dps.js';
+import { deteksiNaikBintang } from './bintang.js';
+import { pilihBGM } from './bgm.js';
 import TimerJ     from './ui/Timer/Timer.js';
 import KapasitasJ from './ui/Kapasitas/Kapasitas.js';
 import ZenyJ      from './ui/Zeny/Zeny.js';
@@ -197,6 +204,52 @@ let htmlTerakhir = '';
 // performance.now() saat tombol pointer ditekan di dalam #ui; null =
 // tidak ada yang ditahan (lihat gambarUI).
 let ditahanSejak = null;
+// AC4 (Q6): BGM tidak ada di GRF, jadi mp3 diambil dari berkas yang
+// dipilih pemain di dialog Intro dan dimainkan lewat object URL.
+let bgmBerkas = null;
+let bgmUrl = null;
+let pertandinganSelesai = false;
+
+/** Memuat BGM terpilih sekali, setelah map pertama termuat. */
+function mulaiBGM() {
+	if (!bgmBerkas || (bgmUrl && !BGM.audio.paused)) {
+		return;
+	}
+	bgmUrl ??= URL.createObjectURL(bgmBerkas);
+	BGM.filename = bgmBerkas.name;
+	BGM.load(bgmUrl); // menghormati PrefAudio.BGM.play
+	log(`bgm: ${bgmBerkas.name}`);
+}
+
+/** Kendali tombol BGM di InfoPemain; null bila tidak ada mp3. */
+const kendaliBGM = {
+	aktif: () => Boolean(PrefAudio.BGM.play),
+	toggle() {
+		PrefAudio.BGM.play = !PrefAudio.BGM.play;
+		PrefAudio.save();
+		if (!PrefAudio.BGM.play) {
+			BGM.stop();
+		} else if (bgmUrl && !pertandinganSelesai) {
+			BGM.load(bgmUrl);
+		}
+		log(`bgm: ${PrefAudio.BGM.play ? 'hidup' : 'mati'}`);
+	}
+};
+
+/** Efek + suara untuk bidak yang baru naik bintang (Q7). */
+function rayakanNaikBintang(nb) {
+	log(`naik bintang: ${nb.unitId} ★${nb.bintang}`);
+	const entity = nb.entityId > 0 ? EntityManager.get(nb.entityId) : null;
+	if (entity) {
+		EffectManager.spam({ effectId: EffectConst.EF_ANGEL, ownerAID: nb.entityId, position: entity.position });
+		return;
+	}
+	if (!nb.diPapan) {
+		BangkuJ.kilat(nb.bidakId);
+	}
+	SoundManager.play('levelup.wav');
+}
+
 let mulaiBerkas = 0;
 let sudahPernahMuat = false;
 
@@ -223,6 +276,7 @@ q.add(function () {
 	log('pilih berkas GRF-mu (data.ini beserta GRF-nya) pada dialog yang muncul.');
 	Intro.onFilesSubmit = function (files) {
 		mulaiBerkas = performance.now();
+		bgmBerkas = pilihBGM(files);
 		log(`${files.length} berkas diterima, mengindeks GRF ...`);
 		Client.onFilesLoaded = q.next;
 		Client.init(files);
@@ -320,6 +374,8 @@ function tanganiPesan({ galat, info, msg }, data) {
 	const cs = decodeCaturState(msg);
 	if (cs) {
 		st.terima(cs, performance.now());
+		// Efek naik bintang dibungkus: kegagalannya tidak boleh menahan gambar ulang.
+		amankan(() => deteksiNaikBintang(st.sebelumnya(), cs).forEach(rayakanNaikBintang), log)();
 		gambarJendelaAman();
 		return;
 	}
@@ -327,6 +383,8 @@ function tanganiPesan({ galat, info, msg }, data) {
 	const selesai = decodeCaturSelesai(msg);
 	if (selesai) {
 		st.terimaSelesai(selesai);
+		pertandinganSelesai = true;
+		BGM.stop();
 		log(`< selesai: peringkatmu #${selesai.peringkatSaya}`);
 		return;
 	}
@@ -467,6 +525,7 @@ function muatArena(info) {
 		const waktu = sudahPernahMuat ? '' : ` (${detikSejakBerkas()} s sejak berkas dipilih)`;
 		sudahPernahMuat = true;
 		log(`map termuat: ${info.mapName}${waktu}`);
+		mulaiBGM();
 
 		// Kamera WAJIB punya target pada setiap jalur sebelum onLoad
 		// selesai: onMapComplete memanggil Renderer.render(onRender) tanpa
@@ -508,6 +567,7 @@ function muatArena(info) {
 	// baru (lihat aktor.go), jadi selesai/hasil pertandingan lama tidak
 	// boleh tertinggal.
 	antrean.reset();
+	pertandinganSelesai = false;
 	st = buatState();
 	htmlTerakhir = '';
 	aturBanner('');
@@ -609,7 +669,7 @@ function gambarJendela() {
 	snap.sisaMs = st.sisaMs(performance.now());
 	// teks: InfoPemain mengganti bahasa sendiri (setBahasa); padaUbah di
 	// atas lalu menggambar ulang semua jendela.
-	const deps = { t: teks.t, bahasa: teks.bahasa(), teks, formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim, seret, dps };
+	const deps = { t: teks.t, bahasa: teks.bahasa(), teks, formatZeny, ekonomi: katalog.ekonomi, katalog, potret, kirim, seret, dps, bgm: bgmBerkas ? kendaliBGM : null, gambarUlang: gambarJendelaAman };
 	JENDELA.forEach((j) => j.gambar(snap, deps));
 	// Separuh sendiri disorot redup selama PERSIAPAN. Idempoten, jadi
 	// cukup dipanggil tiap gambar: pergantian fase terlihat paling lambat
@@ -811,11 +871,12 @@ function cobaSorot(kolom, baris) {
 // Spike efek: __ac.cobaEfek(__ac.SK.WZ_STORMGUST, 4, 1, 1000);
 // AC3: __ac.state() memberi snapshot state catur untuk e2e, dan
 // __ac.kirim('beli', {slot: 0}) mengirim perintah tanpa panel.
-// AC4: __ac.cobaPotret('novice'), __ac.cobaPotret('wizard', 'statis'),
+// AC4: __ac.BGM.audio (cek BGM), __ac.rayakanNaikBintang({...}) (spike naik bintang), __ac.cobaPotret('novice'), __ac.cobaPotret('wizard', 'statis'),
 // __ac.bahasa('en'), __ac.t('fase.persiapan'), __ac.Toko.buka(),
 // __ac.cobaSorot(3, 2) / __ac.cobaSorot(null), __ac.seret.aktif(),
 // __ac.Bangku / __ac.DaftarPemain / __ac.InfoPemain.
 window.__ac = {
+	BGM, SoundManager, bgmKendali: kendaliBGM, deteksiNaikBintang, rayakanNaikBintang, st: () => st,
 	Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek,
 	kirim, state: () => st.ambil(), katalog: () => katalog,
 	potret, cobaPotret, sorot, cobaSorot, seret, bahasa: (kode) => teks.setBahasa(kode), t: teks.t, Toko: TokoJ,

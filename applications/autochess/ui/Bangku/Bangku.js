@@ -32,6 +32,22 @@ let seretTerakhir = null;
 // diperkecil dan kakinya diletakkan di atas label nama.
 const OPSI_POTRET = { skala: 0.8, kaki: 0.88 };
 
+/** Lama kilat naik bintang pada slot bangku (ms). */
+const DURASI_KILAT_MS = 800;
+
+// bidakId -> waktu habis kilat. Disimpan terpisah dari DOM karena isi
+// slot ditulis ulang saat state berubah; kelas dipasang ulang di gambar().
+const kilatSampai = new Map();
+
+/** Memasang/melepas kelas `kilat` pada slot sesuai kilatSampai. */
+function terapkanKilat(isi) {
+	const sekarang = performance.now();
+	for (const slot of isi.querySelectorAll('.slot.terisi')) {
+		const habis = kilatSampai.get(Number(slot.dataset.bidak));
+		slot.classList.toggle('kilat', habis !== undefined && habis > sekarang);
+	}
+}
+
 /** Kunci kanvas untuk dipakai ulang: bidak dan unit harus sama. */
 function kunciKanvas(kanvas) {
 	return `${kanvas.closest('.slot')?.dataset.bidak}:${kanvas.dataset.unit}`;
@@ -50,6 +66,20 @@ Bangku.init = function init() {
 };
 
 /**
+ * Menyalakan kilat CSS 800 ms pada slot bangku bidak ini (naik bintang).
+ * Aman dipanggil sebelum slotnya tergambar: kelas dipasang di gambar().
+ *
+ * @param {number} bidakId
+ */
+Bangku.kilat = function kilat(bidakId) {
+	kilatSampai.set(bidakId, performance.now() + DURASI_KILAT_MS);
+	if (this.isi) {
+		terapkanKilat(this.isi);
+		setTimeout(() => terapkanKilat(this.isi), DURASI_KILAT_MS + 20);
+	}
+};
+
+/**
  * @param {object} snap state.ambil()
  * @param {object} deps {t, bahasa, katalog, potret, seret}
  */
@@ -61,8 +91,10 @@ Bangku.gambar = function gambar(snap, deps) {
 		lama.set(kunciKanvas(k), k);
 	}
 	if (!tulisBila(this.isi, renderBangku(snap, deps))) {
+		terapkanKilat(this.isi);
 		return;
 	}
+	terapkanKilat(this.isi);
 	for (const baru of this.isi.querySelectorAll('canvas.potret')) {
 		const kunci = kunciKanvas(baru);
 		const dulu = lama.get(kunci);

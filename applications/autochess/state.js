@@ -18,12 +18,15 @@
  *   terimaFase: function(object, number): void,
  *   terimaHasil: function(object): void,
  *   terimaSelesai: function(object): void,
+ *   sebelumnya: function(): object|null,
  *   ambil: function(): {state: object|null, fase: number, ronde: number, hasilTerakhir: object|null, selesai: object|null},
  *   sisaMs: function(number): number
  * }}
  */
 export function buatState() {
 	let state = null;
+	// Snapshot sebelum yang terakhir diterima (untuk deteksi naik bintang).
+	let sebelumnya = null;
 	// fase dan ronde disimpan terpisah dari snapshot: EvtCaturFase bisa
 	// tiba lebih dulu daripada snapshot berikutnya, dan tombol harus
 	// mengikuti fase TERBARU dari sumber mana pun.
@@ -41,6 +44,7 @@ export function buatState() {
 	return {
 		/** Menyimpan snapshot hasil decodeCaturState dan mereset jam. */
 		terima(stateDecoded, sekarangMs) {
+			sebelumnya = state;
 			state = stateDecoded;
 			fase = stateDecoded.fase;
 			ronde = stateDecoded.ronde;
@@ -62,6 +66,11 @@ export function buatState() {
 		/** Menyimpan penutup pertandingan (decodeCaturSelesai). */
 		terimaSelesai(s) {
 			selesai = s;
+		},
+
+		/** State terdekode SEBELUM snapshot terakhir; null pada snapshot pertama. */
+		sebelumnya() {
+			return sebelumnya;
 		},
 
 		/** Snapshot untuk renderUI dan e2e (__ac.state()). */

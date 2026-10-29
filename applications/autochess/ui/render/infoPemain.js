@@ -43,6 +43,7 @@ function baris(label, nilai) {
  * @param {function} deps.t penerjemah teks.js
  * @param {string} deps.bahasa 'id' | 'en' (bahasa aktif)
  * @param {function} deps.formatZeny teks.js formatZeny
+ * @param {{aktif: function(): boolean, toggle: function}|null} [deps.bgm] kendali BGM; null/undefined = tidak ada mp3 (tombol nonaktif)
  * @returns {string} HTML isi jendela InfoPemain
  */
 export function renderInfoPemain(snap, deps) {
@@ -64,6 +65,7 @@ export function renderInfoPemain(snap, deps) {
 		+ '<div class="tombol-baris">'
 		+ `<button class="tombol bahasa" data-aksi="bahasa" data-arg="${kodeLain}" title="${esc(t('label.bahasa'))}">${esc(t('tombol.bahasa'))}</button>`
 		+ `<button class="tombol log" data-aksi="log">${esc(t('tombol.log'))}</button>`
+		+ `<button class="tombol bgm" data-aksi="bgm"${deps.bgm ? '' : ` disabled title="${esc(t('label.bgmNonaktif'))}"`}>${esc(t('tombol.bgm'))}${deps.bgm && !deps.bgm.aktif() ? ' ✕' : ''}</button>`
 		+ `<button class="tombol lewati" data-aksi="lewati"${bisaLewati ? '' : ' disabled'}>${esc(t('tombol.lewati'))}</button>`
 		+ '</div>';
 }

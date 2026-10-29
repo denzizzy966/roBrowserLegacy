@@ -10,3 +10,5 @@
 .bintang-2 { color: #9cf; }
 .bintang-3 { color: #f9c; }
 .nama { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; text-shadow: 1px 1px 0 #000; pointer-events: none; }
+@keyframes kilat-bintang { 0%, 100% { box-shadow: 0 0 0 #fff0; } 30% { box-shadow: 0 0 14px 4px #fff, inset 0 0 14px #9cf; } }
+.slot.kilat { border-color: #fff; animation: kilat-bintang 0.8s ease-out; }
