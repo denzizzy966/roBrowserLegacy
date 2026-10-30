@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { renderSinergi, renderLore, inisial, ambangBerikut, petaInisial } from './sinergi.js';
+import { readFileSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { renderSinergi, renderLore, kodeLencana, ambangBerikut } from './sinergi.js';
 import { buatTeks } from '../../teks.js';
 import { buatKatalog } from '../../katalog.js';
 
@@ -41,66 +43,80 @@ describe('renderSinergi', () => {
 		expect(h).toContain('1/2');
 		expect(h).toContain('background:#4dabf7');
 		expect(h).toContain('title="Kerajaan Prontera"');
-		expect(h).toContain('>KP<');
+		expect(h).toContain('>PR<');
+		expect(h).toContain('>VA<');
 	});
 	it('semua ambang tercapai: pakai ambang terakhir; tanpa sinergi: kosong', () => {
 		expect(renderSinergi(snap([{ id: 'prontera', jumlah: 5, tingkatAktif: 2, origin: true }]), deps())).toContain('5/4');
 		expect(renderSinergi(snap([]), deps())).toBe('');
 		expect(ambangBerikut([2, 4, 6], 4)).toBe(4);
-		expect(inisial('Garda')).toBe('GA');
 	});
 });
 
-describe('inisial unik (verifikasi isu 3)', () => {
-	// Nama sungguhan katalog server: EN "Sanctuary Abbey" dan "Saint"
-	// sama-sama "SA" (ditambah "Shadow Assassin").
-	const KAT_SA = {
-		sinergi: {
-			st_capitolina: { origin: true, nama: { id: 'Kuil St. Capitolina', en: 'Sanctuary Abbey' }, ambang: [2] },
-			saint: { origin: false, nama: { id: 'Orang Suci', en: 'Saint' }, ambang: [2] },
-			assassin: { origin: false, nama: { id: 'Pembunuh Bayangan', en: 'Shadow Assassin' }, ambang: [2] },
-			martial_artist: { origin: false, nama: { id: 'Pendekar Beladiri', en: 'Martial Artist' }, ambang: [2] }
-		},
-		lore: { origin: { st_capitolina: { color: '#fff3bf' } } }
-	};
-	function lencana(h) {
-		return [...h.matchAll(/data-sinergi="([^"]+)" title="([^"]*)"[^>]*>([^<]*)</g)]
-			.map(([, id, title, teks]) => ({ id, title, teks }));
+describe('kodeLencana (R7): dua huruf tetap dari id, bukan dari nama', () => {
+	it('satu kata: dua huruf pertama; dua kata atau lebih: huruf pertama dua kata pertama', () => {
+		expect(kodeLencana('prontera')).toBe('PR');
+		expect(kodeLencana('vanguard')).toBe('VA');
+		expect(kodeLencana('st_capitolina')).toBe('SC');
+		expect(kodeLencana('martial_artist')).toBe('MA');
+		expect(kodeLencana('a_b_c')).toBe('AB');
+		expect(kodeLencana('saint')).toBe('SA');
+		expect(kodeLencana('PRONTERA')).toBe('PR');
+		expect(kodeLencana('x')).toBe('X');
+		expect(kodeLencana('')).toBe('?');
+	});
+
+	it('pengecualian tabrakan: performer -> PF, peco tetap PE', () => {
+		expect(kodeLencana('performer')).toBe('PF');
+		expect(kodeLencana('peco')).toBe('PE');
+	});
+
+	const BERKAS = fileURLToPath(new URL('../../../../../server/data/catur/sinergi.yml', import.meta.url));
+	/** Semua id origin dan kelas produksi: kunci tingkat-2 di bawah origin:/kelas:. */
+	function idProduksi() {
+		const hasil = [];
+		let bagian = null;
+		for (const baris of readFileSync(BERKAS, 'utf8').split(/\r?\n/)) {
+			const b = /^([a-z]+):\s*$/.exec(baris);
+			if (b) {
+				bagian = b[1];
+				continue;
+			}
+			const k = /^ {2}([a-z0-9_]+):\s*$/.exec(baris);
+			if (k && (bagian === 'origin' || bagian === 'kelas')) {
+				hasil.push(k[1]);
+			}
+		}
+		return hasil;
 	}
 
-	it.each(['en', 'id'])('st_capitolina vs saint (%s): inisial berbeda, title nama lengkap', (bahasa) => {
+	it.skipIf(!existsSync(BERKAS))('SEMUA id produksi sinergi.yml berkode unik dan dua huruf kapital', () => {
+		const ids = idProduksi();
+		expect(ids.length).toBeGreaterThanOrEqual(26);
+		const kode = ids.map(kodeLencana);
+		for (const k of kode) {
+			expect(k).toMatch(/^[A-Z]{2}$/);
+		}
+		const kembar = ids.filter((id, i) => kode.indexOf(kode[i]) !== i);
+		expect(kembar).toEqual([]);
+	});
+
+	it.each(['en', 'id'])('lencana sama di bahasa %s; title memuat nama lengkap menurut bahasa', (bahasa) => {
+		const kat = buatKatalog({
+			sinergi: {
+				st_capitolina: { origin: true, nama: { id: 'Kuil St. Capitolina', en: 'Sanctuary Abbey' }, ambang: [2] },
+				saint: { origin: false, nama: { id: 'Orang Suci', en: 'Saint' }, ambang: [2] }
+			},
+			lore: { origin: { st_capitolina: { color: '#fff3bf' } } }
+		});
 		const teks = buatTeks({ pref: { bahasa } });
-		const d = { t: teks.t, bahasa, katalog: buatKatalog(KAT_SA) };
 		const h = renderSinergi(snap([
 			{ id: 'st_capitolina', jumlah: 1, tingkatAktif: 0, origin: true },
 			{ id: 'saint', jumlah: 1, tingkatAktif: 0, origin: false }
-		]), d);
-		const [abbey, saint] = lencana(h);
-		expect(abbey.teks).not.toBe(saint.teks);
-		expect(abbey.teks).toHaveLength(2);
-		expect(saint.teks).toHaveLength(2);
-		expect(abbey.title).toBe(KAT_SA.sinergi.st_capitolina.nama[bahasa]);
-		expect(saint.title).toBe(KAT_SA.sinergi.saint.nama[bahasa]);
-	});
-
-	it('inisial stabil: tidak bergantung pada sinergi lain di papan', () => {
-		const d = { t: buatTeks({ pref: { bahasa: 'en' } }).t, bahasa: 'en', katalog: buatKatalog(KAT_SA) };
-		const sendiri = lencana(renderSinergi(snap([{ id: 'saint', jumlah: 1, tingkatAktif: 0 }]), d))[0].teks;
-		const bersama = lencana(renderSinergi(snap([
-			{ id: 'assassin', jumlah: 1, tingkatAktif: 0 },
-			{ id: 'saint', jumlah: 1, tingkatAktif: 0 }
-		]), d))[1].teks;
-		expect(sendiri).toBe(bersama);
-	});
-
-	it('petaInisial: semua unik, yang tak bertabrakan memakai inisial biasa', () => {
-		const peta = petaInisial([
-			['saint', 'Saint'], ['st_capitolina', 'Sanctuary Abbey'], ['assassin', 'Shadow Assassin'],
-			['prontera', 'Prontera Kingdom'], ['x', 'A'], ['y', 'A']
-		]);
-		expect(new Set(peta.values()).size).toBe(peta.size);
-		expect(peta.get('prontera')).toBe('PK');
-		expect(peta.get('assassin')).toBe('SA'); // id pertama menurut urutan
+		]), { t: teks.t, bahasa, katalog: kat });
+		const lencana = [...h.matchAll(/data-sinergi="([^"]+)" title="([^"]*)"[^>]*>([^<]*)</g)].map(([, id, title, kode]) => ({ id, title, kode }));
+		expect(lencana.map((l) => l.kode)).toEqual(['SC', 'SA']);
+		expect(lencana[0].title).toBe(bahasa === 'en' ? 'Sanctuary Abbey' : 'Kuil St. Capitolina');
 	});
 
 	it('warna lore bukan #hex jatuh ke cadangan (tidak bisa menyisipkan CSS)', () => {

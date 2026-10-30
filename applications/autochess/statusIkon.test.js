@@ -38,9 +38,13 @@ describe('pathIkon', () => {
 		const tabel = { [SC.HEALTHSTATE_BLIND]: { icon: 'buta.tga' } };
 		expect(pathIkon(EFEK_STATUS.BUTA, tabel)).toEqual([
 			'data/texture/effect/buta.tga',
-			'data/texture/effect/hl_blind.tga',
-			'data/texture/effect/handicapstate_deepblind.tga'
+			'data/texture/effect/handicapstate_deepblind.tga',
+			'data/texture/effect/hl_blind.tga'
 		]);
+	});
+
+	it('buta mencoba handicapstate_deepblind lebih dulu (hl_blind hilang di GRF: hindari HTTP sia-sia)', () => {
+		expect(pathIkon(EFEK_STATUS.BUTA, {})[0]).toBe('data/texture/effect/handicapstate_deepblind.tga');
 	});
 
 	it('status tak dikenal -> tanpa path', () => {
@@ -120,7 +124,7 @@ describe('buatPemuatIkon', () => {
 		const log = vi.fn();
 		const pemuat = buatPemuatIkon({ Client, Texture, StatusTable: StatusInfo, log });
 		expect(pemuat.ambil(EFEK_STATUS.BUTA).asal).toBe('data:data/texture/effect/handicapstate_deepblind.tga');
-		expect(Client.loadFile).toHaveBeenCalledTimes(2);
+		expect(Client.loadFile).toHaveBeenCalledTimes(1);
 
 		const kosong = buatFakes();
 		const p2 = buatPemuatIkon({ Client: kosong.Client, Texture: kosong.Texture, StatusTable: StatusInfo, log });
@@ -138,6 +142,52 @@ describe('buatPemuatIkon', () => {
 		const Texture = { load: vi.fn((data, cb) => cb.call(null, false)) };
 		const pemuat = buatPemuatIkon({ Client, Texture, StatusTable: StatusInfo });
 		expect(pemuat.ambil(EFEK_STATUS.BISU)).toBeNull();
+	});
+
+	it('tiga ambil selama pemuatan tertahan: satu loadFile, ketiga callback sekali saat siap', () => {
+		const { Client, Texture, lepas } = buatFakes({ ada: ['data/texture/effect/bd_freezing.tga'], tahan: true });
+		const pemuat = buatPemuatIkon({ Client, Texture, StatusTable: StatusInfo });
+		const cb = [vi.fn(), vi.fn(), vi.fn()];
+		cb.forEach((f) => pemuat.ambil(EFEK_STATUS.BEKU, f));
+		expect(Client.loadFile).toHaveBeenCalledTimes(1);
+		lepas();
+		cb.forEach((f) => expect(f).toHaveBeenCalledTimes(1));
+	});
+
+	it('tiga ambil selama pemuatan tertahan lalu gagal: ketiga callback sekali dengan null', () => {
+		const { Client, Texture, lepas } = buatFakes({ tahan: true });
+		const pemuat = buatPemuatIkon({ Client, Texture, StatusTable: StatusInfo });
+		const cb = [vi.fn(), vi.fn(), vi.fn()];
+		cb.forEach((f) => pemuat.ambil(EFEK_STATUS.BISU, f));
+		lepas();
+		expect(Client.loadFile).toHaveBeenCalledTimes(1);
+		cb.forEach((f) => expect(f).toHaveBeenCalledExactlyOnceWith(null));
+	});
+
+	it('url berulang dengan padaSiap yang sama tidak menumpuk penunggu', () => {
+		const { Client, Texture, lepas } = buatFakes({ ada: ['data/texture/effect/hl_poison.tga'], tahan: true });
+		const pemuat = buatPemuatIkon({ Client, Texture, StatusTable: StatusInfo });
+		const padaSiap = vi.fn();
+		for (let i = 0; i < 5; i++) {
+			expect(pemuat.url(EFEK_STATUS.RACUN, padaSiap)).toBeNull();
+		}
+		lepas();
+		expect(padaSiap).toHaveBeenCalledTimes(1);
+	});
+
+	it('decode yang tak pernah memanggil balik dianggap gagal sesudah batas waktu', () => {
+		const { Client } = buatFakes({ ada: ['data/texture/effect/hl_silence.tga'] });
+		const Texture = { load: vi.fn() }; // tidak pernah memanggil cb: gambar rusak tanpa onerror
+		const jadwal = [];
+		const log = vi.fn();
+		const pemuat = buatPemuatIkon({ Client, Texture, StatusTable: StatusInfo, log, tunda: (fn) => jadwal.push(fn) });
+		const cb = vi.fn();
+		expect(pemuat.ambil(EFEK_STATUS.BISU, cb)).toBeNull();
+		expect(cb).not.toHaveBeenCalled();
+		jadwal.splice(0).forEach((fn) => fn());
+		expect(cb).toHaveBeenCalledExactlyOnceWith(null);
+		expect(log).toHaveBeenCalledTimes(1);
+		expect(pemuat.url(EFEK_STATUS.BISU)).toBeNull();
 	});
 
 	it('efst tak dikenal -> null tanpa memuat apa pun', () => {

@@ -87,13 +87,14 @@ KartuBidak.terbuka = function terbuka() {
 
 /**
  * Dipanggil tiap denyut bersama jendela lain: hanya menyimpan deps
- * (bahasa, katalog, ikonStatus) dan menggambar ulang bila tampil.
+ * (bahasa, katalog, ikonStatus). TIDAK menggambar: kartu.denyut() (kartu.js)
+ * dipanggil tepat sesudahnya dan menggambar info yang segar, jadi
+ * menggambar di sini hanya render ganda dari info basi.
  * @param {object} snap state.ambil() (tak dipakai)
  * @param {object} deps {t, bahasa, katalog, ikonStatus}
  */
 KartuBidak.gambar = function gambar(snap, deps) {
 	depsTerakhir = deps;
-	isiUlang();
 };
 
 export default UIManager.addComponent(KartuBidak);

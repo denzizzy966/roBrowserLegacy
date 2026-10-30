@@ -147,6 +147,30 @@ describe('Review Focus 4: kartu saat entity hilang atau status lepas', () => {
 		expect(kartu.tampil()).toBeNull();
 	});
 
+	it('identitas GID: cariTarget masih menemukan entity LAMA (basi), tetapi GID sudah milik entity lain -> tutup', () => {
+		const peta = new Map();
+		const lama = {
+			GID: 7, ACTION: { DIE: 8 }, action: 0, remove_tick: 0, position: [44, 42, 0],
+			life: { hp: 10, hp_max: 20 }, __acTim: 1, __acNama: 'Wizard', __acBintang: 1, __acStatus: new Set()
+		};
+		peta.set(7, lama);
+		const EntityManager = { get: (id) => peta.get(id) ?? null, forEach: () => {} };
+		const jendela = { tampilkan: vi.fn(), sembunyikan: vi.fn() };
+		const pewaktu = [];
+		const kartu = buatKartu({
+			EntityManager, ambilSnap: () => ({ state: null }), katalog: buatKatalog({}), jendela,
+			cariTarget: () => lama, // pencarian per petak/getOverEntity masih mengembalikan objek lama
+			tunda: (fn) => pewaktu.push(fn), batalTunda: () => {}
+		});
+		kartu.gerak({ clientX: 1, clientY: 1 });
+		pewaktu.splice(0).forEach((fn) => fn());
+		expect(kartu.tampil()).toBe(7);
+		peta.set(7, { ...lama }); // GID dipakai ulang oleh entity baru
+		kartu.denyut();
+		expect(kartu.tampil()).toBeNull();
+		expect(jendela.sembunyikan).toHaveBeenCalledTimes(1);
+	});
+
 	it('GID dipakai ulang oleh entity baru (map dimuat ulang) menutup kartu lama', () => {
 		const { peta, entity, kartu } = siapkan();
 		peta.set(7, { ...entity, __acStatus: new Set() });

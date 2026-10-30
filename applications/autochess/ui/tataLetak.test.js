@@ -35,8 +35,26 @@ describe('hitungTataLetak', () => {
 		expect(tumpang(hitungTataLetak(w, h), OVERLAY)).toEqual([]);
 	});
 
-	it.each(UKURAN_LAYAR)('%ix%i: Toko dan DPS terbuka tidak menutup jendela lain kecuali Lore', (w, h) => {
-		expect(tumpang(hitungTataLetak(w, h), ['Lore'])).toEqual([]);
+	it.each(UKURAN_LAYAR)('%ix%i: Toko dan DPS terbuka tidak menutup jendela lain kecuali Lore dan Log', (w, h) => {
+		expect(tumpang(hitungTataLetak(w, h), ['Lore', 'Log'])).toEqual([]);
+	});
+
+	it('Log 320x140 di kanan-bawah tepat di atas tombol K pada 1600x900', () => {
+		const l = hitungTataLetak(1600, 900);
+		expect(l.Log.kotak).toEqual({ x: 1600 - 8 - 320, y: 900 - 8 - 48 - 6 - 140, lebar: 320, tinggi: 140 });
+		expect(l.Log.kotak.y + l.Log.kotak.tinggi).toBeLessThanOrEqual(l.TombolToko.kotak.y);
+		expect(OVERLAY).toContain('Log');
+	});
+
+	it.each(UKURAN_LAYAR)('%ix%i: Log terbuka tidak menutup jendela tetap, Toko, maupun pusat papan', (w, h) => {
+		const l = hitungTataLetak(w, h);
+		const tetap = Object.keys(l).filter((n) => !OVERLAY.includes(n) || n === 'Toko');
+		for (const n of tetap) {
+			expect(beririsan(l.Log.kotak, l[n].kotak), `Log x ${n}`).toBe(false);
+		}
+		// Pusat papan = pusat layar (kamera menengahkan papan): kotak 200x200 di tengah.
+		const pusat = { x: w / 2 - 100, y: h / 2 - 100, lebar: 200, tinggi: 200 };
+		expect(beririsan(l.Log.kotak, pusat)).toBe(false);
 	});
 
 	it.each(UKURAN_LAYAR)('%ix%i: semua kotak di dalam layar', (w, h) => {
@@ -82,6 +100,16 @@ describe('posisiKartu (KartuBidak menempel ke pointer, di luar hitungTataLetak)'
 	});
 	it('dibalik ke kiri/atas pointer di dekat tepi kanan/bawah', () => {
 		expect(posisiKartu({ x: 1500, y: 850 }, ukuran, layar)).toEqual({ left: 1284, top: 684 });
+	});
+	it.each(UKURAN_LAYAR)('%ix%i: kartu selalu di dalam layar untuk pointer di tepi dan sudut', (w, h) => {
+		const pojok = [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1], [w / 2, h / 2], [w - 5, h / 2], [w / 2, h - 5]];
+		for (const [x, y] of pojok) {
+			const p = posisiKartu({ x, y }, ukuran, { lebar: w, tinggi: h });
+			expect(p.left).toBeGreaterThanOrEqual(TEPI);
+			expect(p.top).toBeGreaterThanOrEqual(TEPI);
+			expect(p.left + ukuran.lebar).toBeLessThanOrEqual(w - TEPI);
+			expect(p.top + ukuran.tinggi).toBeLessThanOrEqual(h - TEPI);
+		}
 	});
 	it('selalu di dalam layar, juga di layar sempit', () => {
 		for (const titik of [{ x: 0, y: 0 }, { x: 1599, y: 899 }, { x: 100, y: 880 }, { x: 1590, y: 5 }]) {

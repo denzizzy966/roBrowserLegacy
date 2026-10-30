@@ -8,8 +8,9 @@
  *   dengan seret.js): bidak sendiri saat PERSIAPAN dari snapshot
  *   (entityId), selebihnya entity bertim (EvtSpawn.tim, lawan dan creep
  *   saat TEMPUR) yang posisinya jatuh di petak itu.
- * - Kartu tampil sesudah pointer diam >= JEDA_KARTU_MS di atas bidak yang
- *   SAMA; ditutup saat pointer pergi (dari bidak atau dari kanvas), saat
+ * - Kartu tampil sesudah pointer berada >= JEDA_KARTU_MS di atas bidak yang
+ *   SAMA (dwell sejak MASUK bidak itu, bukan diam: menggeser pointer di atas
+ *   bidak yang sama tidak mengulang jeda); ditutup saat pointer pergi (dari bidak atau dari kanvas), saat
  *   seret dimulai, dan saat entity hilang/mati (diperiksa di denyut 250 ms
  *   jendela). Isinya digambar ulang tiap denyut, jadi status yang lepas
  *   langsung kehilangan ikonnya (Review Focus 4).
@@ -20,7 +21,7 @@
 import { FASE } from './pesan.js';
 import { petakDariCell } from './papan.js';
 
-/** Lama pointer harus diam di atas bidak sebelum kartu tampil (ms). */
+/** Lama pointer berada di atas bidak yang sama sebelum kartu tampil (ms; dwell sejak masuk, bukan diam). */
 export const JEDA_KARTU_MS = 250;
 
 /**
@@ -70,13 +71,17 @@ export function bidakAutochess(entity, snap) {
  * dari __acSP/__acMaxSP (efek.js), status dari __acStatus (efek.js).
  *
  * @param {object} entity
- * @param {{snap: object, katalog: object}} d
+ * @param {{snap: object, katalog: object, namaMob?: function(number): (string|null)}} d
+ *   namaMob(job): nama mob menurut bahasa client untuk creep (opsional)
  * @returns {object} info untuk renderKartuBidak
  */
-export function infoBidak(entity, { snap, katalog }) {
+export function infoBidak(entity, { snap, katalog, namaMob }) {
 	const milik = bidakSendiri(snap, entity.GID);
-	const nama = entity.__acNama || entity.display?.name || '';
-	const unitId = milik?.unitId ?? katalog?.idUnitDariNama?.(nama) ?? null;
+	const namaSpawn = entity.__acNama || entity.display?.name || '';
+	const unitId = milik?.unitId ?? katalog?.idUnitDariNama?.(namaSpawn) ?? null;
+	// Creep (tanpa unit katalog): nama mob roBrowser menurut bahasa client;
+	// bila tak ada ('Unknown' / kosong), nama mentah EvtSpawn.
+	const nama = (!unitId && namaMob?.(entity._job)) || namaSpawn;
 	const life = entity.life ?? {};
 	const maxHp = life.hp_max > 0 ? life.hp_max : (entity.__m2MaxHP || 0);
 	return {
@@ -145,6 +150,7 @@ export function cariBidak({ EntityManager, snap, over, petak, asal, skala }) {
  * @param {() => (object|null)} d.cariTarget bidak di bawah pointer sekarang (cariBidak)
  * @param {{tampilkan: function(object, {x:number,y:number}), sembunyikan: function}} d.jendela KartuBidak
  * @param {() => boolean} [d.seretAktif] true selama seret bidak berjalan
+ * @param {function(number): (string|null)} [d.namaMob] nama mob untuk creep (DB.getMonsterName; null = tak ada)
  * @param {function(function, number): any} [d.tunda] setTimeout
  * @param {function(any): void} [d.batalTunda] clearTimeout
  * @returns {{gerak: function, keluar: function, denyut: function, sembunyikan: function, tampil: function}}
@@ -152,6 +158,7 @@ export function cariBidak({ EntityManager, snap, over, petak, asal, skala }) {
 export function buatKartu({
 	EntityManager, ambilSnap, katalog, cariTarget, jendela,
 	seretAktif = () => false,
+	namaMob = null,
 	tunda = (fn, ms) => setTimeout(fn, ms),
 	batalTunda = (id) => clearTimeout(id)
 }) {
@@ -182,7 +189,7 @@ export function buatKartu({
 	}
 
 	function gambar() {
-		jendela.tampilkan(infoBidak(tampil, { snap: ambilSnap(), katalog: ambilKatalog() }), { ...titik });
+		jendela.tampilkan(infoBidak(tampil, { snap: ambilSnap(), katalog: ambilKatalog(), namaMob }), { ...titik });
 	}
 
 	function tampilkan(e) {

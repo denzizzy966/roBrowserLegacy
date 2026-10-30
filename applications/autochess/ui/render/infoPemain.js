@@ -1,7 +1,7 @@
 /**
  * Renderer murni jendela InfoPemain (G): ringkasan kursi sendiri (nama, HP,
  * level, Zeny, streak, ronde, fase) dan tiga tombol: bahasa (menampilkan
- * kode bahasa LAIN, ID/EN), log (buka/tutup #log), dan Lewati (hanya di
+ * kode bahasa LAIN, ID/EN), log (buka/tutup jendela Log), dan Lewati (hanya di
  * PERSIAPAN). Tombol bahasa dan log ditangani lokal oleh InfoPemain.js;
  * Lewati diteruskan ke deps.kirim.
  */

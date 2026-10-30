@@ -20,15 +20,26 @@ const CONTOH = {
 };
 
 describe('buatKatalog', () => {
-	it('idUnitDariNama mencari unit dari nama EN atau ID (nama EvtSpawn), null bila asing', () => {
+	it('idUnitDariNama mencari unit dari nama EN (nama EvtSpawn); nama ID tidak diindeks', () => {
 		const log = vi.fn();
 		const k = buatKatalog(CONTOH, log);
 		expect(k.idUnitDariNama('Novice')).toBe('novice');
-		expect(k.idUnitDariNama('Novis')).toBe('novice');
+		expect(k.idUnitDariNama('Novis')).toBeNull();
 		expect(k.idUnitDariNama('Dracula')).toBeNull();
 		expect(k.idUnitDariNama('')).toBeNull();
 		expect(buatKatalog({}).idUnitDariNama('Novice')).toBeNull();
 		expect(log).not.toHaveBeenCalled();
+	});
+
+	it('nama EN ganda: id pertama menang, dicatat satu kali saja', () => {
+		const log = vi.fn();
+		const k = buatKatalog({ units: {
+			a: { nama: { id: 'A1', en: 'Sama' } }, b: { nama: { id: 'B1', en: 'Sama' } }, c: { nama: { id: 'Sama', en: 'C' } }
+		} }, log);
+		expect(k.idUnitDariNama('Sama')).toBe('a');
+		expect(k.idUnitDariNama('C')).toBe('c');
+		expect(log).toHaveBeenCalledTimes(1);
+		expect(log.mock.calls[0][0]).toContain('Sama');
 	});
 
 	it('unit, namaUnit, spriteUnit untuk id yang dikenal', () => {

@@ -6,13 +6,16 @@
  *   B DaftarPemain kolom kiri  E Sinergi di bawah D       F tombol DPS kanan-tengah
  *   G InfoPemain (terlipat) di atas H                     DPS di kiri tombol F
  *   H Exp kiri-bawah           I Bangku tengah-bawah      K tombol Toko kanan-bawah
- *   Toko = overlay di atas Bangku, Lore di tengah (keduanya tersembunyi bawaan).
+ *   Toko = overlay di atas Bangku, Lore di tengah, Log kanan-bawah di atas K
+ *   (semuanya tersembunyi bawaan).
  *
  * hitungTataLetak murni (teruji di vitest); aturTataLetak menerapkannya ke
  * host GUIComponent. Posisi di sini MENIMPA :host di berkas .css (inline
  * menang), termasuk transform: jendela yang bisa diseret (InfoPemain, DPS,
  * Lore) membaca offsetLeft/Top, jadi translate(-50%) membuatnya melompat.
  */
+
+import { gabungPosisi } from './posisi.js';
 
 /** Jarak tepi layar dan jarak antarjendela (px). */
 export const TEPI = 8;
@@ -36,11 +39,12 @@ export const UKURAN = {
 	Bangku:       { lebar: 640, tinggi: 110 },
 	TombolToko:   { lebar: 48,  tinggi: 48 },
 	Toko:         { lebar: 620, tinggi: 216 },
-	Lore:         { lebar: 360, tinggi: 220 }
+	Lore:         { lebar: 360, tinggi: 220 },
+	Log:          { lebar: 320, tinggi: 140 }
 };
 
 /** Jendela yang tersembunyi bawaan (dikecualikan dari uji tumpang tindih). */
-export const OVERLAY = ['Toko', 'DPS', 'Lore'];
+export const OVERLAY = ['Toko', 'DPS', 'Lore', 'Log'];
 
 /** Puncak kolom DaftarPemain: di bawah Timer. */
 const ATAS_DAFTAR = 80;
@@ -81,6 +85,14 @@ export function hitungTataLetak(lebar, tinggi) {
 	const atasTombolDPS = Math.round(tinggi * 0.45);
 	const kiriDPS = kiriTombolKanan - SELA - U.DPS.lebar;
 	const kiriKap = Math.round((lebar - U.Kapasitas.lebar) / 2);
+	// Log: rata kanan, tepat di atas tombol K. Di layar sempit kolom kirinya
+	// masuk ke lebar Bangku; saat itu ia naik ke atas Bangku supaya tidak
+	// menutupnya (tersembunyi bawaan, jadi hanya kotaknya yang dijaga).
+	const kiriLog = lebar - TEPI - U.Log.lebar;
+	let atasLog = tinggi - TEPI - U.TombolToko.tinggi - SELA - U.Log.tinggi;
+	if (kiriLog < kiriBangku + U.Bangku.lebar + SELA) {
+		atasLog = Math.min(atasLog, atasBangku - SELA - U.Log.tinggi);
+	}
 
 	return {
 		Timer:        { top: TEPI, left: TEPI, kotak: kotak(TEPI, TEPI, 'Timer') },
@@ -110,7 +122,8 @@ export function hitungTataLetak(lebar, tinggi) {
 		Lore:         {
 			top: Math.round(tinggi * 0.2), left: Math.round((lebar - U.Lore.lebar) / 2),
 			kotak: kotak(Math.round((lebar - U.Lore.lebar) / 2), Math.round(tinggi * 0.2), 'Lore')
-		}
+		},
+		Log:          { top: atasLog, left: kiriLog, kotak: kotak(kiriLog, atasLog, 'Log') }
 	};
 }
 
@@ -157,13 +170,18 @@ const PROPERTI = ['top', 'left', 'right', 'bottom'];
 
 /**
  * Menerapkan hitungTataLetak ke host jendela yang sudah di-append.
+ * Posisi yang pernah digeser pengguna (R6, ui/posisi.js) menang atas
+ * perhitungan selama seluruh kotaknya masih di layar.
  *
  * @param {Object<string, {_host: HTMLElement}>} jendela nama -> GUIComponent
  * @param {{width: number, height: number}} Renderer
- * @returns {object} hasil hitungTataLetak yang diterapkan
+ * @param {Object<string, {left:number, top:number}>} [tersimpan] posisi geseran tersimpan
+ * @returns {object} tata letak yang diterapkan
  */
-export function aturTataLetak(jendela, Renderer) {
-	const letak = hitungTataLetak(Renderer.width || window.innerWidth, Renderer.height || window.innerHeight);
+export function aturTataLetak(jendela, Renderer, tersimpan = {}) {
+	const lebar = Renderer.width || window.innerWidth;
+	const tinggi = Renderer.height || window.innerHeight;
+	const letak = gabungPosisi(hitungTataLetak(lebar, tinggi), tersimpan, lebar, tinggi);
 	for (const [nama, posisi] of Object.entries(letak)) {
 		const host = jendela[nama]?._host;
 		if (!host) {

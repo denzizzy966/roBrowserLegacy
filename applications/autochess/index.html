@@ -6,18 +6,17 @@
 	<style>
 		/* Tanpa color di body: jendela RO bawaan (WinPopup kotak pesan)
 		   mewarisinya lewat Shadow DOM dan teks hitamnya jadi abu-abu pudar
-		   di atas latar putih. Warna terang hanya untuk #log dan #ui. */
+		   di atas latar putih. Warna terang hanya untuk #ui. */
 		html, body { margin: 0; height: 100%; background: #111;
 		             font-family: ui-monospace, monospace; }
-		#log, #ui { color: #ddd; }
-		/* #log (AC4 Q9): tersembunyi bawaan (style inline), dibuka tombol Log
-		   di InfoPemain. Kecil di kiri-bawah, di kanan InfoPemain (lebar 200) dan
-		   di atas Bangku, dengan z-index 10 < 50 milik host jendela RO:
-		   jendela selalu di atasnya dan tetap bisa diklik. */
-		#log { position: fixed; left: 216px; bottom: 126px; width: min(480px, calc(100vw - 470px));
-		       max-height: 160px; box-sizing: border-box;
-		       overflow: auto; white-space: pre-wrap; background: rgba(0,0,0,.75);
-		       padding: .5rem; font-size: 12px; z-index: 10; }
+		#ui { color: #ddd; }
+		/* #log: sink teks TERSEMBUNYI selamanya (display:none inline). main.js
+		   log() menulis ke sini dan resep Playwright / soak membaca
+		   #log.textContent (mis. "map termuat"), jadi elemen ini harus tetap
+		   ada. Tampilan untuk pemain adalah jendela Log (ui/Log), yang
+		   menampilkan 200 baris terakhir teks ini; tombol Log di InfoPemain
+		   membukanya. */
+		#log { display: none !important; }
 		/* Panel catur AC3 (ui.js), kini panel debug: tersembunyi bawaan,
 		   __ac.debug(true) menampilkannya. Kanan, bergulir, polos. */
 		#ui { position: fixed; top: 0; right: 0; bottom: 0; width: 360px;

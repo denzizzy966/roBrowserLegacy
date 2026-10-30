@@ -36,14 +36,20 @@ export function buatKatalog(json, log = () => {}) {
 	const peluangMap = json?.peluang ?? {};
 	const ekonomi = json?.ekonomi ?? {};
 	const sudahDilaporkan = new Set();
-	// Nama (id dan en) -> id unit. EvtSpawn hanya membawa nama EN unit
-	// (arena/pesan.go), jadi kartu bidak lawan mencari unitnya lewat nama.
+	// Nama EN -> id unit. EvtSpawn hanya membawa nama EN unit
+	// (arena/pesan.go), jadi kartu bidak lawan mencari unitnya lewat nama EN
+	// saja (nama ID tidak diindeks: bisa bertabrakan dengan nama EN unit
+	// lain). Nama EN ganda dicatat SEKALI; id pertama menang.
 	const idDariNama = new Map();
 	for (const [id, u] of Object.entries(units)) {
-		for (const n of [u?.nama?.en, u?.nama?.id]) {
-			if (n && !idDariNama.has(n)) {
-				idDariNama.set(n, id);
-			}
+		const n = u?.nama?.en;
+		if (!n) {
+			continue;
+		}
+		if (idDariNama.has(n)) {
+			log(`katalog: nama unit ganda "${n}" (${idDariNama.get(n)}, ${id}); ${idDariNama.get(n)} dipakai`);
+		} else {
+			idDariNama.set(n, id);
 		}
 	}
 
@@ -75,7 +81,7 @@ export function buatKatalog(json, log = () => {}) {
 	return {
 		unit,
 		namaUnit: (id, bahasa = 'id') => namaDari(unit(id), id, bahasa),
-		/** @returns {string|null} id unit bernama persis `nama` (EN atau ID), tanpa log */
+		/** @returns {string|null} id unit bernama EN persis `nama` (nama EvtSpawn), tanpa log */
 		idUnitDariNama: (nama) => (nama && idDariNama.get(nama)) || null,
 		spriteUnit: (id) => units[id]?.sprite ?? (laporkan('unit', id), null),
 		sinergi,

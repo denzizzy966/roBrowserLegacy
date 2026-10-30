@@ -41,6 +41,7 @@ export const KAMUS = {
 	'jendela.bangku':       { id: 'Bangku', en: 'Bench' },
 	'jendela.toko':         { id: 'Toko', en: 'Shop' },
 	'jendela.lore':         { id: 'Lore', en: 'Lore' },
+	'jendela.log':          { id: 'Log', en: 'Log' },
 
 	// Tombol
 	'tombol.beli':     { id: 'Beli', en: 'Buy' },

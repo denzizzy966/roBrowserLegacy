@@ -6,7 +6,8 @@
  *
  * Tombol bahasa dan log ditangani di sini, bukan lewat kirim: bahasa
  * memanggil deps.teks.setBahasa (main.js menggambar ulang semua jendela
- * lewat teks.padaUbah), log membuka/menutup #log halaman. Hanya Lewati
+ * lewat teks.padaUbah), log membuka/menutup jendela Log (ui/Log; teksnya tetap dari
+ * #log tersembunyi di index.html). Hanya Lewati
  * yang menjadi perintah server. Tombol BGM (data-aksi="bgm") memanggil
  * deps.bgm.toggle(); nonaktif bila tidak ada mp3 yang dipilih.
  */
@@ -17,6 +18,7 @@ import htmlText from './InfoPemain.html?raw';
 import cssText from './InfoPemain.css?raw';
 import { renderInfoPemain } from '../render/infoPemain.js';
 import { pasangKerangka, tulisBila } from '../janela.js';
+import Log from '../Log/Log.js';
 
 const InfoPemain = new GUIComponent('InfoPemain', cssText);
 InfoPemain.render = () => htmlText;
@@ -24,23 +26,6 @@ InfoPemain.mouseMode = GUIComponent.MouseMode.STOP;
 
 // deps terakhir dari gambar(); klik bisa tiba kapan saja sesudah itu.
 let depsTerakhir = null;
-
-/**
- * Membuka/menutup panel #log halaman (di luar Shadow DOM). Saat dibuka,
- * digulir ke baris terbaru: selama tersembunyi log() tidak bisa
- * menggulirnya (scrollHeight elemen display:none = 0).
- */
-function toggleLog() {
-	const el = document.getElementById('log');
-	if (!el) {
-		return;
-	}
-	const buka = el.style.display === 'none';
-	el.style.display = buka ? '' : 'none';
-	if (buka) {
-		el.scrollTop = el.scrollHeight;
-	}
-}
 
 InfoPemain.init = function init() {
 	const root = this.getRoot();
@@ -63,7 +48,7 @@ InfoPemain.init = function init() {
 		if (aksi === 'bahasa') {
 			depsTerakhir.teks.setBahasa(tombol.dataset.arg);
 		} else if (aksi === 'log') {
-			toggleLog();
+			Log.toggle();
 		} else if (aksi === 'bgm') {
 			depsTerakhir.bgm?.toggle();
 			// Gambar ulang segera supaya penanda ✕ berganti tanpa menunggu 250 ms.

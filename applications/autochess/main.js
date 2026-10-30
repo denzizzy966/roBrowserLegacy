@@ -32,7 +32,8 @@
 //   Task 10: ui/tataLetak.js menata semua jendela dari Renderer.width/
 //   height; EvtError dan EvtCaturSelesai tampil sebagai kotak pesan RO
 //   (WinPopup); panel #ui AC3 menjadi panel debug (__ac.debug(true)) dan
-//   #log tersembunyi bawaan (tombol Log di InfoPemain).
+//   jendela Log (ui/Log, tombol Log di InfoPemain); #log di index.html kini
+//   sink teks tersembunyi yang tetap diisi log().
 // - AC5: kartu.js + ui/KartuBidak (kartu detail bidak saat hover, R4) dan
 //   statusIkon.js (ikon status RO dari data/texture/effect/).
 //
@@ -45,6 +46,7 @@ import BGM           from 'Audio/BGM.js';
 import SoundManager  from 'Audio/SoundManager.js';
 import PrefAudio     from 'Preferences/Audio.js';
 import EffectConst   from 'DB/Effects/EffectConst.js';
+import DB            from 'DB/DBManager.js';
 import StatusTable   from 'DB/Status/StatusInfo.js';
 import Texture       from 'Utils/Texture.js';
 import Renderer      from 'Renderer/Renderer.js';
@@ -106,6 +108,8 @@ import LoreJ      from './ui/Lore/Lore.js';
 import DPSJ       from './ui/DPS/DPS.js';
 import TombolDPSJ from './ui/TombolDPS/TombolDPS.js';
 import KartuBidakJ from './ui/KartuBidak/KartuBidak.js';
+import LogJ       from './ui/Log/Log.js';
+import { buatPemantauPosisi, KUNCI_POSISI } from './ui/posisi.js';
 import { aturTataLetak } from './ui/tataLetak.js';
 import { lupakanTulisan } from './ui/janela.js';
 import { renderUI, perbaruiTimer, ikatAksi, sandikanAksi, namaFase, simpanPilihan, pulihkanPilihan } from './ui.js';
@@ -201,6 +205,8 @@ const kartu = buatKartu({
 		skala: SKALA_PETAK
 	}),
 	jendela: KartuBidakJ,
+	// Creep: nama mob roBrowser ('Unknown' = tak ada -> nama mentah EvtSpawn).
+	namaMob: (job) => { const n = DB.getMonsterName(job); return n && n !== 'Unknown' ? n : null; },
 	seretAktif: () => seret.aktif() || Boolean(Session.FreezeUI)
 });
 
@@ -733,11 +739,15 @@ function debug(nyala = true) {
 // lewat TombolToko atau tombol K.
 // KartuBidak (AC5) ikut ditempel dan digambar, tetapi tidak ditata
 // hitungTataLetak: posisinya mengikuti pointer (posisiKartu).
-const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ, SinergiJ, LoreJ, DPSJ, TombolDPSJ, KartuBidakJ];
+const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ, SinergiJ, LoreJ, DPSJ, TombolDPSJ, KartuBidakJ, LogJ];
 const JENDELA_PER_NAMA = Object.fromEntries(JENDELA.map((j) => [j.name, j]));
 let jendelaTertempel = false;
 // "lebarxtinggi" Renderer saat tata letak terakhir diterapkan.
 let ukuranTataLetak = '';
+// R6: posisi jendela yang digeser pengguna ({Nama: {left, top}}) diingat di
+// localStorage 'AutochessJendela'; pemantau membaca geseran dari host.
+const posisiJendela = Preferences.get(KUNCI_POSISI, {}, 1.0);
+const pemantauPosisi = buatPemantauPosisi({ jendela: JENDELA_PER_NAMA, pref: posisiJendela });
 
 /** Menata ulang semua jendela dari Renderer.width/height (ui/tataLetak.js). */
 function tataLetak() {
@@ -745,7 +755,9 @@ function tataLetak() {
 		return null;
 	}
 	ukuranTataLetak = `${Renderer.width}x${Renderer.height}`;
-	return aturTataLetak(JENDELA_PER_NAMA, Renderer);
+	const letak = aturTataLetak(JENDELA_PER_NAMA, Renderer, posisiJendela);
+	pemantauPosisi.catat();
+	return letak;
 }
 
 /**
@@ -799,6 +811,7 @@ function gambarJendela() {
 		return;
 	}
 	tataLetakBilaBerubah();
+	pemantauPosisi.pantau();
 	const snap = st.ambil();
 	if (!snap.state) {
 		return;

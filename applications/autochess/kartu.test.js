@@ -81,6 +81,28 @@ describe('infoBidak', () => {
 	});
 });
 
+describe('infoBidak: nama creep menurut bahasa (namaMob)', () => {
+	const creep = () => entity(21, 50, 52, { __acTim: 2, __acNama: 'dracula', _job: 1389, life: { hp: 1, hp_max: 2 } });
+
+	it('creep memakai nama mob dari namaMob(entity._job)', () => {
+		const namaMob = vi.fn((job) => (job === 1389 ? 'Drakula' : null));
+		expect(infoBidak(creep(), { snap: {}, katalog, namaMob })).toMatchObject({ unitId: null, nama: 'Drakula' });
+		expect(namaMob).toHaveBeenCalledWith(1389);
+	});
+
+	it('namaMob tak tahu (null) atau tidak disuntik -> nama mentah EvtSpawn', () => {
+		expect(infoBidak(creep(), { snap: {}, katalog, namaMob: () => null }).nama).toBe('dracula');
+		expect(infoBidak(creep(), { snap: {}, katalog }).nama).toBe('dracula');
+	});
+
+	it('bidak berunit katalog tidak memakai namaMob', () => {
+		const namaMob = vi.fn(() => 'X');
+		const lawan = entity(20, 50, 52, { __acTim: 2, __acNama: 'Knight', _job: 5 });
+		expect(infoBidak(lawan, { snap: { state: null }, katalog, namaMob }).nama).toBe('Knight');
+		expect(namaMob).not.toHaveBeenCalled();
+	});
+});
+
 describe('cariBidak', () => {
 	const sendiri = entity(7, 44.5, 42.5);
 	const lawan = entity(20, 50.2, 52.7, { __acTim: 2 });

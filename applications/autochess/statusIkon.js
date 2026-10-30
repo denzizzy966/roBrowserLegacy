@@ -14,8 +14,10 @@
  * StatusTable[indeks].icon LEBIH DULU (bila kelak ditambahkan), lalu dari
  * IKON_RESMI: nama berkas stateiconimginfo.lub kRO (renewal2022.grf),
  * huruf kecil karena indeks GRF tidak peka huruf. HL_Blind.tga tidak ada
- * di GRF 2021/2022 yang diuji, jadi buta jatuh ke
- * handicapstate_deepblind.tga (ikon "Deep Blind" yang serupa).
+ * di GRF 2021/2022 yang diuji, jadi buta mencoba
+ * handicapstate_deepblind.tga ("Deep Blind", serupa) LEBIH DULU: berkas
+ * yang hilang di GRF membuat roBrowser mencoba HTTP (satu perjalanan sia-sia
+ * dan mungkin baris 404 di konsol).
  *
  * Modul ini murni: Client, Texture, dan StatusTable disuntikkan supaya
  * teruji di vitest node tanpa GRF.
@@ -43,7 +45,7 @@ export const IKON_RESMI = Object.freeze({
 	[SC.BODYSTATE_STUN]:      ['bd_stun.tga'],
 	[SC.BODYSTATE_SLEEP]:     ['bd_sleep.tga'],
 	[SC.HEALTHSTATE_POISON]:  ['hl_poison.tga'],
-	[SC.HEALTHSTATE_BLIND]:   ['hl_blind.tga', 'handicapstate_deepblind.tga'],
+	[SC.HEALTHSTATE_BLIND]:   ['handicapstate_deepblind.tga', 'hl_blind.tga'],
 	[SC.HEALTHSTATE_SILENCE]: ['hl_silence.tga']
 });
 
@@ -84,9 +86,15 @@ export function pathIkon(efst, StatusTable = {}) {
  * @param {{load: function(*, function)}} d.Texture Utils/Texture.js (this = kanvas)
  * @param {object} [d.StatusTable] DB/Status/StatusInfo.js
  * @param {function(string): void} [d.log]
+ * @param {function(function, number): any} [d.tunda] setTimeout (disuntik untuk uji)
+ * @param {number} [d.batasMs] batas tunggu satu path sesudah berkas dimuat
+ *   (Texture.load jalur gambar biasa tidak punya onerror)
  * @returns {{ambil: function(number, function=): (object|null), url: function(number, function=): (string|null)}}
  */
-export function buatPemuatIkon({ Client, Texture, StatusTable = {}, log = () => {} }) {
+export function buatPemuatIkon({
+	Client, Texture, StatusTable = {}, log = () => {},
+	tunda = (fn, ms) => setTimeout(fn, ms), batasMs = 5000
+}) {
 	/** efst -> {siap: boolean, gambar: object|null, url: string|null, menunggu: function[]} */
 	const cache = new Map();
 
@@ -106,10 +114,25 @@ export function buatPemuatIkon({ Client, Texture, StatusTable = {}, log = () => 
 			selesai(entri, null);
 			return;
 		}
-		const lanjut = () => coba(efst, entri, daftar, i + 1);
+		// Satu path hanya boleh menyelesaikan langkahnya SEKALI: galat
+		// muat, hasil decode, dan batas waktu saling berlomba.
+		let tuntas = false;
+		const lanjut = () => {
+			if (!tuntas) {
+				tuntas = true;
+				coba(efst, entri, daftar, i + 1);
+			}
+		};
 		Client.loadFile(daftar[i], (data) => {
+			// Decode yang tak pernah memanggil balik (gambar rusak tanpa
+			// onerror) dianggap gagal sesudah batasMs.
+			tunda(lanjut, batasMs);
 			Texture.load(data, function termuat(ok) {
+				if (tuntas) {
+					return;
+				}
 				if (ok && this) {
+					tuntas = true;
 					selesai(entri, this);
 				} else {
 					lanjut();
@@ -145,7 +168,7 @@ export function buatPemuatIkon({ Client, Texture, StatusTable = {}, log = () => 
 			cb?.(entri.gambar);
 			return entri.gambar;
 		}
-		if (cb) {
+		if (cb && !entri.menunggu.includes(cb)) {
 			entri.menunggu.push(cb);
 		}
 		return null;
@@ -170,12 +193,24 @@ export function buatPemuatIkon({ Client, Texture, StatusTable = {}, log = () => 
 		// Ikon yang sudah ada di memori GRF bisa termuat SEKETIKA di dalam
 		// ambil(): padaSiap tidak dipanggil saat itu (pemanggil sedang
 		// menggambar dan langsung menerima url-nya), hanya bila menyusul.
+		// Penggambaran ulang 4x/detik tidak boleh menumpuk penunggu: satu
+		// padaSiap yang sama hanya didaftarkan sekali per pemuatan.
 		let sinkron = true;
+		const sudahMenunggu = Boolean(padaSiap && entri && !entri.siap && entri.padaSiap?.has(padaSiap));
+		if (sudahMenunggu) {
+			return null;
+		}
 		const gambar = ambil(efst, padaSiap ? () => {
 			if (!sinkron) {
 				padaSiap();
 			}
 		} : undefined);
+		if (padaSiap) {
+			const e = cache.get(efst);
+			if (e && !e.siap) {
+				(e.padaSiap ??= new Set()).add(padaSiap);
+			}
+		}
 		sinkron = false;
 		return gambar ? url(efst) : null;
 	}
