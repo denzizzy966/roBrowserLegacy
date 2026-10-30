@@ -170,11 +170,11 @@ export const KAMUS = {
 	'menu.pindah':          { id: 'Pindah', en: 'Move' },
 	'menu.batal':           { id: 'Batal', en: 'Cancel' },
 	'menu.hanya_persiapan': { id: 'hanya saat Persiapan', en: 'preparation only' },
-	// Pindah nonaktif selama menonton kursi lain (kalimat server aktor.go).
-	'menu.sedang_menonton': { id: 'sedang menonton kursi lain', en: 'watching another seat' },
 
-	// AC7 K11: bidak bangku yang dinaikkan server di awal Tempur.
-	'log.naik_otomatis': { id: 'Naik otomatis: {0} (+{1} lagi)', en: 'Auto-placed: {0} (+{1} more)' },
+	// AC7 K11: bidak bangku yang dinaikkan server di awal Tempur; satu
+	// bidak tanpa akhiran "(+0 lagi)".
+	'log.naik_otomatis':      { id: 'Naik otomatis: {0} (+{1} lagi)', en: 'Auto-placed: {0} (+{1} more)' },
+	'log.naik_otomatis_satu': { id: 'Naik otomatis: {0}', en: 'Auto-placed: {0}' },
 
 	// AC7 K15: alasan batal seret (seret.js mencatat padanan ID-nya).
 	'log.seret_naik_otomatis': { id: 'bidak sudah naik otomatis ke papan', en: 'unit was already auto-placed on the board' },

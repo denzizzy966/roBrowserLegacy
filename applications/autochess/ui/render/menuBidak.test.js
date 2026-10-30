@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-	itemDiTitik, itemSaatTahan, renderMenuBidak, posisiMenu, keluarRadius, RADIUS_MENU_PX, UKURAN_MENU_PX
+	itemDiTitik, itemSaatTahan, renderMenuBidak, posisiMenu, keluarRadius, opsiMenuBidak, RADIUS_MENU_PX, UKURAN_MENU_PX
 } from './menuBidak.js';
 import { buatTeks, formatZeny } from '../../teks.js';
+import { FASE } from '../../pesan.js';
 
 function deps(bahasa = 'id') {
 	return { t: buatTeks({ pref: { bahasa } }).t, formatZeny };
@@ -115,17 +116,55 @@ describe('renderMenuBidak', () => {
 		expect(h).toContain('style="left:122px;top:100px"');
 	});
 
-	it('alasan Pindah saat menonton kursi lain: menu.sedang_menonton (ID/EN)', () => {
-		const opsi = { ...OPSI, alasanPindah: 'menu.sedang_menonton' };
-		expect(renderMenuBidak(opsi, deps('id'))).toMatch(/class="item pindah nonaktif" data-item="pindah" title="sedang menonton kursi lain"/);
-		expect(renderMenuBidak(opsi, deps('en'))).toMatch(/class="item pindah nonaktif" data-item="pindah" title="watching another seat"/);
-		// Jual tetap aktif; alasannya tidak memakai kunci menonton.
-		expect(renderMenuBidak({ ...opsi, bolehJual: false, alasanJual: 'menu.hanya_persiapan' }, deps('id')))
-			.toMatch(/class="item jual nonaktif" data-item="jual" title="hanya saat Persiapan"/);
+	it('R-F: opsi bidak bangku saat TEMPUR -> Jual aktif, Pindah nonaktif "hanya saat Persiapan" (ID/EN)', () => {
+		const opsi = opsiMenuBidak({ bidak: { diPapan: false, hargaJual: 9 }, fase: FASE.TEMPUR, selesai: null });
+		expect(renderMenuBidak(opsi, deps('id'))).toMatch(/class="item pindah nonaktif" data-item="pindah" title="hanya saat Persiapan"/);
+		expect(renderMenuBidak(opsi, deps('en'))).toMatch(/class="item pindah nonaktif" data-item="pindah" title="preparation only"/);
+		expect(renderMenuBidak(opsi, deps('id'))).toMatch(/<div class="item jual" data-item="jual"/);
 	});
 
 	it('harga di-format (ribuan) dan bukan angka -> 0', () => {
 		expect(renderMenuBidak({ ...OPSI, hargaJual: 1234 }, deps())).toContain('+1,234 zeny');
 		expect(renderMenuBidak({ ...OPSI, hargaJual: undefined }, deps())).toContain('+0 zeny');
+	});
+});
+
+describe('opsiMenuBidak (K5, R-F)', () => {
+	const bangku = { diPapan: false, hargaJual: 3 };
+	const papan = { diPapan: true, hargaJual: 9 };
+	const opsi = (bidak, fase, selesai = null) => opsiMenuBidak({ bidak, fase, selesai });
+
+	it('bidak bangku saat PERSIAPAN: Jual dan Pindah aktif (juga saat menonton kursi lain: helper tidak memandang tontonan)', () => {
+		expect(opsi(bangku, FASE.PERSIAPAN)).toEqual({
+			hargaJual: 3, bolehJual: true, bolehPindah: true,
+			alasanPindah: 'menu.hanya_persiapan', alasanJual: 'menu.hanya_persiapan'
+		});
+	});
+
+	it('bidak bangku saat TEMPUR dan HASIL: Jual aktif, Pindah nonaktif dengan menu.hanya_persiapan', () => {
+		for (const fase of [FASE.TEMPUR, FASE.HASIL]) {
+			const o = opsi(bangku, fase);
+			expect(o.bolehJual, fase).toBe(true);
+			expect(o.bolehPindah, fase).toBe(false);
+			expect(o.alasanPindah).toBe('menu.hanya_persiapan');
+		}
+	});
+
+	it('bidak papan saat PERSIAPAN: keduanya aktif, harga jual dari bidak', () => {
+		const o = opsi(papan, FASE.PERSIAPAN);
+		expect([o.bolehJual, o.bolehPindah, o.hargaJual]).toEqual([true, true, 9]);
+	});
+
+	it('bidak papan di luar PERSIAPAN (seret.js tidak pernah menahannya): keduanya nonaktif', () => {
+		for (const fase of [FASE.TEMPUR, FASE.HASIL]) {
+			const o = opsi(papan, fase);
+			expect([o.bolehJual, o.bolehPindah], fase).toEqual([false, false]);
+			expect(o.alasanJual).toBe('menu.hanya_persiapan');
+		}
+	});
+
+	it('sesudah pertandingan usai: keduanya nonaktif', () => {
+		const o = opsi(bangku, FASE.PERSIAPAN, { peringkat: 1 });
+		expect([o.bolehJual, o.bolehPindah]).toEqual([false, false]);
 	});
 });

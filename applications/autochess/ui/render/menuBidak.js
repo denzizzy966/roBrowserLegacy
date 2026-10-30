@@ -11,6 +11,8 @@
  * itu menjadi seret biasa (K5).
  */
 
+import { FASE } from '../../pesan.js';
+
 const ENTITAS = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
 function esc(teks) {
@@ -114,6 +116,33 @@ function letakItem(sudut) {
 	return {
 		left: Math.round(setengah + RADIUS_MENU_PX * Math.cos(r)),
 		top: Math.round(setengah - RADIUS_MENU_PX * Math.sin(r))
+	};
+}
+
+/**
+ * Opsi menu tahan untuk bidak sendiri (K5, ruling R-F): Pindah hanya saat
+ * PERSIAPAN -- termasuk saat menonton kursi lain, karena bawa memulangkan
+ * tampilan lebih dulu (K4); Jual selalu untuk bidak bangku, dan untuk
+ * bidak papan hanya saat PERSIAPAN. Bidak papan di luar PERSIAPAN tidak
+ * pernah ditahan (seret.js tidak memanggil padaTahan), tetapi helper ini
+ * tetap mengembalikan keduanya nonaktif. Sesudah pertandingan usai
+ * keduanya nonaktif. Alasan item nonaktif: menu.hanya_persiapan.
+ *
+ * @param {object} p
+ * @param {object} p.bidak bidak terdekode {diPapan, hargaJual, ...}
+ * @param {number} p.fase FASE terkini
+ * @param {*} [p.selesai] penutup pertandingan (truthy = usai)
+ * @returns {{hargaJual: number, bolehJual: boolean, bolehPindah: boolean,
+ *   alasanPindah: string, alasanJual: string}}
+ */
+export function opsiMenuBidak({ bidak, fase, selesai }) {
+	const persiapan = fase === FASE.PERSIAPAN && !selesai;
+	return {
+		hargaJual: bidak.hargaJual,
+		bolehJual: !selesai && (!bidak.diPapan || persiapan),
+		bolehPindah: persiapan,
+		alasanPindah: 'menu.hanya_persiapan',
+		alasanJual: 'menu.hanya_persiapan'
 	};
 }
 

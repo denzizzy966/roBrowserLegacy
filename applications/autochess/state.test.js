@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 
-import { buatState, papanTampil, sinergiTampil, menontonLain, kursiSendiriHidup, bidakNaikOtomatis } from './state.js';
+import {
+	buatState, papanTampil, sinergiTampil, menontonLain, kursiSendiriHidup, bidakNaikOtomatis, catatanNaikOtomatis
+} from './state.js';
 import { FASE } from './pesan.js';
 
 // Snapshot minimal berbentuk keluaran decodeCaturState.
@@ -195,5 +197,44 @@ describe('bidakNaikOtomatis (AC7 K11)', () => {
 		expect(bidakNaikOtomatis(lama, null)).toEqual([]);
 		// bidakId baru langsung di papan (mis. hasil gabung) bukan naik otomatis
 		expect(bidakNaikOtomatis(lama, st([b(1, 'novice', false), b(9, 'knight', true)]))).toEqual([]);
+	});
+});
+
+describe('catatanNaikOtomatis (AC7 K11, R-G)', () => {
+	const b = (bidakId, unitId, diPapan) => ({ bidakId, unitId, bintang: 1, diPapan, kolom: diPapan ? 1 : 0, baris: 0 });
+	const st = (fase, ronde, bidak) => snapshot({ fase, ronde, saya: { ...snapshot().saya, bidak } });
+	const persiapan = st(FASE.PERSIAPAN, 4, [b(1, 'novice', false), b(2, 'poring', false), b(3, 'archer', false)]);
+
+	it('n=1: kunci tunggal tanpa "(+0 lagi)"', () => {
+		const baru = st(FASE.TEMPUR, 4, [b(1, 'novice', true), b(2, 'poring', false), b(3, 'archer', false)]);
+		expect(catatanNaikOtomatis(-1, persiapan, baru)).toEqual({ ronde: 4, kunci: 'log.naik_otomatis_satu', unitId: 'novice', lagi: 0 });
+	});
+
+	it('n=3: kunci jamak dengan lagi = 2 ("(+2 lagi)")', () => {
+		const baru = st(FASE.TEMPUR, 4, [b(1, 'novice', true), b(2, 'poring', true), b(3, 'archer', true)]);
+		expect(catatanNaikOtomatis(3, persiapan, baru)).toEqual({ ronde: 4, kunci: 'log.naik_otomatis', unitId: 'novice', lagi: 2 });
+	});
+
+	it('sekali per ronde: state TEMPUR kedua di ronde yang sama tidak menghasilkan apa-apa', () => {
+		const pertama = st(FASE.TEMPUR, 4, [b(1, 'novice', true), b(2, 'poring', false), b(3, 'archer', false)]);
+		const c = catatanNaikOtomatis(-1, persiapan, pertama);
+		expect(c.ronde).toBe(4);
+		// Walau perbandingannya (dari snapshot PERSIAPAN) masih menemukan bidak naik.
+		expect(catatanNaikOtomatis(c.ronde, persiapan, pertama)).toBeNull();
+		// Ronde berikutnya terbuka lagi.
+		const lanjut = st(FASE.TEMPUR, 5, [b(1, 'novice', true), b(2, 'poring', true), b(3, 'archer', false)]);
+		expect(catatanNaikOtomatis(c.ronde, pertama, lanjut)?.kunci).toBe('log.naik_otomatis_satu');
+	});
+
+	it('state bukan TEMPUR tidak menghasilkan apa-apa', () => {
+		const naik = [b(1, 'novice', true), b(2, 'poring', false), b(3, 'archer', false)];
+		expect(catatanNaikOtomatis(-1, persiapan, st(FASE.PERSIAPAN, 4, naik))).toBeNull();
+		expect(catatanNaikOtomatis(-1, persiapan, st(FASE.HASIL, 4, naik))).toBeNull();
+	});
+
+	it('tidak ada yang naik: gerbang tetap menandai ronde, tanpa log (kunci null)', () => {
+		const baru = st(FASE.TEMPUR, 4, [b(1, 'novice', false), b(2, 'poring', false), b(3, 'archer', false)]);
+		expect(catatanNaikOtomatis(-1, persiapan, baru)).toEqual({ ronde: 4, kunci: null, unitId: null, lagi: 0 });
+		expect(catatanNaikOtomatis(-1, null, baru)).toEqual({ ronde: 4, kunci: null, unitId: null, lagi: 0 });
 	});
 });

@@ -102,6 +102,38 @@ export function bidakNaikOtomatis(snapLama, snapBaru) {
 }
 
 /**
+ * AC7 K11: gerbang dan isi baris log "Naik otomatis". Hanya EvtCaturState
+ * PERTAMA berfase TEMPUR dalam satu ronde yang diperiksa; state TEMPUR
+ * berikutnya di ronde yang sama dan state fase lain tidak menghasilkan
+ * apa-apa (null). Bila gerbang terbuka, ronde yang dikembalikan menjadi
+ * rondeTerakhir pemanggil, termasuk bila tidak ada bidak yang naik
+ * (kunci null: tidak ada log).
+ *
+ * Satu bidak memakai log.naik_otomatis_satu ("Naik otomatis: <nama>"),
+ * lebih dari satu log.naik_otomatis dengan lagi = n - 1.
+ *
+ * @param {number} rondeTerakhir ronde yang sudah diperiksa; -1 = belum ada
+ * @param {object|null} lama state terdekode sebelumnya
+ * @param {object} baru state terdekode yang baru diterima
+ * @returns {{ronde: number, kunci: string|null, unitId: string|null, lagi: number}|null}
+ */
+export function catatanNaikOtomatis(rondeTerakhir, lama, baru) {
+	if (baru?.fase !== FASE.TEMPUR || baru.ronde === rondeTerakhir) {
+		return null;
+	}
+	const naik = bidakNaikOtomatis(lama, baru);
+	if (naik.length === 0) {
+		return { ronde: baru.ronde, kunci: null, unitId: null, lagi: 0 };
+	}
+	return {
+		ronde: baru.ronde,
+		kunci: naik.length === 1 ? 'log.naik_otomatis_satu' : 'log.naik_otomatis',
+		unitId: naik[0],
+		lagi: naik.length - 1
+	};
+}
+
+/**
  * @returns {{
  *   terima: function(object, number): void,
  *   terimaFase: function(object, number): void,

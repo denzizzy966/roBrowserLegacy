@@ -92,14 +92,16 @@ describe('KAMUS', () => {
 			'skill.jenis.fisik', 'skill.jenis.magis', 'skill.jenis.heal', 'skill.jenis.dukung',
 			'skill.target.musuh', 'skill.target.area_musuh', 'skill.target.kawan_terluka', 'skill.target.diri',
 			'status.beku', 'status.pingsan', 'status.racun', 'status.buta', 'status.bisu', 'status.tidur',
-			'label.rasio', 'label.splash', 'label.cast', 'label.sp_penuh', 'log.naik_otomatis'
+			'label.rasio', 'label.splash', 'label.cast', 'label.sp_penuh', 'log.naik_otomatis', 'log.naik_otomatis_satu'
 		];
 		for (const k of wajib) {
 			expect(KAMUS[k], k).toBeDefined();
 		}
 		expect(KAMUS['menu.hanya_persiapan']).toEqual({ id: 'hanya saat Persiapan', en: 'preparation only' });
-		expect(KAMUS['menu.sedang_menonton']).toEqual({ id: 'sedang menonton kursi lain', en: 'watching another seat' });
+		// R-F: Pindah aktif saat menonton kursi lain; kuncinya dihapus.
+		expect(KAMUS['menu.sedang_menonton']).toBeUndefined();
 		expect(KAMUS['log.naik_otomatis']).toEqual({ id: 'Naik otomatis: {0} (+{1} lagi)', en: 'Auto-placed: {0} (+{1} more)' });
+		expect(KAMUS['log.naik_otomatis_satu']).toEqual({ id: 'Naik otomatis: {0}', en: 'Auto-placed: {0}' });
 	});
 
 	it('menerjemahkan setiap alasan penolakan server persis dengan teks server sebagai kunci', () => {

@@ -90,7 +90,7 @@ import {
 import { buatManajerEfek } from './efek.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
 import { kameraUntuk, terapkanKamera, kotakSeparuhSendiri, kotakPapanPenuh, FASE_TEMPUR, FASE_HASIL } from './kamera.js';
-import { buatState, menontonLain, bidakNaikOtomatis } from './state.js';
+import { buatState, menontonLain, catatanNaikOtomatis } from './state.js';
 import { muatKatalog, buatKatalog } from './katalog.js';
 import { buatTeks, formatZeny } from './teks.js';
 import { buatPotret } from './potret.js';
@@ -116,6 +116,7 @@ import TombolDPSJ from './ui/TombolDPS/TombolDPS.js';
 import KartuBidakJ from './ui/KartuBidak/KartuBidak.js';
 import LogJ       from './ui/Log/Log.js';
 import MenuBidakJ from './ui/MenuBidak/MenuBidak.js';
+import { opsiMenuBidak } from './ui/render/menuBidak.js';
 import DeskripsiUnitJ from './ui/DeskripsiUnit/DeskripsiUnit.js';
 import { buatSinkLog } from './logSink.js';
 import { buatPemantauPosisi, KUNCI_POSISI } from './ui/posisi.js';
@@ -239,20 +240,11 @@ const seret = buatSeret({
 // bidak yang sama menutupnya.
 seret.padaKlik((info) => amankan(() => DeskripsiUnitJ.toggle(info), log)());
 // K5: tahan bidak bangku/papan sendiri -> menu Jual / Pindah / Batal.
-// Bidak papan hanya bisa ditahan saat PERSIAPAN (seret.js), jadi Jual
-// nonaktif hanya untuk bidak papan sesudah fase berganti.
+// Opsinya dari helper murni opsiMenuBidak (R-F: Pindah tetap aktif saat
+// menonton kursi lain; bawa memulangkan tampilan lebih dulu).
 seret.padaTahan(({ bidak, titik }) => amankan(() => {
 	const snap = st.ambil();
-	const persiapan = snap.fase === FASE.PERSIAPAN;
-	const menonton = menontonLain(snap);
-	MenuBidakJ.buka({
-		bidak, titik, hargaJual: bidak.hargaJual,
-		bolehJual: !bidak.diPapan || persiapan,
-		bolehPindah: persiapan && !menonton,
-		// Di PERSIAPAN Pindah hanya nonaktif karena menonton kursi lain.
-		alasanPindah: persiapan && menonton ? 'menu.sedang_menonton' : 'menu.hanya_persiapan',
-		alasanJual: 'menu.hanya_persiapan'
-	});
+	MenuBidakJ.buka({ bidak, titik, ...opsiMenuBidak({ bidak, fase: snap.fase, selesai: snap.selesai }) });
 }, log)());
 MenuBidakJ.padaPilih(({ aksi, bidak, titik }) => amankan(() => {
 	if (aksi === 'jual') {
@@ -413,18 +405,19 @@ let rondeNaikOtomatis = -1;
 /**
  * AC7 K11: pada EvtCaturState pertama berfase TEMPUR dalam satu ronde,
  * bidak bangku yang dinaikkan server ke papan (K10) dicatat satu baris log.
+ * Gerbang dan pilihan kalimat ada di catatanNaikOtomatis (state.js, diuji).
  *
  * @param {object|null} lama state terdekode sebelumnya
  * @param {object} baru state terdekode yang baru diterima
  */
 function catatNaikOtomatis(lama, baru) {
-	if (baru.fase !== FASE.TEMPUR || baru.ronde === rondeNaikOtomatis) {
+	const c = catatanNaikOtomatis(rondeNaikOtomatis, lama, baru);
+	if (!c) {
 		return;
 	}
-	rondeNaikOtomatis = baru.ronde;
-	const naik = bidakNaikOtomatis(lama, baru);
-	if (naik.length > 0) {
-		log(teks.t('log.naik_otomatis', katalog.namaUnit(naik[0], teks.bahasa()), naik.length - 1));
+	rondeNaikOtomatis = c.ronde;
+	if (c.kunci) {
+		log(teks.t(c.kunci, katalog.namaUnit(c.unitId, teks.bahasa()), c.lagi));
 	}
 }
 
