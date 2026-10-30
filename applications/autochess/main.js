@@ -94,6 +94,7 @@ import { buatPemuatIkon } from './statusIkon.js';
 import { buatDPS } from './dps.js';
 import { deteksiNaikBintang } from './bintang.js';
 import { pilihBGM } from './bgm.js';
+import { buatPemainOtomatis, aturanDariKatalog } from './auto.js';
 import TimerJ     from './ui/Timer/Timer.js';
 import KapasitasJ from './ui/Kapasitas/Kapasitas.js';
 import ZenyJ      from './ui/Zeny/Zeny.js';
@@ -175,6 +176,13 @@ const sorot = buatSorot({ EffectManager, FlatColorTile, Altitude, Renderer, asal
 
 // Total damage per entity untuk jendela DPS (F); direset tiap TEMPUR.
 const dps = buatDPS();
+
+// AC5 (Task 4): pemain otomatis untuk soak, __ac.auto(true|false). Port
+// JS kebijakan R2 (auto.js); aturan dibaca dari katalog saat dipakai.
+const auto = buatPemainOtomatis({
+	kirim, aturan: () => aturanDariKatalog(katalog), sekarang: () => performance.now(),
+	jadwalkan: (fn, ms) => setTimeout(fn, ms), batalkan: (t) => clearTimeout(t), log
+});
 
 // AC4: seret-lepas bidak (Q3). Jendela dan katalog diambil saat dipakai:
 // host jendela baru ada sesudah append, katalog diganti saat termuat.
@@ -427,6 +435,7 @@ function jalankan(fn) {
 function tanganiPesan({ galat, info, msg }, data) {
 	if (galat) {
 		log(`! server menolak: ${galat}`);
+		amankan(() => auto.terimaGalat(galat), log)();
 		// Review Focus 6: kotak pesan RO berteks dwibahasa (KAMUS memuat
 		// alasan galat.go apa adanya; alasan tak dikenal tampil mentah).
 		tampilkanPesan(teks.t(galat));
@@ -447,12 +456,14 @@ function tanganiPesan({ galat, info, msg }, data) {
 		// Efek naik bintang dibungkus: kegagalannya tidak boleh menahan gambar ulang.
 		amankan(() => deteksiNaikBintang(st.sebelumnya(), cs).forEach(rayakanNaikBintang), log)();
 		gambarJendelaAman();
+		amankan(() => auto.terimaState(cs), log)();
 		return;
 	}
 
 	const selesai = decodeCaturSelesai(msg);
 	if (selesai) {
 		st.terimaSelesai(selesai);
+		auto.terimaSelesai();
 		pertandinganSelesai = true;
 		BGM.stop();
 		log(`< selesai: peringkatmu #${selesai.peringkatSaya}`);
@@ -463,6 +474,7 @@ function tanganiPesan({ galat, info, msg }, data) {
 	const fase = decodeCaturFase(msg);
 	if (fase) {
 		st.terimaFase(fase, performance.now());
+		amankan(() => auto.terimaFase(fase), log)();
 		if (fase.fase === FASE.TEMPUR) {
 			dps.reset();
 			// Toko tidak boleh menutupi pertempuran (juga bila sedang diseret).
@@ -1032,6 +1044,8 @@ function cobaSorot(kolom, baris) {
 // __ac.cobaSorot(3, 2) / __ac.cobaSorot(null), __ac.seret.aktif(),
 // __ac.Bangku / __ac.DaftarPemain / __ac.InfoPemain.
 // AC5: __ac.kartu.tampil() (entityId kartu), __ac.pemuatIkon.ambil(1, console.log).
+// AC5 soak: __ac.auto(true|false), __ac.autoStatus() -> {aktif, ronde, perintahDikirim},
+// __ac.jumlahEntitas() (isi EntityManager).
 // Task 10: __ac.debug(true|false) (panel #ui AC3), __ac.tataLetak()
 // (terapkan ulang dan kembalikan posisi), __ac.pesan('teks') (kotak RO).
 window.__ac = {
@@ -1042,5 +1056,16 @@ window.__ac = {
 	Bangku: BangkuJ, DaftarPemain: DaftarPemainJ, InfoPemain: InfoPemainJ,
 	Sinergi: SinergiJ, Lore: LoreJ, DPS: DPSJ, dps: () => dps.ambil(), lore: (id) => LoreJ.buka(id),
 	debug, tataLetak, pesan: tampilkanPesan,
-	kartu, KartuBidak: KartuBidakJ, pemuatIkon
+	kartu, KartuBidak: KartuBidakJ, pemuatIkon,
+	auto: (nyala) => {
+		auto.atur(nyala, st.ambil());
+		log(`auto: ${nyala ? 'hidup' : 'mati'}`);
+		return auto.status();
+	},
+	autoStatus: () => auto.status(),
+	jumlahEntitas: () => {
+		let n = 0;
+		EntityManager.forEach(() => { n++; });
+		return n;
+	}
 };
