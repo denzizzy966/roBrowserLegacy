@@ -2,8 +2,9 @@
  * Renderer murni jendela Bangku (I): strip bawah delapan slot. Slot terisi
  * memuat kanvas potret (diisi Bangku.js lewat potret.hidup), bintang ★n,
  * dan nama unit. Slot terisi berkelas `draggable` (kursor tangan RO) dan
- * beratribut data-bidak untuk seret.js: seret ke papan = taruh, ke Toko =
- * jual (tidak ada tombol jual lagi). Tooltip-nya nama unit + petunjuk seret.
+ * beratribut data-bidak untuk seret.js: seret ke papan = taruh, ke kolom
+ * Toko (zona jual, AC7 K1) = jual; klik = deskripsi, tahan = menu.
+ * Tooltip-nya nama unit, harga jual dari server (K7), dan petunjuk seret.
  */
 
 /** Jumlah slot bangku yang selalu digambar (ekonomi.bangku server = 8). */
@@ -36,10 +37,12 @@ export function bidakBangku(snap) {
  * @param {function} deps.t penerjemah teks.js
  * @param {string} deps.bahasa 'id' | 'en'
  * @param {object} deps.katalog buatKatalog(...)
+ * @param {function} [deps.formatZeny] teks.js formatZeny
  * @returns {string} HTML isi jendela Bangku
  */
 export function renderBangku(snap, deps) {
 	const { t, bahasa, katalog } = deps;
+	const formatZeny = deps.formatZeny ?? String;
 	const bidak = bidakBangku(snap);
 	const petunjuk = esc(t('petunjuk.seret'));
 	const slot = [];
@@ -50,7 +53,8 @@ export function renderBangku(snap, deps) {
 			continue;
 		}
 		const nama = esc(katalog.namaUnit(b.unitId, bahasa));
-		slot.push(`<div class="slot terisi draggable" data-slot="${i}" data-bidak="${b.bidakId}" title="${nama}&#10;${petunjuk}">`
+		const harga = esc(t('petunjuk.harga_jual', formatZeny(b.hargaJual ?? 0)));
+		slot.push(`<div class="slot terisi draggable" data-slot="${i}" data-bidak="${b.bidakId}" title="${nama}&#10;${harga}&#10;${petunjuk}">`
 			+ `<canvas class="potret" data-unit="${esc(b.unitId)}" width="${LEBAR_POTRET_BANGKU}" height="${TINGGI_POTRET_BANGKU}"></canvas>`
 			+ `<span class="bintang bintang-${b.bintang}">★${b.bintang}</span>`
 			+ `<div class="nama">${nama}</div>`

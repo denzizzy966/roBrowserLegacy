@@ -93,7 +93,7 @@ import { buatTeks, formatZeny } from './teks.js';
 import { buatPotret } from './potret.js';
 import { buatSorot } from './sorot.js';
 import { buatSeret, petakDiBawahPointer } from './seret.js';
-import { buatKartu, cariBidak, tandaiSpawn, pasangHoverDom } from './kartu.js';
+import { buatKartu, cariBidak, infoBidak, tandaiSpawn, pasangHoverDom } from './kartu.js';
 import { buatPemuatIkon } from './statusIkon.js';
 import { buatDPS } from './dps.js';
 import { deteksiNaikBintang } from './bintang.js';
@@ -190,17 +190,49 @@ const auto = buatPemainOtomatis({
 	menonton: () => menontonLain(st.ambil())
 });
 
+// Creep: nama mob roBrowser ('Unknown' = tak ada -> nama mentah EvtSpawn).
+const namaMob = (job) => { const n = DB.getMonsterName(job); return n && n !== 'Unknown' ? n : null; };
+
+/**
+ * Entity bidak di bawah pointer (kartu.js cariBidak): entity di bawah
+ * kursor, lalu petak di bawah pointer. null bila pointer bukan di kanvas.
+ */
+function entityDiBawahPointer() {
+	return cariBidak({
+		EntityManager,
+		snap: st.ambil(),
+		over: Mouse.intersect ? EntityManager.getOverEntity() : null,
+		petak: Mouse.intersect ? petakDiBawahPointer(ASAL_PAPAN, SKALA_PETAK, Mouse.world) : null,
+		asal: ASAL_PAPAN,
+		skala: SKALA_PETAK
+	});
+}
+
 // AC4: seret-lepas bidak (Q3). Jendela dan katalog diambil saat dipakai:
 // host jendela baru ada sesudah append, katalog diganti saat termuat.
-// Selama seret Toko disembunyikan (ia menutupi separuh papan sendiri) dan
-// tombol K menjadi sasaran jual.
+// AC7 K1: selama seret/bawa jendela Toko (kolom kanan) menjadi zona jual;
+// K2/K5: klik dan tahan bidak dilaporkan lewat padaKlik/padaTahan;
+// klik bidak lawan/creep memakai entity di bawah pointer (kartu.js).
 const seret = buatSeret({
 	dokumen: document, Mouse, Renderer, Cursor, asal: ASAL_PAPAN, skala: SKALA_PETAK,
 	ambilSnap: () => st.ambil(), kirim, potret, katalog: () => katalog,
-	elemenBangku: () => BangkuJ._host, elemenJual: () => TombolTokoJ._host,
-	toko: TokoJ, tandaiJual: (aktif) => TombolTokoJ.tandaiJual(aktif),
+	elemenBangku: () => BangkuJ._host,
+	zonaJual: {
+		// Galat gambar Toko tidak boleh memutus seret (amankan: dicatat saja).
+		tampil: (bidak) => amankan(() => TokoJ.modeJual(bidak), log)(),
+		sembunyi: amankan(() => TokoJ.modeJual(null), log),
+		rect: () => (TokoJ.zonaJualAktif() && TokoJ.terbuka() && TokoJ._host ? TokoJ._host.getBoundingClientRect() : null)
+	},
+	cariBidak: () => {
+		const e = entityDiBawahPointer();
+		return e ? infoBidak(e, { snap: st.ambil(), katalog, namaMob }) : null;
+	},
+	bahasa: () => teks.bahasa(),
 	beku: () => Boolean(Session.FreezeUI), sorot, log
 });
+// Sementara (Task 4 menggantinya dengan jendela Deskripsi Unit dan menu tahan).
+seret.padaKlik((info) => log(`klik ${info.unitId}`));
+seret.padaTahan(({ bidak }) => log(`tahan ${bidak.unitId}`));
 
 // AC5 (R4): kartu detail bidak saat pointer diam di atas bidak; ikon
 // status RO dari data/texture/effect/ (statusIkon.js). Bidak dicari dari
@@ -210,18 +242,12 @@ const kartu = buatKartu({
 	EntityManager,
 	ambilSnap: () => st.ambil(),
 	katalog: () => katalog,
-	cariTarget: () => cariBidak({
-		EntityManager,
-		snap: st.ambil(),
-		over: Mouse.intersect ? EntityManager.getOverEntity() : null,
-		petak: Mouse.intersect ? petakDiBawahPointer(ASAL_PAPAN, SKALA_PETAK, Mouse.world) : null,
-		asal: ASAL_PAPAN,
-		skala: SKALA_PETAK
-	}),
+	cariTarget: entityDiBawahPointer,
 	jendela: KartuBidakJ,
-	// Creep: nama mob roBrowser ('Unknown' = tak ada -> nama mentah EvtSpawn).
-	namaMob: (job) => { const n = DB.getMonsterName(job); return n && n !== 'Unknown' ? n : null; },
-	seretAktif: () => seret.aktif() || Boolean(Session.FreezeUI)
+	namaMob,
+	// Seret/bawa, dan juga pegangan yang belum jadi seret (klik/tahan),
+	// menyembunyikan kartu hover.
+	seretAktif: () => seret.modus() !== null || Boolean(Session.FreezeUI)
 });
 
 // Semua pesan yang menyentuh entity -- dan juga fase/hasil, supaya
@@ -515,6 +541,8 @@ function tanganiPesan({ galat, info, msg }, data) {
 	if (fase) {
 		st.terimaFase(fase, performance.now());
 		amankan(() => auto.terimaFase(fase), log)();
+		// AC7 K15: seret/bawa bidak papan berakhir bersama PERSIAPAN.
+		amankan(() => seret.padaFase(fase.fase), log)();
 		if (fase.fase === FASE.TEMPUR) {
 			dps.reset();
 			// AC6 (O1/K1): Toko tetap terbuka selama TEMPUR; ia kini kolom
@@ -869,15 +897,17 @@ function pasangJendela() {
 		// G: InfoPemain mulai terlipat menjadi titlebar mini di kiri-bawah;
 		// tombol mini membukanya (tumbuh ke atas, lihat tataLetak.js).
 		InfoPemainJ._host.classList.add('terlipat');
-		// Bidak papan diseret dari kanvas 3D (petak di bawah pointer).
+		// Kartu bidak (R4): hover di kanvas; pergi dari kanvas menutupnya,
+		// dan menekan pointer (awal klik/tahan/seret) menyembunyikannya.
+		// Disembunyikan SEBELUM seret memasang pegangan.
+		Renderer.canvas.addEventListener('pointerdown', () => kartu.sembunyikan());
+		// AC7 K2: pointerdown di kanvas memasang pegangan -- bidak sendiri
+		// (PERSIAPAN): klik/tahan/seret; bidak lain yang tampil: klik.
 		Renderer.canvas.addEventListener('pointerdown', (ev) => seret.mulaiDariPapan(ev));
 		// Jaring pengaman Mouse.intersect sesudah seret (lihat seret.pantauKanvas).
 		Renderer.canvas.addEventListener('pointermove', (ev) => seret.pantauKanvas(ev));
-		// Kartu bidak (R4): hover di kanvas; pergi dari kanvas menutupnya,
-		// dan menekan pointer (awal seret) menyembunyikannya.
 		Renderer.canvas.addEventListener('pointermove', (ev) => kartu.gerak(ev));
 		Renderer.canvas.addEventListener('pointerleave', () => kartu.keluar());
-		Renderer.canvas.addEventListener('pointerdown', () => kartu.sembunyikan());
 		// K5: kartu yang sama saat hover kartu Toko dan slot Bangku.
 		pasangHoverDom(TokoJ.getRoot(), kartu);
 		pasangHoverDom(BangkuJ.getRoot(), kartu);
@@ -947,6 +977,13 @@ window.addEventListener('keydown', (ev) => {
 		return;
 	}
 	TokoJ.toggle();
+});
+
+// AC7 K4: Esc membatalkan bawa (Pindah) yang sedang berjalan.
+window.addEventListener('keydown', (ev) => {
+	if (ev.key === 'Escape' && seret.modus() === 'bawa') {
+		seret.batalBawa();
+	}
 });
 
 // Tombol F membuka/menutup jendela DPS (aturan pengetikan sama dengan K).

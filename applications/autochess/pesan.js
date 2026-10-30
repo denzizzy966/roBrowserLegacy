@@ -375,7 +375,9 @@ export function decodeCaturState(msg) {
 				// AC6 K2: slot ini dikunci (bertahan melewati Refresh).
 				terkunci: Boolean(t.terkunci)
 			})),
-			bidak:      (s.bidak || []).map(bacaBidak),
+			// AC7 K7: harga jual (harga_jual = 8) hanya untuk bidak sendiri;
+			// 0 bila server lama tidak mengirimnya.
+			bidak:      (s.bidak || []).map((d) => ({ ...bacaBidak(d), hargaJual: angka(d.hargaJual) })),
 			sinergi:    (s.sinergi || []).map(bacaSinergi),
 			peluang:    (s.peluang || []).map((p) => ({
 				tier:   angka(p.tier),

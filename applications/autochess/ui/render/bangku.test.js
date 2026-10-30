@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderBangku, JUMLAH_SLOT_BANGKU, bidakBangku } from './bangku.js';
 import { buatKatalog } from '../../katalog.js';
-import { buatTeks } from '../../teks.js';
+import { buatTeks, formatZeny } from '../../teks.js';
 
 const katalog = buatKatalog({
 	units: {
@@ -11,12 +11,12 @@ const katalog = buatKatalog({
 });
 const id = buatTeks();
 const en = buatTeks({ pref: { bahasa: 'en' } });
-const depsID = { t: id.t, bahasa: 'id', katalog };
-const depsEN = { t: en.t, bahasa: 'en', katalog };
+const depsID = { t: id.t, bahasa: 'id', katalog, formatZeny };
+const depsEN = { t: en.t, bahasa: 'en', katalog, formatZeny };
 
 const BIDAK = [
-	{ bidakId: 7, unitId: 'archer', bintang: 2, diPapan: false },
-	{ bidakId: 3, unitId: 'poring', bintang: 1, diPapan: false },
+	{ bidakId: 7, unitId: 'archer', bintang: 2, diPapan: false, hargaJual: 9 },
+	{ bidakId: 3, unitId: 'poring', bintang: 1, diPapan: false, hargaJual: 1 },
 	{ bidakId: 5, unitId: 'poring', bintang: 1, diPapan: true }
 ];
 
@@ -65,16 +65,27 @@ describe('renderBangku', () => {
 		const h = renderBangku(snap(), depsID);
 		expect(h).not.toContain('<button');
 		expect(h).not.toContain('data-aksi');
-		expect(slot(h, 0)).toContain(`title="Poring&#10;${id.t('petunjuk.seret')}"`);
+		expect(slot(h, 0)).toContain(`title="Poring&#10;Harga jual: 1 zeny&#10;${id.t('petunjuk.seret')}"`);
 	});
 	it('nama unit mengikuti bahasa', () => {
 		const h = renderBangku(snap(), depsEN);
 		expect(h).toContain('Archer');
-		expect(h).toContain(`title="Archer&#10;${en.t('petunjuk.seret')}"`);
+		expect(h).toContain(`title="Archer&#10;Sell price: 9 zeny&#10;${en.t('petunjuk.seret')}"`);
 	});
 	it('tanpa state: 8 slot kosong', () => {
 		const h = renderBangku({ state: null, fase: 0 }, depsID);
 		expect(h.match(/class="slot"/g)).toHaveLength(8);
+	});
+	it('AC7 K7: title slot memuat harga jual dari server', () => {
+		expect(slot(renderBangku(snap(), depsID), 1)).toContain('Harga jual: 9 zeny');
+		// Field tidak ada (server lama): 0.
+		const h = renderBangku(snap([{ bidakId: 1, unitId: 'poring', bintang: 1, diPapan: false }]), depsID);
+		expect(slot(h, 0)).toContain('Harga jual: 0 zeny');
+	});
+	it('AC7 K13: petunjuk seret menyebut kolom Toko dan menu tahan', () => {
+		expect(id.t('petunjuk.seret')).toContain('Toko');
+		expect(id.t('petunjuk.seret')).toContain('tahan');
+		expect(en.t('petunjuk.seret')).toContain('Shop');
 	});
 	it('meloloskan unitId asing', () => {
 		const h = renderBangku(snap([{ bidakId: 1, unitId: '<x>', bintang: 1, diPapan: false }]), depsID);

@@ -63,7 +63,7 @@ describe('KAMUS', () => {
 			'fase.persiapan', 'fase.tempur', 'fase.hasil',
 			'jendela.timer', 'jendela.daftarPemain', 'jendela.kapasitas', 'jendela.zeny', 'jendela.sinergi',
 			'jendela.dps', 'jendela.infoPemain', 'jendela.exp', 'jendela.bangku', 'jendela.toko', 'jendela.lore',
-			'tombol.beli', 'tombol.jual', 'tombol.refresh', 'tombol.kunci', 'tombol.buka', 'tombol.beliExp',
+			'tombol.beli', 'tombol.refresh', 'tombol.kunci', 'tombol.buka', 'tombol.beliExp',
 			'tombol.lewati', 'tombol.tutup', 'tombol.keBangku', 'tombol.bahasa',
 			'label.ronde', 'label.level', 'label.zeny', 'label.hp', 'label.streak', 'label.kapasitas',
 			'label.peluang', 'label.tier', 'label.bintang', 'label.tersingkir', 'label.menang', 'label.kalah',
@@ -74,6 +74,16 @@ describe('KAMUS', () => {
 		for (const k of wajib) {
 			expect(KAMUS[k], k).toBeDefined();
 		}
+	});
+
+	it('AC7 K13: zona jual, harga jual, dan alasan seret K15; tombol.jual dihapus', () => {
+		for (const k of ['toko.zona_jual', 'toko.lepas_di_sini', 'petunjuk.harga_jual', 'log.seret_naik_otomatis', 'log.seret_bidak_hilang']) {
+			expect(KAMUS[k], k).toBeDefined();
+		}
+		expect(KAMUS['petunjuk.harga_jual']).toEqual({ id: 'Harga jual: {0} zeny', en: 'Sell price: {0} zeny' });
+		expect(KAMUS['log.seret_naik_otomatis'].id).toBe('bidak sudah naik otomatis ke papan');
+		expect(KAMUS['log.seret_bidak_hilang'].id).toBe('bidak sudah tidak ada');
+		expect(KAMUS['tombol.jual']).toBeUndefined();
 	});
 
 	it('menerjemahkan setiap alasan penolakan server persis dengan teks server sebagai kunci', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { renderToko, tandaKartu, WARNA_KELAS } from './toko.js';
+import { renderToko, renderZonaJual, tandaKartu, WARNA_KELAS } from './toko.js';
 import { buatKatalog } from '../../katalog.js';
 import { buatTeks, formatZeny } from '../../teks.js';
 import { ikatAksi, argKunci } from '../../ui.js';
@@ -274,5 +274,31 @@ describe('klik gembok (handler murni) mengirim kunci {slot, kunci}', () => {
 		gembok.dataset.arg = '0';
 		fn({ target });
 		expect(kirim.mock.calls).toEqual([['kunci', { slot: 4, kunci: true }], ['kunci', { slot: 4, kunci: false }]]);
+	});
+});
+
+describe('renderZonaJual (AC7 K1/K13)', () => {
+	it('memuat JUAL, +harga zeny, dan lepas di sini (ID dan EN)', () => {
+		const hID = renderZonaJual({ bidakId: 4, unitId: 'poring', hargaJual: 9 }, depsID);
+		expect(hID).toContain('class="zona-jual"');
+		expect(hID).toContain(id.t('toko.zona_jual'));
+		expect(hID).toContain('+9 zeny');
+		expect(hID).toContain(id.t('toko.lepas_di_sini'));
+		const hEN = renderZonaJual({ bidakId: 4, unitId: 'poring', hargaJual: 9 }, depsEN);
+		expect(hEN).toContain(en.t('toko.zona_jual'));
+		expect(hEN).toContain('+9 zeny');
+		expect(hEN).toContain(en.t('toko.lepas_di_sini'));
+		expect(en.t('toko.lepas_di_sini')).not.toBe(id.t('toko.lepas_di_sini'));
+	});
+
+	it('tanpa kartu, tanpa aksi: tidak ada yang bisa diklik di zona', () => {
+		const h = renderZonaJual({ bidakId: 4, unitId: 'poring', hargaJual: 1234 }, depsID);
+		expect(h).not.toContain('data-aksi');
+		expect(h).not.toContain('class="kartu');
+		expect(h).toContain(`+${formatZeny(1234)} zeny`);
+	});
+
+	it('hargaJual tidak ada -> +0 zeny', () => {
+		expect(renderZonaJual({ bidakId: 4, unitId: 'poring' }, depsID)).toContain('+0 zeny');
 	});
 });

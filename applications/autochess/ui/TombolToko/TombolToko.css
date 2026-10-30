@@ -5,7 +5,3 @@
 .glif { font-size: 28px; line-height: 46px; }
 .plus { position: absolute; top: 2px; right: 5px; font: bold 13px Arial, sans-serif; color: #8f8; }
 .kunci-k { position: absolute; bottom: 1px; left: 4px; font: bold 9px Arial, sans-serif; color: #ccd; }
-.label-jual { display: none; position: absolute; left: -1px; right: -1px; top: -16px; height: 14px; border-radius: 3px; background: #a32; color: #fff; font: bold 10px/14px Arial, sans-serif; text-align: center; pointer-events: none; }
-.tombol.jual { border-color: #f86; box-shadow: 0 0 10px 2px #f64; }
-.tombol.jual:hover { background: radial-gradient(circle at 40% 35%, #a44, #3a1c1c); }
-.tombol.jual .label-jual { display: block; }

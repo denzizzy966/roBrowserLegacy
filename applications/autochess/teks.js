@@ -46,7 +46,6 @@ export const KAMUS = {
 
 	// Tombol
 	'tombol.beli':     { id: 'Beli', en: 'Buy' },
-	'tombol.jual':     { id: 'Jual', en: 'Sell' },
 	'tombol.refresh':  { id: 'Segarkan', en: 'Refresh' },
 	'tombol.kunci':    { id: 'Kunci', en: 'Lock' },
 	'tombol.buka':     { id: 'Buka', en: 'Unlock' },
@@ -131,9 +130,19 @@ export const KAMUS = {
 
 	// Petunjuk (tooltip)
 	'petunjuk.seret': {
-		id: 'Seret ke papan untuk menaruh, ke tombol Toko (K) untuk menjual',
-		en: 'Drag onto the board to place, onto the Shop button (K) to sell'
+		id: 'Seret ke papan untuk menaruh, ke kolom Toko untuk menjual; tahan untuk menu',
+		en: 'Drag onto the board to place, onto the Shop column to sell; hold for a menu'
 	},
+	// AC7 K7: harga jual bidak bangku (title slot).
+	'petunjuk.harga_jual': { id: 'Harga jual: {0} zeny', en: 'Sell price: {0} zeny' },
+
+	// AC7 K1/K13: zona jual (jendela Toko selama seret/bawa).
+	'toko.zona_jual':     { id: 'JUAL', en: 'SELL' },
+	'toko.lepas_di_sini': { id: 'lepas di sini', en: 'drop here' },
+
+	// AC7 K15: alasan batal seret (seret.js mencatat padanan ID-nya).
+	'log.seret_naik_otomatis': { id: 'bidak sudah naik otomatis ke papan', en: 'unit was already auto-placed on the board' },
+	'log.seret_bidak_hilang':  { id: 'bidak sudah tidak ada', en: 'unit no longer exists' },
 
 	'petunjuk.kunci_slot': { id: 'Kunci kartu ini (tidak terganti saat Segarkan)', en: 'Lock this card (kept on Refresh)' },
 	'petunjuk.buka_slot':  { id: 'Buka kunci kartu ini', en: 'Unlock this card' },

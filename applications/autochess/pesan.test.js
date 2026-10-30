@@ -391,6 +391,22 @@ describe('decodeCaturState dan decodeCaturSelesai', () => {
 		expect(s.saya.peluang[0]).toEqual({ tier: 1, persen: 70 });
 	});
 
+	it('AC7 K7: bidak saya membawa hargaJual (harga_jual = 8); field tidak ada -> 0', () => {
+		// Objek hasil decode protobufjs (camelCase); field bernilai nol hilang.
+		const s = decodeCaturState({
+			caturState: {
+				saya: {
+					bidak: [
+						{ bidakId: 7, unitId: 'poring', bintang: 2, hargaJual: 9 },
+						{ bidakId: 8, unitId: 'archer', bintang: 1 }
+					]
+				}
+			}
+		});
+		expect(s.saya.bidak[0].hargaJual).toBe(9);
+		expect(s.saya.bidak[1].hargaJual).toBe(0);
+	});
+
 	it('decodeCaturState selalu mengembalikan array, walau kosong', () => {
 		const { ServerMsg } = types();
 		const s = decodeCaturState(lewatKawat(ServerMsg, { caturState: { ronde: 1 } }));

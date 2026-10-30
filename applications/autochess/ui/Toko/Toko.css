@@ -42,3 +42,10 @@
 .gembok:hover:not([disabled]) { opacity: 1; border-color: #fc6; }
 .gembok.tertutup { opacity: 1; background: #7a5a1c; border-color: #fc6; }
 .gembok[disabled] { cursor: default; opacity: 0.4; }
+/* AC7 K1: zona jual selama seret/bawa -- seluruh kolom Toko menjadi sasaran merah. */
+:host(.jual) .bingkai { border-color: #f86; box-shadow: 0 0 10px 2px #f64; }
+.zona-jual { height: 426px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border: 2px dashed #fbb; border-radius: 4px; background: radial-gradient(circle at 50% 40%, #c33, #7a1a1a); color: #fff; text-align: center; pointer-events: none; }
+.zona-jual .ikon-zeny.besar { width: 40px; height: 40px; }
+.judul-jual { font: bold 26px Arial, sans-serif; letter-spacing: 2px; text-shadow: 0 1px 3px #000; }
+.harga-jual { font: bold 18px Arial, sans-serif; color: #ffe680; text-shadow: 0 1px 3px #000; }
+.lepas-jual { font-size: 11px; color: #fdd; }

@@ -3,8 +3,12 @@
  * di atas tombol K) dengan tombol Refresh, baris peluang, dan lima kartu
  * mendatar berpotret yang masing-masing punya gembok sendiri (K2) dan tanda
  * deck (K6). Tampil bawaan dan tetap terbuka di semua fase (G2/O1); tombol
- * K/TombolToko masih bisa menyembunyikannya, dan seret.js menyembunyikannya
- * selama seret bidak.
+ * K/TombolToko masih bisa menyembunyikannya.
+ *
+ * AC7 K1: selama seret/bawa bidak (seret.js lewat zonaJual) jendela ini
+ * menjadi ZONA JUAL: modeJual(bidak) membukanya sementara bila tertutup,
+ * memberi host kelas `jual`, dan mengganti isinya dengan renderZonaJual;
+ * modeJual(null) memulihkan isi dan menutupnya lagi bila tadinya tertutup.
  *
  * gambar() dipanggil tiap 250 ms; isi baru ditulis ulang bila keluaran
  * renderToko berubah (slot, kunci, Zeny, deck, bahasa, level). Sesudah
@@ -20,7 +24,7 @@ import Client from 'Core/Client.js';
 import DB from 'DB/DBManager.js';
 import htmlText from './Toko.html?raw';
 import cssText from './Toko.css?raw';
-import { renderToko } from '../render/toko.js';
+import { renderToko, renderZonaJual } from '../render/toko.js';
 import { pasangKerangka, tulisBila } from '../janela.js';
 import { ikatAksi } from '../../ui.js';
 
@@ -32,6 +36,13 @@ Toko.mouseMode = GUIComponent.MouseMode.STOP;
 let kirimTerakhir = null;
 // Dipanggil sesudah buka/tutup (TombolToko menyalakan sorotannya).
 const pendengar = new Set();
+
+// AC7 K1: bidak yang sedang diseret/dibawa (zona jual aktif) atau null,
+// dan apakah Toko terbuka sebelum zona jual dipasang.
+let bidakJual = null;
+let terbukaSebelumJual = false;
+// Gambar terakhir: modeJual menggambar ulang seketika tanpa menunggu denyut.
+let gambarTerakhir = null;
 
 // Kanvas 72x84 ditampilkan 60x70: sprite diperkecil seperti di Bangku.
 const OPSI_POTRET = { skala: 0.8, kaki: 0.88 };
@@ -93,18 +104,57 @@ Toko.padaUbah = function padaUbah(fn) {
 };
 
 /**
+ * AC7 K1: memasang (bidak) atau melepas (null) mode zona jual.
+ * @param {object|null} bidak record snapshot yang diseret/dibawa
+ */
+Toko.modeJual = function modeJual(bidak) {
+	if (bidak) {
+		if (!bidakJual) {
+			terbukaSebelumJual = this.terbuka();
+			if (!terbukaSebelumJual) {
+				this.buka();
+			}
+		}
+		bidakJual = bidak;
+	} else {
+		if (!bidakJual) {
+			return;
+		}
+		bidakJual = null;
+		if (!terbukaSebelumJual) {
+			this.tutup();
+		}
+	}
+	this._host?.classList.toggle('jual', bidakJual !== null);
+	if (gambarTerakhir && this.isi) {
+		this.gambar(gambarTerakhir.snap, gambarTerakhir.deps);
+	}
+};
+
+/** @returns {boolean} true selama zona jual terpasang */
+Toko.zonaJualAktif = function zonaJualAktif() {
+	return bidakJual !== null;
+};
+
+/**
  * @param {object} snap state.ambil()
  * @param {object} deps {t, bahasa, katalog, formatZeny, potret, kirim}
  */
 Toko.gambar = function gambar(snap, deps) {
 	kirimTerakhir = deps.kirim;
+	gambarTerakhir = { snap, deps };
 	tulisBila(this.judul, deps.t('jendela.toko'));
 
 	const lama = new Map();
 	for (const k of this.isi.querySelectorAll('canvas.potret')) {
 		lama.set(kunciKanvas(k), k);
 	}
-	if (!tulisBila(this.isi, renderToko(snap, deps))) {
+	// Zona jual: harga dari snapshot terbaru (bisa naik bintang di tengah
+	// seret); bidak yang sudah hilang memakai record saat diangkat.
+	const jual = bidakJual
+		? (snap.state?.saya?.bidak ?? []).find((b) => b.bidakId === bidakJual.bidakId) ?? bidakJual
+		: null;
+	if (!tulisBila(this.isi, jual ? renderZonaJual(jual, deps) : renderToko(snap, deps))) {
 		return;
 	}
 	for (const baru of this.isi.querySelectorAll('canvas.potret')) {

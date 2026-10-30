@@ -184,6 +184,27 @@ function barisPeluang(peluang, level, t) {
 }
 
 /**
+ * AC7 K1: isi jendela Toko selama seret/bawa -- panel merah satu warna
+ * (ikon zeny, JUAL, +N zeny, lepas di sini) yang menjadi sasaran jual.
+ * Tanpa data-aksi: zona ini hanya sasaran lepas, bukan tombol. N =
+ * hargaJual dari server (K7; 0 bila server lama tidak mengirimnya).
+ *
+ * @param {{hargaJual?: number}} bidak bidak yang diseret/dibawa
+ * @param {{t: function, formatZeny: function}} deps
+ * @returns {string} HTML isi jendela Toko mode jual
+ */
+export function renderZonaJual(bidak, deps) {
+	const { t, formatZeny } = deps;
+	const harga = formatZeny(bidak?.hargaJual ?? 0);
+	return '<div class="zona-jual">'
+		+ '<span class="ikon-zeny besar"></span>'
+		+ `<div class="judul-jual">${esc(t('toko.zona_jual'))}</div>`
+		+ `<div class="harga-jual">+${esc(harga)} zeny</div>`
+		+ `<div class="lepas-jual">${esc(t('toko.lepas_di_sini'))}</div>`
+		+ '</div>';
+}
+
+/**
  * @param {object} snap state.ambil()
  * @param {object} deps
  * @param {function} deps.t penerjemah teks.js
