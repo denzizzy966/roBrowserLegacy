@@ -232,9 +232,13 @@ function lebihBaik(t, u, dimiliki) {
  * Pengendali pemain otomatis. Setiap perintah yang terkirim menunggu
  * tepat satu jawaban (EvtCaturState untuk yang diterima, EvtError untuk
  * yang ditolak -- lihat aktor.go tangani); keputusan berikutnya baru
- * diambil sesudah semua jawaban tiba. EvtError menghentikan keputusan di
- * PERSIAPAN itu (dicatat, tidak diulang) dan langsung menjadwalkan
- * `lewati`.
+ * diambil sesudah semua jawaban tiba. EvtError (atau kirim yang gagal)
+ * menghentikan keputusan di PERSIAPAN itu (dicatat, tidak diulang); begitu
+ * jawaban terakhir batch yang sedang terbang tiba, `lewati` dijadwalkan
+ * seperti biasa (sekali per ronde, JEDA_LEWATI_MS sesudah awal PERSIAPAN).
+ *
+ * Awal PERSIAPAN dicatat walau pemain otomatis mati, jadi menyalakannya di
+ * tengah ronde tidak menggeser jadwal `lewati`.
  *
  * @param {object} d
  * @param {function(string, object): boolean} d.kirim kirim(aksi, arg) main.js
@@ -272,6 +276,18 @@ export function buatPemainOtomatis({ kirim, aturan, sekarang, jadwalkan, batalka
 		menunggu = 0;
 	}
 
+	/**
+	 * Satu jawaban (state atau galat) untuk batch yang sedang terbang.
+	 * Hanya mengurangi selama ada perintah yang menunggu, tidak pernah di
+	 * bawah 0: state tak diminta di luar batch (mis. awal PERSIAPAN) tidak
+	 * mengubah apa pun.
+	 */
+	function terimaJawaban() {
+		if (menunggu > 0) {
+			menunggu--;
+		}
+	}
+
 	function mulaiRonde(r) {
 		batalTimer();
 		ronde = r;
@@ -301,7 +317,13 @@ export function buatPemainOtomatis({ kirim, aturan, sekarang, jadwalkan, batalka
 	}
 
 	function langkah(state) {
-		if (berhenti || lewatiTerkirim) {
+		if (lewatiTerkirim) {
+			return;
+		}
+		if (berhenti) {
+			// Keputusan ronde ini sudah dihentikan (galat, kirim gagal, atau
+			// batas): sisa batch sudah dijawab, jadi lewati menyusul.
+			jadwalLewati();
 			return;
 		}
 		const a = aturan();
@@ -346,12 +368,19 @@ export function buatPemainOtomatis({ kirim, aturan, sekarang, jadwalkan, batalka
 		atur(nyala, snap) {
 			aktif = Boolean(nyala);
 			if (!aktif) {
-				akhiriRonde();
+				// Ronde dan awal PERSIAPAN tetap dicatat; hanya timer dibatalkan.
+				batalTimer();
 				return;
 			}
 			if (snap?.state && snap.fase === FASE.PERSIAPAN && snap.state.fase === FASE.PERSIAPAN) {
-				mulaiRonde(snap.ronde);
-				langkah(snap.state);
+				// Awal PERSIAPAN yang sudah tercatat (EvtCaturFase) dipakai;
+				// hanya ronde yang belum pernah terlihat dimulai dari sekarang.
+				if (ronde !== snap.ronde) {
+					mulaiRonde(snap.ronde);
+				}
+				if (menunggu === 0) {
+					langkah(snap.state);
+				}
 			}
 		},
 
@@ -366,16 +395,14 @@ export function buatPemainOtomatis({ kirim, aturan, sekarang, jadwalkan, batalka
 
 		/** EvtCaturState (sesudah st.terima). */
 		terimaState(state) {
-			if (menunggu > 0) {
-				menunggu--;
-			}
-			if (!aktif || state.fase !== FASE.PERSIAPAN) {
+			terimaJawaban();
+			if (state.fase !== FASE.PERSIAPAN) {
 				return;
 			}
 			if (ronde !== state.ronde) {
 				mulaiRonde(state.ronde);
 			}
-			if (menunggu > 0) {
+			if (!aktif || menunggu > 0) {
 				return;
 			}
 			langkah(state);
@@ -383,9 +410,7 @@ export function buatPemainOtomatis({ kirim, aturan, sekarang, jadwalkan, batalka
 
 		/** EvtError: dicatat, keputusan ronde ini berhenti, lalu lewati. */
 		terimaGalat(pesan) {
-			if (menunggu > 0) {
-				menunggu--;
-			}
+			terimaJawaban();
 			if (!aktif || ronde === null) {
 				return;
 			}

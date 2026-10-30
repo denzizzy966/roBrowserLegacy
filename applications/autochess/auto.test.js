@@ -183,14 +183,14 @@ describe('aturanDariKatalog', () => {
 });
 
 /** Jam dan timer palsu untuk pengendali. */
-function lingkungan({ tolak = new Set() } = {}) {
+function lingkungan({ tolak = new Set(), gagal = () => false } = {}) {
 	const terkirim = [];
 	const timer = [];
 	const log = [];
 	let jam = 1000;
 	const p = buatPemainOtomatis({
 		kirim: (aksi, arg) => {
-			if (tolak.has(aksi)) {
+			if (tolak.has(aksi) || gagal(aksi, terkirim.length)) {
 				return false;
 			}
 			terkirim.push({ aksi, arg });
@@ -327,5 +327,108 @@ describe('buatPemainOtomatis', () => {
 		expect(L.terkirim.filter((p) => p.aksi === 'beli-exp')).toHaveLength(BATAS_PANGGILAN);
 		L.maju(JEDA_LEWATI_MS);
 		expect(L.terkirim.at(-1)).toEqual({ aksi: 'lewati', arg: {} });
+	});
+
+	// Review Task 4, Important 1: galat atau kirim gagal di tengah batch.
+	const BATCH3 = () => stateSkrip(9, 1, 1, tokoSkrip('a', 1, 'b', 1, 'c', 2));
+	const lewatiDari = (L) => L.terkirim.filter((p) => p.aksi === 'lewati');
+
+	it('batch Beli,Beli,Beli dijawab galat, state, state: tepat satu lewati, 2 s sesudah awal PERSIAPAN', () => {
+		const L = lingkungan();
+		L.p.atur(true);
+		L.p.terimaFase({ fase: FASE.PERSIAPAN, ronde: 1 });
+		L.p.terimaState(BATCH3());
+		expect(L.terkirim).toEqual([beli(0), beli(1), beli(2)]);
+		L.p.terimaGalat('bangku penuh');
+		L.p.terimaState(stateSkrip(8, 1, 1, tokoSkrip('', 0, '', 0, 'c', 2), bangku(1, 'b', 1)));
+		L.p.terimaState(stateSkrip(6, 1, 1, tokoSkrip('', 0, '', 0, '', 0), bangku(1, 'b', 1), bangku(2, 'c', 1)));
+		// Tidak ada keputusan baru (Taruh) sesudah galat.
+		expect(L.terkirim).toHaveLength(3);
+		L.maju(JEDA_LEWATI_MS - 1);
+		expect(lewatiDari(L)).toHaveLength(0);
+		L.maju(1);
+		expect(lewatiDari(L)).toHaveLength(1);
+		L.p.terimaState(stateSkrip(6, 1, 1, null));
+		L.maju(10000);
+		expect(lewatiDari(L)).toHaveLength(1);
+		expect(L.timer.filter((t) => !t.batal)).toHaveLength(1);
+	});
+
+	it('batch Beli,Beli,Beli dijawab state, state, galat (galat jawaban terakhir): tepat satu lewati', () => {
+		const L = lingkungan();
+		L.p.atur(true);
+		L.p.terimaFase({ fase: FASE.PERSIAPAN, ronde: 1 });
+		L.p.terimaState(BATCH3());
+		L.p.terimaState(stateSkrip(8, 1, 1, tokoSkrip('', 0, 'b', 1, 'c', 2), bangku(1, 'a', 1)));
+		L.p.terimaState(stateSkrip(7, 1, 1, tokoSkrip('', 0, '', 0, 'c', 2), bangku(1, 'a', 1), bangku(2, 'b', 1)));
+		expect(L.terkirim).toHaveLength(3);
+		L.p.terimaGalat('zeny kurang');
+		expect(L.terkirim).toHaveLength(3);
+		L.maju(JEDA_LEWATI_MS);
+		expect(L.terkirim.slice(3)).toEqual([{ aksi: 'lewati', arg: {} }]);
+		L.maju(10000);
+		expect(lewatiDari(L)).toHaveLength(1);
+	});
+
+	it('kirim gagal di tengah batch: lewati menyusul jawaban terakhir perintah yang sudah terkirim', () => {
+		const L = lingkungan({ gagal: (aksi, n) => aksi === 'beli' && n === 1 });
+		L.p.atur(true);
+		L.p.terimaFase({ fase: FASE.PERSIAPAN, ronde: 1 });
+		L.p.terimaState(BATCH3());
+		expect(L.terkirim).toEqual([beli(0)]);
+		L.maju(JEDA_LEWATI_MS);
+		// Jawaban Beli pertama belum tiba: belum lewati.
+		expect(lewatiDari(L)).toHaveLength(0);
+		L.p.terimaState(stateSkrip(8, 1, 1, tokoSkrip('', 0, 'b', 1, 'c', 2), bangku(1, 'a', 1)));
+		L.maju(0);
+		expect(L.terkirim).toEqual([beli(0), { aksi: 'lewati', arg: {} }]);
+	});
+
+	it('state tak diminta di luar batch tidak membuat penghitung jawaban negatif', () => {
+		const L = lingkungan();
+		L.p.terimaFase({ fase: FASE.PERSIAPAN, ronde: 1 });
+		// Mati: state dan galat tetap tiba (mis. klik pemain sendiri).
+		L.p.terimaState(stateSkrip(0, 1, 1, null));
+		L.p.terimaGalat('bangku penuh');
+		L.p.terimaState(stateSkrip(0, 1, 1, null));
+		L.p.atur(true);
+		// Hidup tanpa batch: state tanpa keputusan, dua kali.
+		L.p.terimaState(stateSkrip(0, 1, 1, null));
+		L.p.terimaState(stateSkrip(0, 1, 1, null));
+		expect(L.terkirim).toEqual([]);
+		// Batch dua Beli: jawaban pertama TIDAK boleh memicu keputusan.
+		L.p.terimaState(stateSkrip(9, 1, 1, tokoSkrip('a', 1, 'b', 1)));
+		expect(L.terkirim).toEqual([beli(0), beli(1)]);
+		L.p.terimaState(stateSkrip(8, 1, 1, tokoSkrip('', 0, 'b', 1), bangku(1, 'a', 1)));
+		expect(L.terkirim).toHaveLength(2);
+		L.p.terimaState(stateSkrip(7, 1, 1, tokoSkrip('', 0, '', 0), bangku(1, 'a', 1), bangku(2, 'b', 1)));
+		expect(L.terkirim.slice(2)).toEqual([taruh(1, 3, 3)]);
+	});
+
+	it('dinyalakan di tengah ronde: jadwal lewati tetap dari awal PERSIAPAN, bukan saat dinyalakan', () => {
+		const L = lingkungan();
+		L.p.terimaFase({ fase: FASE.PERSIAPAN, ronde: 1 });
+		L.maju(1500);
+		const s = stateSkrip(0, 1, 1, null);
+		L.p.atur(true, { state: s, fase: FASE.PERSIAPAN, ronde: 1 });
+		L.maju(499);
+		expect(lewatiDari(L)).toHaveLength(0);
+		L.maju(1);
+		expect(lewatiDari(L)).toHaveLength(1);
+	});
+
+	it('dimatikan lalu dinyalakan lagi di ronde yang sama: awal PERSIAPAN tidak bergeser', () => {
+		const L = lingkungan();
+		L.p.atur(true);
+		L.p.terimaFase({ fase: FASE.PERSIAPAN, ronde: 1 });
+		L.p.terimaState(stateSkrip(0, 1, 1, null));
+		L.maju(1000);
+		L.p.atur(false);
+		L.maju(500);
+		L.p.atur(true, { state: stateSkrip(0, 1, 1, null), fase: FASE.PERSIAPAN, ronde: 1 });
+		L.maju(499);
+		expect(lewatiDari(L)).toHaveLength(0);
+		L.maju(1);
+		expect(lewatiDari(L)).toHaveLength(1);
 	});
 });

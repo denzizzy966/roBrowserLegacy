@@ -465,7 +465,7 @@ function tanganiPesan({ galat, info, msg }, data) {
 	const selesai = decodeCaturSelesai(msg);
 	if (selesai) {
 		st.terimaSelesai(selesai);
-		auto.terimaSelesai();
+		amankan(() => auto.terimaSelesai(), log)();
 		pertandinganSelesai = true;
 		BGM.stop();
 		log(`< selesai: peringkatmu #${selesai.peringkatSaya}`);
