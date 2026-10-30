@@ -160,9 +160,10 @@ describe('kamera per fase: TEMPUR/HASIL = papan penuh (Fix round 1)', () => {
 		expect(b.y + b.tinggi).toBeLessThanOrEqual(bawah - MARGIN_PAPAN + 1);
 		expect(Math.abs(b.y + b.tinggi / 2 - (atas + bawah) / 2)).toBeLessThan(2);
 		expect(Math.abs(b.x + b.lebar / 2 - w / 2)).toBeLessThan(2);
-		// Tidak ada jendela tetap atau Toko yang menutup papan penuh.
+		// Tidak ada jendela tetap atau Toko yang menutup papan penuh
+		// (DeskripsiUnit: overlay AC7 K16 yang boleh menumpuk papan).
 		for (const [n, v] of Object.entries(l)) {
-			if (n === 'Lore' || n === 'DPS' || n === 'Log') {
+			if (n === 'Lore' || n === 'DPS' || n === 'Log' || n === 'DeskripsiUnit') {
 				continue;
 			}
 			const sama = b.x < v.kotak.x + v.kotak.lebar && v.kotak.x < b.x + b.lebar && b.y < v.kotak.y + v.kotak.tinggi && v.kotak.y < b.y + b.tinggi;

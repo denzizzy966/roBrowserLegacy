@@ -1,0 +1,22 @@
+/* Posisi :host (left/top) ditulis MenuBidak.buka (render/menuBidak.js posisiMenu), bukan ui/tataLetak.js. */
+/* Host tembus pointer: hanya lingkaran dan item yang menangkap klik (pojok kotak = di luar menu). */
+:host { width: 140px; height: 140px; display: none; pointer-events: none; }
+:host(.terbuka) { display: block; }
+.menu { position: relative; width: 140px; height: 140px; font: 11px Arial, sans-serif; color: #fff; user-select: none; }
+.cincin {
+	position: absolute; left: 0; top: 0; width: 140px; height: 140px; box-sizing: border-box; border-radius: 50%;
+	border: 2px solid #c9a24a; pointer-events: auto;
+	background: radial-gradient(circle, rgba(18, 18, 28, 0.35) 0 27px, rgba(201, 162, 74, 0.6) 28px 29px, rgba(28, 28, 40, 0.85) 30px);
+	box-shadow: 0 0 8px rgba(0, 0, 0, 0.75), inset 0 0 0 1px #6b5420;
+}
+.item {
+	position: absolute; transform: translate(-50%, -50%); min-width: 56px; padding: 3px 6px; box-sizing: border-box;
+	border: 1px solid #c9a24a; border-radius: 4px; background: linear-gradient(#3b4a78, #26304f);
+	text-align: center; white-space: nowrap; cursor: pointer; pointer-events: auto; text-shadow: 1px 1px #000;
+}
+.item .label { display: block; font-weight: bold; }
+.item .harga { display: block; color: #fd4; font-size: 10px; }
+.item.jual { background: linear-gradient(#8a2a2a, #5a1818); }
+.item.sorot:not(.nonaktif), .item:hover:not(.nonaktif) { border-color: #ffe08a; box-shadow: 0 0 6px #ffd24a; filter: brightness(1.3); }
+.item.nonaktif { background: #3a3a44; color: #8a8a94; border-color: #666; cursor: default; }
+.item.nonaktif .harga { color: #888270; }

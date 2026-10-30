@@ -17,7 +17,7 @@
  */
 
 /** Jendela yang memanggil draggable('.titlebar') dan karenanya posisinya diingat. */
-export const JENDELA_DAPAT_DIGESER = ['InfoPemain', 'DPS', 'Lore', 'Log'];
+export const JENDELA_DAPAT_DIGESER = ['InfoPemain', 'DPS', 'Lore', 'Log', 'DeskripsiUnit'];
 
 /** Kunci Preferences.get untuk posisi tersimpan (versi 1.0). */
 export const KUNCI_POSISI = 'AutochessJendela';

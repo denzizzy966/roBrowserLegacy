@@ -43,6 +43,7 @@ export const KAMUS = {
 	'jendela.lore':         { id: 'Lore', en: 'Lore' },
 	'jendela.log':          { id: 'Log', en: 'Log' },
 	'jendela.bilahDeck':    { id: 'Bilah Deck', en: 'Deck Bar' },
+	'jendela.deskripsi_unit': { id: 'Deskripsi Unit', en: 'Unit Description' },
 
 	// Tombol
 	'tombol.beli':     { id: 'Beli', en: 'Buy' },
@@ -80,6 +81,23 @@ export const KAMUS = {
 	'label.skillLv':    { id: '{0} (Lv {1})', en: '{0} (Lv {1})' },
 	'label.bonus_sinergi': { id: 'Bonus sinergi', en: 'Synergy bonus' },
 
+	// AC7 K16-K18: jendela Deskripsi Unit (blok skill dan lore). Kata
+	// jenis/target/status sama dengan pemformat ringkasan server
+	// (server/cmd/roserver/katalog_ringkasan.go).
+	'label.lore':       { id: 'Lore', en: 'Lore' },
+	'label.rasio':      { id: 'Rasio', en: 'Ratio' },
+	'label.splash':     { id: 'Splash', en: 'Splash' },
+	'label.cast':       { id: 'Waktu rapal', en: 'Cast time' },
+	'label.sp_penuh':   { id: 'Dirapal saat SP penuh', en: 'Cast when SP is full' },
+	'skill.jenis.fisik':  { id: 'Serangan fisik', en: 'Physical attack' },
+	'skill.jenis.magis':  { id: 'Serangan sihir', en: 'Magic attack' },
+	'skill.jenis.heal':   { id: 'Penyembuhan', en: 'Heal' },
+	'skill.jenis.dukung': { id: 'Dukungan', en: 'Support' },
+	'skill.target.musuh':         { id: 'satu musuh', en: 'single enemy' },
+	'skill.target.area_musuh':    { id: 'area musuh', en: 'enemy area' },
+	'skill.target.kawan_terluka': { id: 'kawan paling terluka', en: 'most wounded ally' },
+	'skill.target.diri':          { id: 'diri sendiri', en: 'self' },
+
 	// Status pada kartu bidak (kunci = 'status.' + EFEK_STATUS di pesan.js)
 	'status.1': { id: 'Beku', en: 'Frozen' },
 	'status.2': { id: 'Pingsan', en: 'Stunned' },
@@ -87,6 +105,13 @@ export const KAMUS = {
 	'status.4': { id: 'Racun', en: 'Poisoned' },
 	'status.5': { id: 'Buta', en: 'Blind' },
 	'status.6': { id: 'Bisu', en: 'Silenced' },
+	// AC7 K17: status skill menurut nama skill.yml (katalog skill.status.nama).
+	'status.beku':    { id: 'Beku', en: 'Frozen' },
+	'status.pingsan': { id: 'Pingsan', en: 'Stun' },
+	'status.racun':   { id: 'Racun', en: 'Poison' },
+	'status.buta':    { id: 'Buta', en: 'Blind' },
+	'status.bisu':    { id: 'Bisu', en: 'Silence' },
+	'status.tidur':   { id: 'Tidur', en: 'Sleep' },
 
 	'label.streak':     { id: 'Beruntun', en: 'Streak' },
 	'label.kapasitas':  { id: '{0}/{1} bidak', en: '{0}/{1} units' },
@@ -139,6 +164,15 @@ export const KAMUS = {
 	// AC7 K1/K13: zona jual (jendela Toko selama seret/bawa).
 	'toko.zona_jual':     { id: 'JUAL', en: 'SELL' },
 	'toko.lepas_di_sini': { id: 'lepas di sini', en: 'drop here' },
+
+	// AC7 K5/K13: menu tahan bidak (Jual / Pindah / Batal).
+	'menu.jual':            { id: 'Jual', en: 'Sell' },
+	'menu.pindah':          { id: 'Pindah', en: 'Move' },
+	'menu.batal':           { id: 'Batal', en: 'Cancel' },
+	'menu.hanya_persiapan': { id: 'hanya saat Persiapan', en: 'preparation only' },
+
+	// AC7 K11: bidak bangku yang dinaikkan server di awal Tempur.
+	'log.naik_otomatis': { id: 'Naik otomatis: {0} (+{1} lagi)', en: 'Auto-placed: {0} (+{1} more)' },
 
 	// AC7 K15: alasan batal seret (seret.js mencatat padanan ID-nya).
 	'log.seret_naik_otomatis': { id: 'bidak sudah naik otomatis ke papan', en: 'unit was already auto-placed on the board' },

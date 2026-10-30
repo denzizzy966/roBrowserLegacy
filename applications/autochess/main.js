@@ -39,6 +39,9 @@
 // - AC6 K3/K11/K14: EvtCaturTonton (state.terimaTonton, efek.bersihkanStatus,
 //   DPS direset); klik nama di Daftar Pemain mengirim `tonton`, tombol
 //   "Lewati ke peringkat akhir" di InfoPemain mengirim `selesaikan`.
+// - AC7 K5/K11/K16: klik bidak membuka jendela DeskripsiUnit, tahan bidak
+//   membuka menu MenuBidak (Jual / Pindah / Batal), dan bidak bangku yang
+//   dinaikkan server di awal Tempur dicatat satu baris log.
 //
 // Nol berkas client/src/ berubah: semuanya lewat API publik.
 
@@ -87,7 +90,7 @@ import {
 import { buatManajerEfek } from './efek.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
 import { kameraUntuk, terapkanKamera, kotakSeparuhSendiri, kotakPapanPenuh, FASE_TEMPUR, FASE_HASIL } from './kamera.js';
-import { buatState, menontonLain } from './state.js';
+import { buatState, menontonLain, bidakNaikOtomatis } from './state.js';
 import { muatKatalog, buatKatalog } from './katalog.js';
 import { buatTeks, formatZeny } from './teks.js';
 import { buatPotret } from './potret.js';
@@ -112,6 +115,8 @@ import DPSJ       from './ui/DPS/DPS.js';
 import TombolDPSJ from './ui/TombolDPS/TombolDPS.js';
 import KartuBidakJ from './ui/KartuBidak/KartuBidak.js';
 import LogJ       from './ui/Log/Log.js';
+import MenuBidakJ from './ui/MenuBidak/MenuBidak.js';
+import DeskripsiUnitJ from './ui/DeskripsiUnit/DeskripsiUnit.js';
 import { buatSinkLog } from './logSink.js';
 import { buatPemantauPosisi, KUNCI_POSISI } from './ui/posisi.js';
 import { aturTataLetak } from './ui/tataLetak.js';
@@ -230,9 +235,31 @@ const seret = buatSeret({
 	bahasa: () => teks.bahasa(),
 	beku: () => Boolean(Session.FreezeUI), sorot, log
 });
-// Sementara (Task 4 menggantinya dengan jendela Deskripsi Unit dan menu tahan).
-seret.padaKlik((info) => log(`klik ${info.unitId}`));
-seret.padaTahan(({ bidak }) => log(`tahan ${bidak.unitId}`));
+// K16: klik bidak (sendiri, lawan, creep) -> jendela Deskripsi Unit;
+// bidak yang sama menutupnya.
+seret.padaKlik((info) => amankan(() => DeskripsiUnitJ.toggle(info), log)());
+// K5: tahan bidak bangku/papan sendiri -> menu Jual / Pindah / Batal.
+// Bidak papan hanya bisa ditahan saat PERSIAPAN (seret.js), jadi Jual
+// nonaktif hanya untuk bidak papan sesudah fase berganti.
+seret.padaTahan(({ bidak, titik }) => amankan(() => {
+	const snap = st.ambil();
+	const persiapan = snap.fase === FASE.PERSIAPAN;
+	MenuBidakJ.buka({
+		bidak, titik, hargaJual: bidak.hargaJual,
+		bolehJual: !bidak.diPapan || persiapan,
+		bolehPindah: persiapan && !menontonLain(snap),
+		alasanPindah: 'menu.hanya_persiapan'
+	});
+}, log)());
+MenuBidakJ.padaPilih(({ aksi, bidak, titik }) => amankan(() => {
+	if (aksi === 'jual') {
+		kirim('jual', { bidakId: bidak.bidakId });
+	} else if (aksi === 'pindah') {
+		seret.mulaiBawa(bidak, titik);
+	}
+}, log)());
+// K5: keluar radius menu dengan tombol masih ditahan -> seret biasa.
+MenuBidakJ.pasangSeret({ lanjutkanSeret: seret.lanjutkanSeret });
 
 // AC5 (R4): kartu detail bidak saat pointer diam di atas bidak; ikon
 // status RO dari data/texture/effect/ (statusIkon.js). Bidak dicari dari
@@ -245,9 +272,9 @@ const kartu = buatKartu({
 	cariTarget: entityDiBawahPointer,
 	jendela: KartuBidakJ,
 	namaMob,
-	// Seret/bawa, dan juga pegangan yang belum jadi seret (klik/tahan),
-	// menyembunyikan kartu hover.
-	seretAktif: () => seret.modus() !== null || Boolean(Session.FreezeUI)
+	// Seret/bawa, pegangan yang belum jadi seret (klik/tahan), dan menu
+	// tahan yang terbuka (K5) menyembunyikan kartu hover.
+	seretAktif: () => seret.modus() !== null || MenuBidakJ.terbuka() || Boolean(Session.FreezeUI)
 });
 
 // Semua pesan yang menyentuh entity -- dan juga fase/hasil, supaya
@@ -376,6 +403,27 @@ const kendaliBGM = {
 		log(`bgm: ${PrefAudio.BGM.play ? 'hidup' : 'mati'}`);
 	}
 };
+
+// Ronde terakhir yang EvtCaturState TEMPUR-nya sudah diperiksa (K11); -1 = belum.
+let rondeNaikOtomatis = -1;
+
+/**
+ * AC7 K11: pada EvtCaturState pertama berfase TEMPUR dalam satu ronde,
+ * bidak bangku yang dinaikkan server ke papan (K10) dicatat satu baris log.
+ *
+ * @param {object|null} lama state terdekode sebelumnya
+ * @param {object} baru state terdekode yang baru diterima
+ */
+function catatNaikOtomatis(lama, baru) {
+	if (baru.fase !== FASE.TEMPUR || baru.ronde === rondeNaikOtomatis) {
+		return;
+	}
+	rondeNaikOtomatis = baru.ronde;
+	const naik = bidakNaikOtomatis(lama, baru);
+	if (naik.length > 0) {
+		log(teks.t('log.naik_otomatis', katalog.namaUnit(naik[0], teks.bahasa()), naik.length - 1));
+	}
+}
 
 /** Efek + suara untuk bidak yang baru naik bintang (Q7). */
 function rayakanNaikBintang(nb) {
@@ -521,6 +569,7 @@ function tanganiPesan({ galat, info, msg }, data) {
 		st.terima(cs, performance.now());
 		// Efek naik bintang dibungkus: kegagalannya tidak boleh menahan gambar ulang.
 		amankan(() => deteksiNaikBintang(st.sebelumnya(), cs).forEach(rayakanNaikBintang), log)();
+		amankan(() => catatNaikOtomatis(st.sebelumnya(), cs), log)();
 		gambarJendelaAman();
 		amankan(() => auto.terimaState(cs), log)();
 		return;
@@ -543,6 +592,8 @@ function tanganiPesan({ galat, info, msg }, data) {
 		amankan(() => auto.terimaFase(fase), log)();
 		// AC7 K15: seret/bawa bidak papan berakhir bersama PERSIAPAN.
 		amankan(() => seret.padaFase(fase.fase), log)();
+		// AC7 K5: pergantian fase menutup menu tahan.
+		amankan(() => MenuBidakJ.tutup(), log)();
 		if (fase.fase === FASE.TEMPUR) {
 			dps.reset();
 			// AC6 (O1/K1): Toko tetap terbuka selama TEMPUR; ia kini kolom
@@ -740,6 +791,12 @@ function muatArena(info) {
 	antrean.reset();
 	pertandinganSelesai = false;
 	st = buatState();
+	rondeNaikOtomatis = -1;
+	// Menu tahan dan Deskripsi Unit milik pertandingan lama.
+	amankan(() => {
+		MenuBidakJ.tutup();
+		DeskripsiUnitJ.tutup();
+	}, log)();
 	htmlTerakhir = '';
 
 	const rsw = rswFileName(info.mapName);
@@ -841,7 +898,11 @@ function debug(nyala = true) {
 // tetap bisa menyembunyikannya).
 // KartuBidak (AC5) ikut ditempel dan digambar, tetapi tidak ditata
 // hitungTataLetak: posisinya mengikuti pointer (posisiKartu).
-const JENDELA = [TimerJ, BilahDeckJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ, SinergiJ, LoreJ, DPSJ, TombolDPSJ, KartuBidakJ, LogJ];
+// AC7: DeskripsiUnit (overlay K16, ditata) dan MenuBidak (K6, diposisikan saat buka).
+const JENDELA = [
+	TimerJ, BilahDeckJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ, SinergiJ, LoreJ, DPSJ, TombolDPSJ,
+	KartuBidakJ, LogJ, DeskripsiUnitJ, MenuBidakJ
+];
 const JENDELA_PER_NAMA = Object.fromEntries(JENDELA.map((j) => [j.name, j]));
 let jendelaTertempel = false;
 // "lebarxtinggi" Renderer saat tata letak terakhir diterapkan.
@@ -979,10 +1040,18 @@ window.addEventListener('keydown', (ev) => {
 	TokoJ.toggle();
 });
 
-// AC7 K4: Esc membatalkan bawa (Pindah) yang sedang berjalan.
+// AC7 K4/K5/K16: Esc menutup yang pertama terbuka dari: menu tahan, bawa
+// (Pindah), lalu jendela Deskripsi Unit.
 window.addEventListener('keydown', (ev) => {
-	if (ev.key === 'Escape' && seret.modus() === 'bawa') {
+	if (ev.key !== 'Escape') {
+		return;
+	}
+	if (MenuBidakJ.terbuka()) {
+		MenuBidakJ.tutup();
+	} else if (seret.modus() === 'bawa') {
 		seret.batalBawa();
+	} else if (DeskripsiUnitJ.terbuka()) {
+		DeskripsiUnitJ.tutup();
 	}
 });
 
@@ -1158,6 +1227,8 @@ function cobaSorot(kolom, baris) {
 // AC6: __ac.tonton(kursi) (tonton kursi lain; kursi sendiri = pulang),
 // __ac.selesaikan() (sesudah tersingkir: langsung ke peringkat akhir),
 // __ac.kotakSeparuh() / __ac.kotakPapan() (kotak layar papan untuk cek kamera).
+// AC7: __ac.menuBidak.terbuka() / .tutup(), __ac.deskripsiUnit.buka({unitId, bintang})
+// / .terbuka() (menu tahan K5 dan jendela klik bidak K16).
 window.__ac = {
 	BGM, SoundManager, bgmKendali: kendaliBGM, deteksiNaikBintang, rayakanNaikBintang, st: () => st,
 	Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek,
@@ -1168,6 +1239,7 @@ window.__ac = {
 	debug, tataLetak, pesan: tampilkanPesan,
 	kotakSeparuh, kotakPapan, kameraUntuk, terapkanKameraViewport,
 	kartu, KartuBidak: KartuBidakJ, pemuatIkon,
+	menuBidak: MenuBidakJ, deskripsiUnit: DeskripsiUnitJ,
 	auto: (nyala) => {
 		auto.atur(nyala, st.ambil());
 		log(`auto: ${nyala ? 'hidup' : 'mati'}`);

@@ -9,6 +9,8 @@
  *   G InfoPemain (terlipat) kiri-bawah      F tombol DPS di kiri K
  *   BilahDeck tepat di atas I  I Bangku tengah-bawah   K tombol Toko kanan-bawah
  *   Lore di tengah (tersembunyi bawaan).
+ *   DeskripsiUnit (AC7 K16) kiri-atas di kanan DaftarPemain, overlay
+ *   tersembunyi bawaan; MenuBidak (K6) tidak ditata di sini.
  *
  * Papan (separuh sendiri) ditaruh kamera.js di tengah layar, di atas
  * BilahDeck; tidak ada jendela tetap yang boleh menutupnya (uji memakai
@@ -47,7 +49,11 @@ export const UKURAN = {
 	TombolToko:   { lebar: 48,  tinggi: 48 },
 	Toko:         { lebar: 170, tinggi: 453 },  // terukur: 4+5+2 bingkai, 16 judul, 28 kepala, 5 kartu 78 px + 4 sela 2 px
 	Lore:         { lebar: 360, tinggi: 220 },
-	Log:          { lebar: 320, tinggi: 140 }
+	Log:          { lebar: 320, tinggi: 140 },
+	// AC7 K6: menu tahan, diposisikan saat buka (render/menuBidak.js posisiMenu).
+	MenuBidak:    { lebar: 140, tinggi: 140 },
+	// AC7 K16: jendela klik bidak; tinggi perkiraan (isi bergulir di layar pendek).
+	DeskripsiUnit: { lebar: 360, tinggi: 400 }
 };
 
 /**
@@ -55,7 +61,7 @@ export const UKURAN = {
  * jendela tetap). Toko tampil bawaan sejak AC6 tetapi tetap bisa ditutup
  * lewat K; uji kedua memeriksanya terhadap semua jendela lain.
  */
-export const OVERLAY = ['Toko', 'DPS', 'Lore', 'Log'];
+export const OVERLAY = ['Toko', 'DPS', 'Lore', 'Log', 'MenuBidak', 'DeskripsiUnit'];
 
 /** Puncak kolom DaftarPemain: di bawah Timer. */
 const ATAS_DAFTAR = 80;
@@ -116,6 +122,7 @@ export function hitungTataLetak(lebar, tinggi) {
 	];
 	const infoTerbuka = kotak(TEPI, atasInfoTerbuka, 'InfoPemain', U.InfoPemain.tinggiTerbuka);
 	const bawahDaftar = ATAS_DAFTAR + U.DaftarPemain.tinggi + SELA;
+	const kiriDeskripsi = TEPI + U.DaftarPemain.lebar + TEPI;
 	const sampingInfo = TEPI + U.InfoPemain.lebar + SELA;
 	const pilih = (nama, calon, lain) => {
 		const kotakDi = ([x, y]) => ({ x, y, lebar: U[nama].lebar, tinggi: U[nama].tinggi });
@@ -159,7 +166,9 @@ export function hitungTataLetak(lebar, tinggi) {
 			top: Math.round(tinggi * 0.2), left: Math.round((lebar - U.Lore.lebar) / 2),
 			kotak: kotak(Math.round((lebar - U.Lore.lebar) / 2), Math.round(tinggi * 0.2), 'Lore')
 		},
-		Log:          { top: atasLog, left: kiriLog, kotak: kotak(kiriLog, atasLog, 'Log') }
+		Log:          { top: atasLog, left: kiriLog, kotak: kotak(kiriLog, atasLog, 'Log') },
+		// Overlay (K16): boleh menumpuk Timer, Log, dan separuh lawan.
+		DeskripsiUnit: { top: TEPI, left: kiriDeskripsi, kotak: kotak(kiriDeskripsi, TEPI, 'DeskripsiUnit') }
 	};
 }
 

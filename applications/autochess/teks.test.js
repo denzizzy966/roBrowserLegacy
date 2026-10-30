@@ -86,6 +86,21 @@ describe('KAMUS', () => {
 		expect(KAMUS['tombol.jual']).toBeUndefined();
 	});
 
+	it('AC7 K13/K16/K17: menu tahan, Deskripsi Unit, kata skill, log naik otomatis', () => {
+		const wajib = [
+			'menu.jual', 'menu.pindah', 'menu.batal', 'menu.hanya_persiapan', 'jendela.deskripsi_unit', 'label.lore',
+			'skill.jenis.fisik', 'skill.jenis.magis', 'skill.jenis.heal', 'skill.jenis.dukung',
+			'skill.target.musuh', 'skill.target.area_musuh', 'skill.target.kawan_terluka', 'skill.target.diri',
+			'status.beku', 'status.pingsan', 'status.racun', 'status.buta', 'status.bisu', 'status.tidur',
+			'label.rasio', 'label.splash', 'label.cast', 'label.sp_penuh', 'log.naik_otomatis'
+		];
+		for (const k of wajib) {
+			expect(KAMUS[k], k).toBeDefined();
+		}
+		expect(KAMUS['menu.hanya_persiapan']).toEqual({ id: 'hanya saat Persiapan', en: 'preparation only' });
+		expect(KAMUS['log.naik_otomatis']).toEqual({ id: 'Naik otomatis: {0} (+{1} lagi)', en: 'Auto-placed: {0} (+{1} more)' });
+	});
+
 	it('menerjemahkan setiap alasan penolakan server persis dengan teks server sebagai kunci', () => {
 		for (const alasan of ALASAN_SERVER) {
 			expect(KAMUS[alasan], alasan).toBeDefined();

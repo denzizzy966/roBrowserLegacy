@@ -89,8 +89,15 @@ export function buatKatalog(json, log = () => {}) {
 			if (!Number.isInteger(bintang) || bintang < 1 || bintang > 3) return null;
 			return units[id]?.stat_bintang?.[bintang - 1] ?? null;
 		},
-		/** @returns {{id:string, lv:number, nama:object, ringkasan:object}|null} skill aktif unit */
+		/**
+		 * Skill aktif unit apa adanya (AC7 K17): {id, lv, nama{id,en}, ringkasan{id,en},
+		 * jenis, target, rasio, status?: {nama, peluang, durasi_ms}, jangkauan, splash,
+		 * cast_ms, sp_maks}; null bila tak ada.
+		 * @returns {object|null}
+		 */
 		skillUnit: (id) => units[id]?.skill ?? null,
+		/** @returns {{id:string, en:string}|null} lore unit (AC7 K18; id bisa kosong) */
+		loreUnit: (id) => units[id]?.lore ?? null,
 		/** @returns {string[]} id unit anggota sinergi (tier menaik lalu id); [] bila tak dikenal */
 		unitSinergi: (id) => sinergiMap[id]?.units ?? [],
 		sinergi,

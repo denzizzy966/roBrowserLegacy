@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { buatState, papanTampil, sinergiTampil, menontonLain, kursiSendiriHidup } from './state.js';
+import { buatState, papanTampil, sinergiTampil, menontonLain, kursiSendiriHidup, bidakNaikOtomatis } from './state.js';
 import { FASE } from './pesan.js';
 
 // Snapshot minimal berbentuk keluaran decodeCaturState.
@@ -175,5 +175,25 @@ describe('buatState', () => {
 			expect(kursiSendiriHidup(buatState().ambil())).toBe(true);
 			expect(menontonLain(buatState().ambil())).toBe(false);
 		});
+	});
+});
+
+describe('bidakNaikOtomatis (AC7 K11)', () => {
+	const b = (bidakId, unitId, diPapan) => ({ bidakId, unitId, bintang: 1, diPapan, kolom: diPapan ? 1 : 0, baris: 0 });
+	const st = (bidak) => snapshot({ saya: { ...snapshot().saya, bidak } });
+
+	it('unitId bidak yang diPapan false -> true', () => {
+		const lama = st([b(1, 'novice', false), b(2, 'poring', true), b(3, 'archer', false), b(4, 'mage', false)]);
+		const baru = st([b(1, 'novice', true), b(2, 'poring', true), b(3, 'archer', false), b(4, 'mage', true)]);
+		expect(bidakNaikOtomatis(lama, baru)).toEqual(['novice', 'mage']);
+	});
+
+	it('kosong bila tidak ada, bila salah satu snapshot tak ada, atau bidak baru (tanpa riwayat bangku)', () => {
+		const lama = st([b(1, 'novice', false)]);
+		expect(bidakNaikOtomatis(lama, st([b(1, 'novice', false)]))).toEqual([]);
+		expect(bidakNaikOtomatis(null, st([b(1, 'novice', true)]))).toEqual([]);
+		expect(bidakNaikOtomatis(lama, null)).toEqual([]);
+		// bidakId baru langsung di papan (mis. hasil gabung) bukan naik otomatis
+		expect(bidakNaikOtomatis(lama, st([b(1, 'novice', false), b(9, 'knight', true)]))).toEqual([]);
 	});
 });

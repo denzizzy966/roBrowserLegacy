@@ -30,7 +30,7 @@ function bar(jenis, label, kini, maks) {
 		+ `<span class="label">${esc(label)}</span><span class="angka">${k}/${angka(maks)}</span></div>`;
 }
 
-const KOLOM_STAT = ['hp', 'atk', 'matk', 'def', 'mdef', 'aspd', 'jangkauan', 'sp_maks'];
+export const KOLOM_STAT = ['hp', 'atk', 'matk', 'def', 'mdef', 'aspd', 'jangkauan', 'sp_maks'];
 
 /** Blok statistik dua kolom; '' bila unit tanpa stat katalog (creep). */
 function blokStat(info, deps) {

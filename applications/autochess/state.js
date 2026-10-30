@@ -85,6 +85,23 @@ export function sinergiTampil(snap) {
 }
 
 /**
+ * AC7 K11: bidak sendiri yang berpindah dari bangku ke papan di antara dua
+ * snapshot (dinaikkan server di awal TEMPUR, K10). Dicocokkan lewat
+ * bidakId; bidak yang baru muncul (hasil gabung) tidak dihitung.
+ *
+ * @param {object|null} snapLama state terdekode sebelumnya (decodeCaturState)
+ * @param {object|null} snapBaru state terdekode sekarang
+ * @returns {string[]} unitId bidak yang diPapan-nya false -> true, urut snapshot baru
+ */
+export function bidakNaikOtomatis(snapLama, snapBaru) {
+	if (!snapLama?.saya || !snapBaru?.saya) {
+		return [];
+	}
+	const diBangku = new Set((snapLama.saya.bidak ?? []).filter((b) => !b.diPapan).map((b) => b.bidakId));
+	return (snapBaru.saya.bidak ?? []).filter((b) => b.diPapan && diBangku.has(b.bidakId)).map((b) => b.unitId);
+}
+
+/**
  * @returns {{
  *   terima: function(object, number): void,
  *   terimaFase: function(object, number): void,

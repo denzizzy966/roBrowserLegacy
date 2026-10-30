@@ -112,8 +112,9 @@ describe('hitungTataLetak', () => {
 	});
 
 	it.each(UKURAN_LAYAR)('%ix%i: Toko dan jendela tetap tidak bertumpang dengan DPS atau Log; DPS x Log hanya lewat PENGECUALIAN', (w, h) => {
-		// Semua kecuali Lore (modal di tengah): Toko, DPS, dan Log terbuka bersamaan.
-		expect(tumpang(hitungTataLetak(w, h), ['Lore'])).toEqual(pengecualian(w, h).filter((p) => p === 'DPSxLog'));
+		// Semua kecuali Lore (modal di tengah) dan DeskripsiUnit (overlay K16
+		// yang boleh menumpuk): Toko, DPS, dan Log terbuka bersamaan.
+		expect(tumpang(hitungTataLetak(w, h), ['Lore', 'DeskripsiUnit'])).toEqual(pengecualian(w, h).filter((p) => p === 'DPSxLog'));
 	});
 
 	it.each(UKURAN_LAYAR)('%ix%i: DPS dan Log vs InfoPemain terbuka dan separuh papan sendiri hanya lewat PENGECUALIAN bernama', (w, h) => {
@@ -160,6 +161,19 @@ describe('hitungTataLetak', () => {
 		const k = l.InfoPemain.kotakTerbuka;
 		expect(k.y).toBeGreaterThanOrEqual(TEPI);
 		expect(k.y + k.tinggi).toBeLessThanOrEqual(h - TEPI);
+	});
+
+	it('AC7 K6/K16: MenuBidak dan DeskripsiUnit di UKURAN dan OVERLAY; DeskripsiUnit di kanan DaftarPemain, MenuBidak tidak ditata', () => {
+		expect(UKURAN.MenuBidak).toEqual({ lebar: 140, tinggi: 140 });
+		expect(UKURAN.DeskripsiUnit).toEqual({ lebar: 360, tinggi: 400 });
+		expect(OVERLAY).toContain('MenuBidak');
+		expect(OVERLAY).toContain('DeskripsiUnit');
+		const l = hitungTataLetak(1536, 695);
+		expect(l.DeskripsiUnit.left).toBe(l.DaftarPemain.left + l.DaftarPemain.kotak.lebar + 8);
+		expect(l.DeskripsiUnit.top).toBe(8);
+		expect(l.DeskripsiUnit.kotak).toEqual({ x: 206, y: 8, lebar: 360, tinggi: 400 });
+		// MenuBidak diposisikan saat buka (posisiMenu), bukan oleh tata letak.
+		expect(l.MenuBidak).toBeUndefined();
 	});
 
 	it('beririsan: bersentuhan tepi tidak dihitung', () => {

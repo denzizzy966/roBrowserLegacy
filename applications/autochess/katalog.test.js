@@ -132,3 +132,23 @@ describe('loreKelas', () => {
 		expect(buatKatalog({}).loreKelas('vanguard')).toBeNull();
 	});
 });
+
+describe('loreUnit dan skill terstruktur (AC7 K17/K18)', () => {
+	const skill = {
+		id: 'KN_BOWLINGBASH', lv: 5, nama: { id: 'B', en: 'B' }, ringkasan: { id: 'r', en: 'r' }, jenis: 'fisik', target: 'area_musuh',
+		rasio: 2.8, status: { nama: 'pingsan', peluang: 30, durasi_ms: 2000 }, jangkauan: 1, splash: 2, cast_ms: 0, sp_maks: 80
+	};
+	const json = { units: { knight: { nama: { id: 'Ksatria', en: 'Knight' }, skill, lore: { id: '', en: 'A knight.' } }, polos: { nama: { id: 'P', en: 'P' } } } };
+
+	it('loreUnit mengembalikan {id, en} atau null', () => {
+		const k = buatKatalog(json);
+		expect(k.loreUnit('knight')).toEqual({ id: '', en: 'A knight.' });
+		expect(k.loreUnit('polos')).toBeNull();
+		expect(k.loreUnit('x')).toBeNull();
+		expect(buatKatalog({}).loreUnit('knight')).toBeNull();
+	});
+
+	it('skillUnit mengembalikan field baru apa adanya', () => {
+		expect(buatKatalog(json).skillUnit('knight')).toEqual(skill);
+	});
+});

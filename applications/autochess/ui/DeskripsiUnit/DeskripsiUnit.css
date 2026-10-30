@@ -1,0 +1,32 @@
+/* Posisi :host (top/left) diatur ui/tataLetak.js lewat gaya inline; geseran titlebar diingat (ui/posisi.js). */
+:host { width: 360px; display: none; }
+:host(.terbuka) { display: block; }
+.bingkai { width: 360px; border-radius: 3px; background-color: #1c1c28; background-size: 280px 120px; background-blend-mode: multiply; border: 1px solid #556; box-sizing: border-box; color: #fff; font: 12px Arial, sans-serif; overflow: hidden; }
+.titlebar { position: relative; height: 17px; background-color: #e8e8f0; background-repeat: repeat-x; color: #000; cursor: default; }
+.judul { position: absolute; left: 6px; top: 2px; font-weight: bold; font-size: 11px; text-shadow: 1px 1px #fff; white-space: nowrap; }
+.tutup { position: absolute; right: 3px; top: 2px; width: 13px; height: 13px; padding: 0; border: 1px solid #889; border-radius: 2px; background: #f4f4f8; color: #333; font: bold 11px/10px Arial, sans-serif; cursor: pointer; }
+.tutup:hover { background: #fff; color: #000; }
+/* Di layar pendek isinya bergulir; titlebar tetap terlihat. */
+.isi { padding: 8px 12px 10px; max-height: calc(100vh - 60px); overflow-y: auto; }
+.nama { font-weight: bold; font-size: 14px; color: #fe9; }
+.meta { margin: 2px 0; color: #cdd; }
+.meta .bintang { color: #fd4; }
+.baris-sinergi { margin: 0 0 6px; color: #889; }
+.sinergi { color: #8cf; cursor: pointer; text-decoration: underline dotted; }
+.sinergi:hover { color: #bdf; }
+table.stat { width: 100%; border-collapse: collapse; margin: 4px 0 2px; font-size: 11px; }
+table.stat th, table.stat td { padding: 1px 6px; text-align: right; font-weight: normal; }
+table.stat tr > th:first-child { text-align: left; color: #aab; }
+table.stat tr:first-child th { color: #cdd; font-weight: bold; }
+table.stat .aktif { background: rgba(255, 210, 74, 0.14); color: #fe9; }
+table.stat th.aktif { color: #fd4; }
+.stat-kecil { margin-bottom: 6px; color: #aab; font-size: 11px; }
+.skill { margin-top: 4px; padding-top: 6px; border-top: 1px solid #445; }
+.skill-jenis { color: #cdd; }
+.skill-status { color: #f9a; }
+dl.skill-detail { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; margin: 4px 0; font-size: 11px; }
+dl.skill-detail dt { color: #aab; }
+dl.skill-detail dd { margin: 0; }
+.skill-ringkas { line-height: 1.4; color: #dde; }
+.judul-lore { margin-top: 6px; padding-top: 6px; border-top: 1px solid #445; font-weight: bold; color: #cdd; }
+.lore { margin: 2px 0 0; line-height: 1.4; color: #dde; }
