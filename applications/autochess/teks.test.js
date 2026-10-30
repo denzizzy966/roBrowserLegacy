@@ -98,6 +98,7 @@ describe('KAMUS', () => {
 			expect(KAMUS[k], k).toBeDefined();
 		}
 		expect(KAMUS['menu.hanya_persiapan']).toEqual({ id: 'hanya saat Persiapan', en: 'preparation only' });
+		expect(KAMUS['menu.sedang_menonton']).toEqual({ id: 'sedang menonton kursi lain', en: 'watching another seat' });
 		expect(KAMUS['log.naik_otomatis']).toEqual({ id: 'Naik otomatis: {0} (+{1} lagi)', en: 'Auto-placed: {0} (+{1} more)' });
 	});
 

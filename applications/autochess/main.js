@@ -244,11 +244,14 @@ seret.padaKlik((info) => amankan(() => DeskripsiUnitJ.toggle(info), log)());
 seret.padaTahan(({ bidak, titik }) => amankan(() => {
 	const snap = st.ambil();
 	const persiapan = snap.fase === FASE.PERSIAPAN;
+	const menonton = menontonLain(snap);
 	MenuBidakJ.buka({
 		bidak, titik, hargaJual: bidak.hargaJual,
 		bolehJual: !bidak.diPapan || persiapan,
-		bolehPindah: persiapan && !menontonLain(snap),
-		alasanPindah: 'menu.hanya_persiapan'
+		bolehPindah: persiapan && !menonton,
+		// Di PERSIAPAN Pindah hanya nonaktif karena menonton kursi lain.
+		alasanPindah: persiapan && menonton ? 'menu.sedang_menonton' : 'menu.hanya_persiapan',
+		alasanJual: 'menu.hanya_persiapan'
 	});
 }, log)());
 MenuBidakJ.padaPilih(({ aksi, bidak, titik }) => amankan(() => {

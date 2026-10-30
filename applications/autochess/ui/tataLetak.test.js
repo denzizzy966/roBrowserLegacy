@@ -163,15 +163,24 @@ describe('hitungTataLetak', () => {
 		expect(k.y + k.tinggi).toBeLessThanOrEqual(h - TEPI);
 	});
 
-	it('AC7 K6/K16: MenuBidak dan DeskripsiUnit di UKURAN dan OVERLAY; DeskripsiUnit di kanan DaftarPemain, MenuBidak tidak ditata', () => {
+	it('AC7 K6/K16: MenuBidak dan DeskripsiUnit di UKURAN dan OVERLAY; DeskripsiUnit di kanan DaftarPemain dan Timer, MenuBidak tidak ditata', () => {
 		expect(UKURAN.MenuBidak).toEqual({ lebar: 140, tinggi: 140 });
 		expect(UKURAN.DeskripsiUnit).toEqual({ lebar: 360, tinggi: 400 });
 		expect(OVERLAY).toContain('MenuBidak');
 		expect(OVERLAY).toContain('DeskripsiUnit');
 		const l = hitungTataLetak(1536, 695);
-		expect(l.DeskripsiUnit.left).toBe(l.DaftarPemain.left + l.DaftarPemain.kotak.lebar + 8);
+		const kananDaftar = l.DaftarPemain.left + l.DaftarPemain.kotak.lebar;
+		const kananTimer = l.Timer.left + l.Timer.kotak.lebar;
+		expect(l.DeskripsiUnit.left).toBe(Math.max(kananDaftar, kananTimer) + 8);
+		expect(l.DeskripsiUnit.left).toBe(kananTimer + 8);
 		expect(l.DeskripsiUnit.top).toBe(8);
-		expect(l.DeskripsiUnit.kotak).toEqual({ x: 206, y: 8, lebar: 360, tinggi: 400 });
+		expect(l.DeskripsiUnit.kotak).toEqual({ x: 236, y: 8, lebar: 360, tinggi: 400 });
+		// Tidak menutup Timer (hitung mundur) maupun DaftarPemain.
+		for (const [w, h] of UKURAN_LAYAR) {
+			const m = hitungTataLetak(w, h);
+			expect(beririsan(m.DeskripsiUnit.kotak, m.Timer.kotak), `${w}x${h} Timer`).toBe(false);
+			expect(beririsan(m.DeskripsiUnit.kotak, m.DaftarPemain.kotak), `${w}x${h} DaftarPemain`).toBe(false);
+		}
 		// MenuBidak diposisikan saat buka (posisiMenu), bukan oleh tata letak.
 		expect(l.MenuBidak).toBeUndefined();
 	});

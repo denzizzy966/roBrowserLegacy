@@ -115,6 +115,15 @@ describe('renderMenuBidak', () => {
 		expect(h).toContain('style="left:122px;top:100px"');
 	});
 
+	it('alasan Pindah saat menonton kursi lain: menu.sedang_menonton (ID/EN)', () => {
+		const opsi = { ...OPSI, alasanPindah: 'menu.sedang_menonton' };
+		expect(renderMenuBidak(opsi, deps('id'))).toMatch(/class="item pindah nonaktif" data-item="pindah" title="sedang menonton kursi lain"/);
+		expect(renderMenuBidak(opsi, deps('en'))).toMatch(/class="item pindah nonaktif" data-item="pindah" title="watching another seat"/);
+		// Jual tetap aktif; alasannya tidak memakai kunci menonton.
+		expect(renderMenuBidak({ ...opsi, bolehJual: false, alasanJual: 'menu.hanya_persiapan' }, deps('id')))
+			.toMatch(/class="item jual nonaktif" data-item="jual" title="hanya saat Persiapan"/);
+	});
+
 	it('harga di-format (ribuan) dan bukan angka -> 0', () => {
 		expect(renderMenuBidak({ ...OPSI, hargaJual: 1234 }, deps())).toContain('+1,234 zeny');
 		expect(renderMenuBidak({ ...OPSI, hargaJual: undefined }, deps())).toContain('+0 zeny');

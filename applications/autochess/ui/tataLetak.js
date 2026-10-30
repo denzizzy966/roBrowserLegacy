@@ -9,7 +9,7 @@
  *   G InfoPemain (terlipat) kiri-bawah      F tombol DPS di kiri K
  *   BilahDeck tepat di atas I  I Bangku tengah-bawah   K tombol Toko kanan-bawah
  *   Lore di tengah (tersembunyi bawaan).
- *   DeskripsiUnit (AC7 K16) kiri-atas di kanan DaftarPemain, overlay
+ *   DeskripsiUnit (AC7 K16) kiri-atas di kanan DaftarPemain dan Timer, overlay
  *   tersembunyi bawaan; MenuBidak (K6) tidak ditata di sini.
  *
  * Papan (separuh sendiri) ditaruh kamera.js di tengah layar, di atas
@@ -122,7 +122,8 @@ export function hitungTataLetak(lebar, tinggi) {
 	];
 	const infoTerbuka = kotak(TEPI, atasInfoTerbuka, 'InfoPemain', U.InfoPemain.tinggiTerbuka);
 	const bawahDaftar = ATAS_DAFTAR + U.DaftarPemain.tinggi + SELA;
-	const kiriDeskripsi = TEPI + U.DaftarPemain.lebar + TEPI;
+	// Di kanan DaftarPemain DAN Timer: hitung mundur tidak boleh tertutup.
+	const kiriDeskripsi = Math.max(TEPI + U.DaftarPemain.lebar, TEPI + U.Timer.lebar) + TEPI;
 	const sampingInfo = TEPI + U.InfoPemain.lebar + SELA;
 	const pilih = (nama, calon, lain) => {
 		const kotakDi = ([x, y]) => ({ x, y, lebar: U[nama].lebar, tinggi: U[nama].tinggi });

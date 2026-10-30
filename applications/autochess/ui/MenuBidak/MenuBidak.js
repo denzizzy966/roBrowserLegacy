@@ -33,7 +33,7 @@ MenuBidak.mouseMode = GUIComponent.MouseMode.STOP;
 
 /**
  * Menu yang terbuka, atau null:
- * {bidak, pusat, titikTahan, opsi: {hargaJual, bolehJual, bolehPindah, alasanPindah},
+ * {bidak, pusat, titikTahan, opsi: {hargaJual, bolehJual, bolehPindah, alasanPindah, alasanJual},
  *  ditahan: tombol 0 masih ditekan sejak tahan, sorot: item di bawah pointer}
  */
 let aktif = null;
@@ -160,17 +160,18 @@ function lepasListener() {
  * @param {number} o.hargaJual
  * @param {boolean} o.bolehJual
  * @param {boolean} o.bolehPindah
- * @param {string} o.alasanPindah kunci KAMUS untuk item nonaktif
+ * @param {string} o.alasanPindah kunci KAMUS untuk Pindah nonaktif
+ * @param {string} [o.alasanJual] kunci KAMUS untuk Jual nonaktif (bawaan alasanPindah)
  * @returns {boolean} false bila jendela belum ditempel
  */
-MenuBidak.buka = function buka({ bidak, titik, hargaJual, bolehJual, bolehPindah, alasanPindah }) {
+MenuBidak.buka = function buka({ bidak, titik, hargaJual, bolehJual, bolehPindah, alasanPindah, alasanJual }) {
 	if (!this._host || !bidak || !titik) {
 		return false;
 	}
 	this.tutup();
 	const { left, top, pusat } = posisiMenu(titik, { lebar: window.innerWidth, tinggi: window.innerHeight });
 	Object.assign(this._host.style, { left: `${left}px`, top: `${top}px`, right: 'auto', bottom: 'auto', transform: 'none' });
-	aktif = { bidak, pusat, titikTahan: { x: titik.x, y: titik.y }, opsi: { hargaJual, bolehJual, bolehPindah, alasanPindah }, ditahan: true, sorot: null };
+	aktif = { bidak, pusat, titikTahan: { x: titik.x, y: titik.y }, opsi: { hargaJual, bolehJual, bolehPindah, alasanPindah, alasanJual }, ditahan: true, sorot: null };
 	isiUlang();
 	this._host.classList.add('terbuka');
 	this.focus();
