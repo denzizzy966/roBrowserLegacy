@@ -1,7 +1,8 @@
 /**
  * Jendela Lore (Q12), bergaya NpcBox: di tengah layar, bisa diseret lewat
  * titlebar, tersembunyi sampai buka(id) dipanggil (klik ikon Sinergi).
- * Isinya nama dwibahasa, lore, dan daftar ambang; tombol Tutup memanggil
+ * Isinya nama dwibahasa, lore, daftar ambang, dan (AC6 K7) unit anggota
+ * dengan tanda kepemilikan dari snapshot; tombol Tutup memanggil
  * tutup(). gambar() dipanggil tiap denyut bersama jendela lain, jadi
  * ganti bahasa (teks.padaUbah -> gambarJendela) langsung terlihat.
  */
@@ -59,11 +60,11 @@ Lore.tutup = function tutup() {
 };
 
 /**
- * @param {object} snap state.ambil() (tak dipakai; Lore hanya butuh deps)
+ * @param {object} snap state.ambil() (tanda kepemilikan anggota sinergi)
  * @param {object} deps {t, bahasa, katalog, ...}
  */
 Lore.gambar = function gambar(snap, deps) {
-	depsTerakhir = deps;
+	depsTerakhir = { ...deps, snap };
 	isiUlang();
 };
 

@@ -1,5 +1,0 @@
-:host { top: 8px; right: 8px; width: 140px; height: 36px; }
-.bingkai { width: 140px; height: 36px; border-radius: 4px; background-color: #1c1c28; background-size: 280px 120px; background-blend-mode: multiply; border: 1px solid #556; color: #fff; font: bold 14px Arial, sans-serif; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 10px; box-sizing: border-box; }
-.ikon { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ffe680, #d4a017); color: #7a5500; font: bold 12px/18px Arial, sans-serif; text-align: center; background-size: contain; background-repeat: no-repeat; }
-.ikon.bmp { background: center / contain no-repeat; color: transparent; }
-.angka { color: #fe9; }

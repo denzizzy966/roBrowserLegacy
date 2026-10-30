@@ -1,5 +1,0 @@
-:host { top: 8px; left: 50%; transform: translateX(-50%); width: 90px; height: 36px; }
-.bingkai { width: 90px; height: 36px; border-radius: 4px; background-color: #1c1c28; background-size: 280px 120px; background-blend-mode: multiply; border: 1px solid #556; color: #fff; font: bold 14px Arial, sans-serif; display: flex; align-items: center; justify-content: center; }
-.isi { display: flex; align-items: center; gap: 6px; }
-.ikon { font-size: 20px; color: #ddc; }
-.angka.penuh { color: #fc6; }

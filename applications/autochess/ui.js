@@ -241,12 +241,25 @@ export function perbaruiTimer(root, sisaMs) {
 	}
 }
 
+/**
+ * Argumen perintah kunci dari dataset tombol (AC6 K2): data-arg '1' kunci,
+ * selain itu buka; data-slot = slot toko (gembok per kartu Toko). Tanpa
+ * data-slot (tombol kunci panel #ui lama) slot = -1, yaitu semua slot.
+ *
+ * @param {{arg?: string, slot?: string}} dataset
+ * @returns {{slot: number, kunci: boolean}}
+ */
+export function argKunci(dataset) {
+	const slot = dataset?.slot;
+	return { slot: slot === undefined || slot === '' ? -1 : Number(slot), kunci: dataset?.arg === '1' };
+}
+
 /** Argumen kirim per aksi, dari dataset tombol (dan kartunya untuk taruh). */
 const BACA_ARG = {
 	beli:       (arg) => ({ slot: Number(arg) }),
 	jual:       (arg) => ({ bidakId: Number(arg) }),
 	'ke-bangku': (arg) => ({ bidakId: Number(arg) }),
-	kunci:      (arg) => ({ kunci: arg === '1' }),
+	kunci:      (arg, kartu, btn) => argKunci(btn.dataset),
 	// Tanpa kartu (markup rusak) tidak ada petak tujuan: null = abaikan.
 	taruh:      (arg, kartu) => (kartu ? {
 		bidakId: Number(arg),
@@ -281,7 +294,7 @@ export function ikatAksi(root, kirim) {
 		if (!baca) {
 			return;
 		}
-		const arg = baca(btn.dataset.arg, target.closest('.kartu'));
+		const arg = baca(btn.dataset.arg, target.closest('.kartu'), btn);
 		if (arg) {
 			kirim(aksi, arg);
 		}
@@ -352,7 +365,7 @@ const PENYANDI = {
 	beli:        (C, a) => encodeCaturBeli(C, a.slot),
 	jual:        (C, a) => encodeCaturJual(C, a.bidakId),
 	refresh:     (C) => encodeCaturRefresh(C),
-	kunci:       (C, a) => encodeCaturKunci(C, a.kunci),
+	kunci:       (C, a) => encodeCaturKunci(C, a.kunci, a.slot ?? -1),
 	'beli-exp':  (C) => encodeCaturBeliExp(C),
 	taruh:       (C, a) => encodeCaturTaruh(C, a.bidakId, a.kolom, a.baris),
 	'ke-bangku': (C, a) => encodeCaturKeBangku(C, a.bidakId),

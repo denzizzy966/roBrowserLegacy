@@ -444,14 +444,8 @@ describe('Toko selama seret (I2 final review)', () => {
 		expect(tandaiJual).toHaveBeenLastCalledWith(false);
 	});
 
-	it('tutupToko (fase TEMPUR) di tengah seret: Toko tidak dipulihkan', () => {
-		toko.buka();
-		seret.mulaiDariBangku(1, pev(600, 840));
-		seret.tutupToko();
-		lepasDi(700, 850);
-		expect(toko.terbuka()).toBe(false);
-		seret.tutupToko(); // tanpa seret: menutup saja
-		expect(toko.tutup).toHaveBeenCalledTimes(3);
+	it('AC6: seret tidak punya tutupToko lagi (Toko tetap terbuka saat TEMPUR)', () => {
+		expect(seret.tutupToko).toBeUndefined();
 	});
 });
 

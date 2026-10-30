@@ -96,9 +96,7 @@ import { deteksiNaikBintang } from './bintang.js';
 import { pilihBGM } from './bgm.js';
 import { buatPemainOtomatis, aturanDariKatalog } from './auto.js';
 import TimerJ     from './ui/Timer/Timer.js';
-import KapasitasJ from './ui/Kapasitas/Kapasitas.js';
-import ZenyJ      from './ui/Zeny/Zeny.js';
-import ExpJ       from './ui/Exp/Exp.js';
+import BilahDeckJ from './ui/BilahDeck/BilahDeck.js';
 import TokoJ      from './ui/Toko/Toko.js';
 import TombolTokoJ from './ui/TombolToko/TombolToko.js';
 import BangkuJ     from './ui/Bangku/Bangku.js';
@@ -479,8 +477,8 @@ function tanganiPesan({ galat, info, msg }, data) {
 		amankan(() => auto.terimaFase(fase), log)();
 		if (fase.fase === FASE.TEMPUR) {
 			dps.reset();
-			// Toko tidak boleh menutupi pertempuran (juga bila sedang diseret).
-			seret.tutupToko();
+			// AC6 (O1/K1): Toko tetap terbuka selama TEMPUR; ia kini kolom
+			// kanan yang tidak menutupi papan, dan server menerima Beli dsb.
 		}
 		gambarJendelaAman();
 		jalankan(() => {
@@ -747,13 +745,14 @@ function debug(nyala = true) {
 	return modeDebug;
 }
 
-// AC4: jendela bergaya RO (Timer, Kapasitas, Zeny, Exp, Toko + tombol K,
-// Bangku, DaftarPemain, InfoPemain). Mereka baru ditempel sesudah map
-// termuat; Task 10 mempensiunkan panel #ui. Toko tersembunyi sampai dibuka
-// lewat TombolToko atau tombol K.
+// AC4: jendela bergaya RO (Timer, Toko + tombol K, Bangku, DaftarPemain,
+// InfoPemain, ...). Mereka baru ditempel sesudah map termuat; Task 10
+// mempensiunkan panel #ui. AC6 (K4): BilahDeck menggantikan Exp, Zeny, dan
+// Kapasitas; Toko menjadi kolom kanan yang tampil bawaan (K/TombolToko
+// tetap bisa menyembunyikannya).
 // KartuBidak (AC5) ikut ditempel dan digambar, tetapi tidak ditata
 // hitungTataLetak: posisinya mengikuti pointer (posisiKartu).
-const JENDELA = [TimerJ, KapasitasJ, ZenyJ, ExpJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ, SinergiJ, LoreJ, DPSJ, TombolDPSJ, KartuBidakJ, LogJ];
+const JENDELA = [TimerJ, BilahDeckJ, TokoJ, TombolTokoJ, BangkuJ, DaftarPemainJ, InfoPemainJ, SinergiJ, LoreJ, DPSJ, TombolDPSJ, KartuBidakJ, LogJ];
 const JENDELA_PER_NAMA = Object.fromEntries(JENDELA.map((j) => [j.name, j]));
 let jendelaTertempel = false;
 // "lebarxtinggi" Renderer saat tata letak terakhir diterapkan.
@@ -802,7 +801,7 @@ function pasangJendela() {
 	});
 	if (!jendelaTertempel) {
 		jendelaTertempel = true;
-		// G: InfoPemain mulai terlipat menjadi titlebar mini di atas Exp;
+		// G: InfoPemain mulai terlipat menjadi titlebar mini di kiri-bawah;
 		// tombol mini membukanya (tumbuh ke atas, lihat tataLetak.js).
 		InfoPemainJ._host.classList.add('terlipat');
 		// Bidak papan diseret dari kanvas 3D (petak di bawah pointer).

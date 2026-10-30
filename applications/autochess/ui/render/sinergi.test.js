@@ -13,8 +13,16 @@ const EFEK = [[
 	{ stat: 'aspd_persen', tambah: 8, persen: 0, sasaran: 'anggota' }
 ]];
 const JSON_KAT = {
+	units: {
+		swordman: { nama: { id: 'Pendekar', en: 'Swordman' }, tier: 1 },
+		acolyte: { nama: { id: 'Akolit', en: 'Acolyte' }, tier: 1 },
+		knight: { nama: { id: 'Ksatria', en: 'Knight' }, tier: 3 }
+	},
 	sinergi: {
-		prontera: { origin: true, nama: { id: 'Kerajaan Prontera', en: 'Prontera Kingdom' }, ambang: [2, 4], efek: EFEK },
+		prontera: {
+			origin: true, nama: { id: 'Kerajaan Prontera', en: 'Prontera Kingdom' }, ambang: [2, 4], efek: EFEK,
+			units: ['swordman', 'acolyte', 'knight']
+		},
 		vanguard: { origin: false, nama: { id: 'Garda', en: 'Vanguard' }, ambang: [2, 4] }
 	},
 	lore: {
@@ -144,6 +152,41 @@ describe('renderLore', () => {
 		expect(h).toContain('<b>2</b>: +150 HP maks (semua), +10 DEF (semua)');
 		expect(h).toContain('<b>4</b>: +15% ATK (anggota), +8% kecepatan serang (anggota)');
 		expect(renderLore('prontera', deps('en')).isi).toContain('+150 Max HP (all)');
+	});
+	it('AC6 K7: daftar unit anggota dengan tier dan tanda kepemilikan dari snapshot', () => {
+		const snapLore = {
+			state: {
+				saya: {
+					bidak: [
+						{ bidakId: 1, unitId: 'swordman', bintang: 2, diPapan: true },
+						{ bidakId: 2, unitId: 'swordman', bintang: 1, diPapan: false },
+						{ bidakId: 3, unitId: 'swordman', bintang: 1, diPapan: false },
+						{ bidakId: 4, unitId: 'knight', bintang: 1, diPapan: false }
+					]
+				}
+			}
+		};
+		const h = renderLore('prontera', { ...deps('id'), snap: snapLore }).isi;
+		expect(h).toContain('<div class="judul-anggota">Anggota</div>');
+		expect(h).toContain('<li class="unit tier-1 dimiliki" data-unit="swordman"><span class="tier">T1</span>'
+			+ '<span class="nama-unit">Pendekar</span><span class="milik">★2 papan, ★1 bangku ×2</span></li>');
+		expect(h).toContain('<li class="unit tier-1" data-unit="acolyte"><span class="tier">T1</span>'
+			+ '<span class="nama-unit">Akolit</span><span class="milik"></span></li>');
+		expect(h).toContain('<li class="unit tier-3 dimiliki" data-unit="knight">');
+		expect(h).toContain('★1 bangku</span>');
+		// Urutan katalog (tier menaik lalu id) dipertahankan; anggota sesudah ambang.
+		expect(h.indexOf('swordman')).toBeLessThan(h.indexOf('acolyte'));
+		expect(h.indexOf('class="ambang"')).toBeLessThan(h.indexOf('class="anggota"'));
+		const en = renderLore('prontera', { ...deps('en'), snap: snapLore }).isi;
+		expect(en).toContain('Members');
+		expect(en).toContain('★2 board, ★1 bench ×2');
+		expect(en).toContain('>Knight<');
+	});
+	it('anggota tanpa snapshot: daftar tanpa tanda; sinergi tanpa units: tanpa daftar', () => {
+		const h = renderLore('prontera', deps('id')).isi;
+		expect(h.match(/class="unit /g)).toHaveLength(3);
+		expect(h).not.toContain('dimiliki');
+		expect(renderLore('vanguard', deps('id')).isi).not.toContain('anggota');
 	});
 	it('tanpa efek: hanya jumlah; kelas memakai deskripsi', () => {
 		const r = renderLore('vanguard', deps('en'));

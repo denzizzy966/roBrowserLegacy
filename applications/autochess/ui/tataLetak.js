@@ -1,13 +1,17 @@
 /**
- * Tata letak akhir jendela RO autochess (Q8), mengikuti gambar referensi
- * autochess-game-interface.jpg:
+ * Tata letak jendela RO autochess (Q8), awalnya mengikuti gambar referensi
+ * autochess-game-interface.jpg, disesuaikan kasar untuk AC6 (K4; Task 6
+ * AC6 menuntaskan tata letak dan kamera, K8):
  *
- *   A Timer kiri-atas          C Kapasitas tengah-atas    D Zeny kanan-atas
- *   B DaftarPemain kolom kiri  E Sinergi di bawah D       F tombol DPS kanan-tengah
- *   G InfoPemain (terlipat) di atas H                     DPS di kiri tombol F
- *   H Exp kiri-bawah           I Bangku tengah-bawah      K tombol Toko kanan-bawah
- *   Toko = overlay di atas Bangku, Lore di tengah, Log kanan-bawah di atas K
- *   (semuanya tersembunyi bawaan).
+ *   A Timer kiri-atas          E Sinergi kanan-atas       Toko kolom kanan di bawah E
+ *   B DaftarPemain kolom kiri  DPS lalu Log di kiri kolom Toko (overlay)
+ *   G InfoPemain (terlipat) kiri-bawah                    F tombol DPS di kiri K
+ *   BilahDeck tepat di atas I  I Bangku tengah-bawah      K tombol Toko kanan-bawah
+ *   Lore di tengah (tersembunyi bawaan).
+ *
+ * AC6 K4: jendela Exp (H), Kapasitas (C), dan Zeny (D) dihapus; isinya
+ * pindah ke BilahDeck. Toko kini kolom 170 px di kanan, jadi tombol F turun
+ * ke baris bawah di kiri K, dan DPS/Log pindah ke kiri kolom Toko.
  *
  * hitungTataLetak murni (teruji di vitest); aturTataLetak menerapkannya ke
  * host GUIComponent. Posisi di sini MENIMPA :host di berkas .css (inline
@@ -23,42 +27,51 @@ export const SELA = 6;
 
 /**
  * Ukuran tetap jendela (px), sama dengan :host di berkas .css-nya. Tinggi
- * Sinergi, DPS, dan Toko bergantung isi: angka di sini perkiraan untuk uji
- * tumpang tindih (Sinergi dua baris ikon, DPS delapan bidak, Toko lima kartu).
+ * Sinergi, DPS, Toko, dan Lore bergantung isi: angka di sini perkiraan untuk
+ * uji tumpang tindih (Sinergi dua baris ikon, DPS delapan bidak, Toko kepala
+ * dan lima kartu mendatar).
  */
 export const UKURAN = {
 	Timer:        { lebar: 220, tinggi: 64 },
-	Kapasitas:    { lebar: 90,  tinggi: 36 },
-	Zeny:         { lebar: 140, tinggi: 36 },
 	Sinergi:      { lebar: 260, tinggi: 106 },
 	DaftarPemain: { lebar: 170, tinggi: 396 },
 	TombolDPS:    { lebar: 48,  tinggi: 48 },
 	DPS:          { lebar: 220, tinggi: 180 },
 	InfoPemain:   { lebar: 200, tinggi: 18, tinggiTerbuka: 166 },  // terlipat; terbuka tumbuh ke atas
-	Exp:          { lebar: 200, tinggi: 70 },
+	BilahDeck:    { lebar: 640, tinggi: 34 },
 	Bangku:       { lebar: 640, tinggi: 110 },
 	TombolToko:   { lebar: 48,  tinggi: 48 },
-	Toko:         { lebar: 620, tinggi: 216 },
+	Toko:         { lebar: 170, tinggi: 470 },
 	Lore:         { lebar: 360, tinggi: 220 },
 	Log:          { lebar: 320, tinggi: 140 }
 };
 
-/** Jendela yang tersembunyi bawaan (dikecualikan dari uji tumpang tindih). */
+/**
+ * Jendela yang bisa disembunyikan (dikecualikan dari uji tumpang tindih
+ * jendela tetap). Toko tampil bawaan sejak AC6 tetapi tetap bisa ditutup
+ * lewat K; uji kedua memeriksanya terhadap semua jendela lain.
+ */
 export const OVERLAY = ['Toko', 'DPS', 'Lore', 'Log'];
 
 /** Puncak kolom DaftarPemain: di bawah Timer. */
 const ATAS_DAFTAR = 80;
 
 /**
+ * Puncak Sinergi. Dulu di bawah jendela Zeny (TEPI + 36 + TEPI); slot Zeny
+ * kosong sejak AC6 tetapi angkanya dipertahankan sampai Task 6 menata ulang.
+ */
+const ATAS_SINERGI = 52;
+
+/**
  * Menghitung posisi semua jendela untuk layar lebar x tinggi.
  *
  * Tiap entri berisi properti CSS dalam px -- {top, left} untuk sebagian
  * besar, {top, right} untuk Sinergi (lebarnya mengikuti isi, rata kanan),
- * {bottom, left|right} untuk InfoPemain dan Toko (tumbuh ke atas saat
- * dibuka/berisi lebih) -- ditambah `kotak: {x, y, lebar, tinggi}` perkiraan
- * untuk uji tumpang tindih (InfoPemain juga `kotakTerbuka`). DaftarPemain
- * membawa `maxHeight`: kolomnya berhenti di atas InfoPemain yang TERBUKA
- * dan bergulir di layar pendek.
+ * {bottom, left} untuk InfoPemain (tumbuh ke atas saat dibuka) -- ditambah
+ * `kotak: {x, y, lebar, tinggi}` perkiraan untuk uji tumpang tindih
+ * (InfoPemain juga `kotakTerbuka`). DaftarPemain membawa `maxHeight`:
+ * kolomnya berhenti di atas InfoPemain yang TERBUKA dan bergulir di layar
+ * pendek.
  *
  * @param {number} lebar Renderer.width
  * @param {number} tinggi Renderer.height
@@ -68,8 +81,7 @@ export function hitungTataLetak(lebar, tinggi) {
 	const U = UKURAN;
 	const kotak = (x, y, nama, t = U[nama].tinggi) => ({ x, y, lebar: U[nama].lebar, tinggi: t });
 
-	const atasExp = tinggi - TEPI - U.Exp.tinggi;
-	const bawahInfo = TEPI + U.Exp.tinggi + SELA;           // jarak dari bawah layar
+	const bawahInfo = TEPI;                                   // jarak dari bawah layar
 	const atasInfo = tinggi - bawahInfo - U.InfoPemain.tinggi;
 	// InfoPemain terbuka tumbuh ke atas: DaftarPemain berhenti di atas
 	// tinggi TERBUKA-nya, supaya membuka InfoPemain tidak menutupi daftar.
@@ -77,58 +89,46 @@ export function hitungTataLetak(lebar, tinggi) {
 	const maxDaftar = Math.max(120, atasInfoTerbuka - TEPI - ATAS_DAFTAR);
 	const atasBangku = tinggi - TEPI - U.Bangku.tinggi;
 	const kiriBangku = Math.round((lebar - U.Bangku.lebar) / 2);
-	const bawahToko = TEPI + U.Bangku.tinggi + SELA;
-	const kiriToko = Math.round((lebar - U.Toko.lebar) / 2);
-	const kiriZeny = lebar - TEPI - U.Zeny.lebar;
-	const atasSinergi = TEPI + U.Zeny.tinggi + TEPI;
-	const kiriTombolKanan = lebar - TEPI - U.TombolDPS.lebar;
-	const atasTombolDPS = Math.round(tinggi * 0.45);
-	const kiriDPS = kiriTombolKanan - SELA - U.DPS.lebar;
-	const kiriKap = Math.round((lebar - U.Kapasitas.lebar) / 2);
-	// Log: rata kanan, tepat di atas tombol K. Bila slot itu menabrak Bangku
-	// atau DPS (layar sempit), ia pindah ke slot kolom kanan di antara Sinergi
-	// dan DPS, selama muat. Bila slot itu pun tidak muat (layar terpendek,
-	// mis. 1314x588) tetap di atas K dan boleh menimpa DPS: dua overlay yang
-	// tersembunyi bawaan dan bisa digeser (PENGECUALIAN_TUMPANG di uji).
-	const kiriLog = lebar - TEPI - U.Log.lebar;
-	let atasLog = tinggi - TEPI - U.TombolToko.tinggi - SELA - U.Log.tinggi;
-	const kenaTetangga = (y) => {
-		const k = { x: kiriLog, y, lebar: U.Log.lebar, tinggi: U.Log.tinggi };
-		return beririsan(k, { x: kiriBangku, y: atasBangku, lebar: U.Bangku.lebar, tinggi: U.Bangku.tinggi })
-			|| beririsan(k, { x: kiriDPS, y: atasTombolDPS, lebar: U.DPS.lebar, tinggi: U.DPS.tinggi });
-	};
-	if (kenaTetangga(atasLog)) {
-		const alternatif = atasTombolDPS - SELA - U.Log.tinggi;
-		if (alternatif >= atasSinergi + U.Sinergi.tinggi + SELA && !kenaTetangga(alternatif)) {
-			atasLog = alternatif;
-		}
+	const atasBilah = atasBangku - SELA - U.BilahDeck.tinggi;
+	const kiriTombolKanan = lebar - TEPI - U.TombolToko.lebar;
+	const atasTombolBawah = tinggi - TEPI - U.TombolToko.tinggi;
+	const kiriTombolDPS = kiriTombolKanan - SELA - U.TombolDPS.lebar;
+	const bawahSinergi = ATAS_SINERGI + U.Sinergi.tinggi + SELA;
+	// Toko: kolom kanan di bawah Sinergi; di layar pendek naik secukupnya
+	// supaya tetap di atas tombol K (boleh menimpa Sinergi: tercatat di uji).
+	const kiriToko = lebar - TEPI - U.Toko.lebar;
+	const atasToko = Math.max(TEPI, Math.min(bawahSinergi, atasTombolBawah - SELA - U.Toko.tinggi));
+	// DPS dan Log: overlay di kiri kolom Toko, DPS di atas dan Log di
+	// bawahnya. Bila Log menabrak BilahDeck/Bangku (layar pendek) ia
+	// menumpuk di slot DPS: dua overlay yang tersembunyi bawaan dan bisa
+	// digeser (PENGECUALIAN_TUMPANG di uji).
+	const kiriDPS = kiriToko - SELA - U.DPS.lebar;
+	const atasDPS = bawahSinergi;
+	const kiriLog = kiriToko - SELA - U.Log.lebar;
+	let atasLog = atasDPS + U.DPS.tinggi + SELA;
+	const kotakLog = { x: kiriLog, y: atasLog, lebar: U.Log.lebar, tinggi: U.Log.tinggi };
+	const kotakBawah = { x: kiriBangku, y: atasBilah, lebar: U.Bangku.lebar, tinggi: tinggi - TEPI - atasBilah };
+	if (beririsan(kotakLog, kotakBawah)) {
+		atasLog = atasDPS;
 	}
 
 	return {
 		Timer:        { top: TEPI, left: TEPI, kotak: kotak(TEPI, TEPI, 'Timer') },
-		Kapasitas:    { top: TEPI, left: kiriKap, kotak: kotak(kiriKap, TEPI, 'Kapasitas') },
-		Zeny:         { top: TEPI, left: kiriZeny, kotak: kotak(kiriZeny, TEPI, 'Zeny') },
-		Sinergi:      { top: atasSinergi, right: TEPI, kotak: kotak(lebar - TEPI - U.Sinergi.lebar, atasSinergi, 'Sinergi') },
+		Sinergi:      { top: ATAS_SINERGI, right: TEPI, kotak: kotak(lebar - TEPI - U.Sinergi.lebar, ATAS_SINERGI, 'Sinergi') },
 		DaftarPemain: {
 			top: ATAS_DAFTAR, left: TEPI, maxHeight: maxDaftar,
 			kotak: kotak(TEPI, ATAS_DAFTAR, 'DaftarPemain', Math.min(U.DaftarPemain.tinggi, maxDaftar))
 		},
-		TombolDPS:    { top: atasTombolDPS, left: kiriTombolKanan, kotak: kotak(kiriTombolKanan, atasTombolDPS, 'TombolDPS') },
-		DPS:          { top: atasTombolDPS, left: kiriDPS, kotak: kotak(kiriDPS, atasTombolDPS, 'DPS') },
+		TombolDPS:    { top: atasTombolBawah, left: kiriTombolDPS, kotak: kotak(kiriTombolDPS, atasTombolBawah, 'TombolDPS') },
+		DPS:          { top: atasDPS, left: kiriDPS, kotak: kotak(kiriDPS, atasDPS, 'DPS') },
 		InfoPemain:   {
 			bottom: bawahInfo, left: TEPI, kotak: kotak(TEPI, atasInfo, 'InfoPemain'),
 			kotakTerbuka: kotak(TEPI, atasInfoTerbuka, 'InfoPemain', U.InfoPemain.tinggiTerbuka)
 		},
-		Exp:          { top: atasExp, left: TEPI, kotak: kotak(TEPI, atasExp, 'Exp') },
+		BilahDeck:    { top: atasBilah, left: kiriBangku, kotak: kotak(kiriBangku, atasBilah, 'BilahDeck') },
 		Bangku:       { top: atasBangku, left: kiriBangku, kotak: kotak(kiriBangku, atasBangku, 'Bangku') },
-		TombolToko:   {
-			top: tinggi - TEPI - U.TombolToko.tinggi, left: kiriTombolKanan,
-			kotak: kotak(kiriTombolKanan, tinggi - TEPI - U.TombolToko.tinggi, 'TombolToko')
-		},
-		Toko:         {
-			bottom: bawahToko, left: kiriToko,
-			kotak: kotak(kiriToko, tinggi - bawahToko - U.Toko.tinggi, 'Toko')
-		},
+		TombolToko:   { top: atasTombolBawah, left: kiriTombolKanan, kotak: kotak(kiriTombolKanan, atasTombolBawah, 'TombolToko') },
+		Toko:         { top: atasToko, left: kiriToko, kotak: kotak(kiriToko, atasToko, 'Toko') },
 		Lore:         {
 			top: Math.round(tinggi * 0.2), left: Math.round((lebar - U.Lore.lebar) / 2),
 			kotak: kotak(Math.round((lebar - U.Lore.lebar) / 2), Math.round(tinggi * 0.2), 'Lore')

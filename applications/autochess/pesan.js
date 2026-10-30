@@ -101,12 +101,16 @@ export function encodeCaturRefresh(ClientMsg) {
  * Membangun ClientMsg berisi CmdCaturKunci. Bool eksplisit, bukan toggle,
  * supaya pesan yang hilang atau diulang tidak membalik keadaan.
  *
+ * Slot SELALU ditulis (AC6 K2): proto3 membaca slot yang tidak ada sebagai
+ * 0, bukan -1, jadi bawaan "semua slot" harus dikirim eksplisit.
+ *
  * @param {object} ClientMsg - tipe ClientMsg dari skema
  * @param {boolean} kunci
+ * @param {number} [slot=-1] slot toko 0..4, atau -1 = semua slot berisi
  * @returns {ArrayBuffer}
  */
-export function encodeCaturKunci(ClientMsg, kunci) {
-	return encodeSatuField(ClientMsg, 'caturKunci', { kunci });
+export function encodeCaturKunci(ClientMsg, kunci, slot = -1) {
+	return encodeSatuField(ClientMsg, 'caturKunci', { kunci, slot });
 }
 
 /**
@@ -289,7 +293,9 @@ export function decodeCaturState(msg) {
 				slot:   angka(t.slot),
 				// '' = slot kosong.
 				unitId: t.unitId || '',
-				harga:  angka(t.harga)
+				harga:  angka(t.harga),
+				// AC6 K2: slot ini dikunci (bertahan melewati Refresh).
+				terkunci: Boolean(t.terkunci)
 			})),
 			bidak:      (s.bidak || []).map((d) => ({
 				bidakId:  angka(d.bidakId),

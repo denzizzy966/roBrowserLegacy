@@ -14,10 +14,11 @@
  * - lepas: putuskanDrop (murni) memilih ke-bangku / jual / taruh atau
  *   batal; batal dicatat paling banyak satu baris per seret, dan pulang
  *   ke tempat asal tidak dicatat sama sekali (Review Focus 2).
- * - Toko: overlay Toko duduk tepat di atas separuh papan sendiri, jadi
- *   selama seret ia DISEMBUNYIKAN (diingat terbuka/tidak, dipulihkan di
- *   bereskan) dan sasaran jual adalah tombol K (TombolToko), yang
- *   ditandai selama seret -- seperti tombol toko Auto Chess mobile.
+ * - Toko: selama seret jendela Toko DISEMBUNYIKAN (diingat terbuka/tidak,
+ *   dipulihkan di bereskan) supaya tidak menghalangi papan dan sasaran
+ *   jual, yaitu tombol K (TombolToko) yang ditandai selama seret --
+ *   seperti tombol toko Auto Chess mobile. Inilah satu-satunya saat seret
+ *   menyentuh Toko; sejak AC6 (O1) Toko tidak lagi ditutup saat TEMPUR.
  *
  * Bidak papan dipilih lewat petak di bawah pointer (state.saya.bidak
  * berflag diPapan), bukan ray-cast entity.
@@ -140,7 +141,7 @@ export function putuskanDrop({ bidak, titik, rectBangku, rectJual, diKanvas, wor
  * @param {(pesan: string) => void} [dep.log]
  * @param {Window} [dep.jendela] sasaran 'blur' (bawaan dokumen.defaultView)
  * @returns {{mulaiDariBangku: function, mulaiDariPapan: function, aktif: function,
- *   tutupToko: function, pantauKanvas: function}}
+ *   pantauKanvas: function}}
  */
 export function buatSeret({
 	dokumen, Mouse, Renderer, Cursor, asal, skala, ambilSnap, kirim, potret, katalog,
@@ -268,8 +269,7 @@ export function buatSeret({
 			zIndex: '2000',
 			opacity: '0.85'
 		});
-		// Toko menutupi separuh papan sendiri: sembunyikan selama seret,
-		// tombol K yang menjadi sasaran jual.
+		// Toko disembunyikan selama seret; tombol K yang menjadi sasaran jual.
 		const t = ambil(toko);
 		const tokoTadi = Boolean(t?.terbuka());
 		if (tokoTadi) {
@@ -336,17 +336,6 @@ export function buatSeret({
 
 		/** @returns {boolean} true selama ada seret berjalan */
 		aktif: () => seret !== null,
-
-		/**
-		 * Menutup Toko dari luar (fase TEMPUR tiba): seret yang sedang
-		 * berjalan tidak lagi memulihkannya saat dilepas.
-		 */
-		tutupToko() {
-			if (seret) {
-				seret.tokoTadi = false;
-			}
-			ambil(toko)?.tutup();
-		},
 
 		/**
 		 * pointermove pada kanvas 3D di luar seret: Mouse.intersect = true.

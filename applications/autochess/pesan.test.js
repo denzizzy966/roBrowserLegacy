@@ -339,6 +339,10 @@ describe('encode perintah catur AC3', () => {
 		expect(dekode(encodeCaturJual(ClientMsg, 9)).caturJual.bidakId).toBe(9);
 		expect(dekode(encodeCaturRefresh(ClientMsg)).body).toBe('caturRefresh');
 		expect(dekode(encodeCaturKunci(ClientMsg, true)).caturKunci.kunci).toBe(true);
+		// AC6 K2: slot bawaan -1 (semua slot) selalu ditulis; slot eksplisit apa adanya.
+		expect(dekode(encodeCaturKunci(ClientMsg, true)).caturKunci.slot).toBe(-1);
+		expect(dekode(encodeCaturKunci(ClientMsg, false, 2)).caturKunci).toMatchObject({ kunci: false, slot: 2 });
+		expect(dekode(encodeCaturKunci(ClientMsg, true, 0)).caturKunci).toMatchObject({ kunci: true, slot: 0 });
 		expect(dekode(encodeCaturBeliExp(ClientMsg)).body).toBe('caturBeliExp');
 
 		const taruh = dekode(encodeCaturTaruh(ClientMsg, 7, 3, 2));
@@ -362,7 +366,7 @@ describe('decodeCaturState dan decodeCaturSelesai', () => {
 				kursi: [{ kursi: 0, nama: 'Saya', hp: 80, level: 5, hidup: true, streak: 2 }],
 				saya: {
 					kursi: 0, zeny: 12, exp: 4, expBerikut: 20, level: 5, kapasitas: 5, kunci: true,
-					toko: [{ slot: 0, unitId: 'poring', harga: 1 }, { slot: 1 }],
+					toko: [{ slot: 0, unitId: 'poring', harga: 1, terkunci: true }, { slot: 1 }],
 					bidak: [{ bidakId: 7, unitId: 'poring', bintang: 2, diPapan: true, kolom: 3, baris: 2, entityId: 42 }],
 					sinergi: [{ id: 'pemburu', jumlah: 3, tingkatAktif: 1, origin: true }],
 					peluang: [{ tier: 1, persen: 70 }]
@@ -376,7 +380,8 @@ describe('decodeCaturState dan decodeCaturSelesai', () => {
 		expect(s.kursi[0]).toEqual({ kursi: 0, nama: 'Saya', hp: 80, level: 5, bot: false, hidup: true, streak: 2 });
 		expect(s.saya.expBerikut).toBe(20);
 		expect(s.saya.kunci).toBe(true);
-		expect(s.saya.toko[1]).toEqual({ slot: 1, unitId: '', harga: 0 });
+		expect(s.saya.toko[0]).toEqual({ slot: 0, unitId: 'poring', harga: 1, terkunci: true });
+		expect(s.saya.toko[1]).toEqual({ slot: 1, unitId: '', harga: 0, terkunci: false });
 		expect(s.saya.bidak[0].entityId).toBe(42);
 		expect(s.saya.bidak[0].diPapan).toBe(true);
 		expect(s.saya.sinergi[0]).toEqual({ id: 'pemburu', jumlah: 3, tingkatAktif: 1, origin: true });

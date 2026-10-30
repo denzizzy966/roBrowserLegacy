@@ -42,6 +42,7 @@ export const KAMUS = {
 	'jendela.toko':         { id: 'Toko', en: 'Shop' },
 	'jendela.lore':         { id: 'Lore', en: 'Lore' },
 	'jendela.log':          { id: 'Log', en: 'Log' },
+	'jendela.bilahDeck':    { id: 'Bilah Deck', en: 'Deck Bar' },
 
 	// Tombol
 	'tombol.beli':     { id: 'Beli', en: 'Buy' },
@@ -100,11 +101,22 @@ export const KAMUS = {
 	'label.namaLevel':  { id: 'Level', en: 'Level' },
 	'label.namaRonde':  { id: 'Ronde', en: 'Round' },
 
+	// AC6: tanda deck di kartu Toko (K6), Bilah Deck (K4), anggota sinergi di Lore (K7)
+	'label.punya':       { id: 'punya ×{0}', en: 'own ×{0}' },
+	'label.gabung':      { id: 'GABUNG', en: 'MERGE' },
+	'label.papan':       { id: 'Papan', en: 'Board' },
+	'label.anggota':     { id: 'Anggota', en: 'Members' },
+	'label.milikPapan':  { id: '★{0} papan', en: '★{0} board' },
+	'label.milikBangku': { id: '★{0} bangku', en: '★{0} bench' },
+
 	// Petunjuk (tooltip)
 	'petunjuk.seret': {
 		id: 'Seret ke papan untuk menaruh, ke tombol Toko (K) untuk menjual',
 		en: 'Drag onto the board to place, onto the Shop button (K) to sell'
 	},
+
+	'petunjuk.kunci_slot': { id: 'Kunci kartu ini (tidak terganti saat Segarkan)', en: 'Lock this card (kept on Refresh)' },
+	'petunjuk.buka_slot':  { id: 'Buka kunci kartu ini', en: 'Unlock this card' },
 
 	// Efek sinergi (teks dibangkitkan, mis. "+150 HP maks (semua)")
 	'efek.hp_max':      { id: '+{0} HP maks', en: '+{0} Max HP' },
@@ -131,6 +143,9 @@ export const KAMUS = {
 	'cell terisi':                  { id: 'Petak sudah terisi', en: 'Tile is occupied' },
 	'cell di luar separuh sendiri': { id: 'Petak di luar separuh papanmu', en: 'Tile is outside your half' },
 	'level maksimum':               { id: 'Level sudah maksimum', en: 'Already at max level' },
+	// AC6: kunci per slot dan perintah selama mode tempur.
+	'slot kosong tidak bisa dikunci': { id: 'Slot kosong tidak bisa dikunci', en: 'An empty slot cannot be locked' },
+	'bidak sedang bertempur':       { id: 'Bidak itu sedang bertempur', en: 'That unit is in combat' },
 
 	// Alasan penolakan aktor pertandingan (server/internal/pertandingan/
 	// aktor.go) dan roserver (server/cmd/roserver/main.go, registry.go).

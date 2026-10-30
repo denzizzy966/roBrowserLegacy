@@ -11,3 +11,15 @@
 .ambang b { color: #8cf; }
 .tombol { display: block; margin: 0 auto; min-width: 70px; height: 22px; font: 11px Arial, sans-serif; color: #fff; background: #3b4a78; border: 1px solid #7788bb; border-radius: 3px; cursor: pointer; }
 .tombol:hover { background: #4a5c92; }
+.judul-anggota { font-weight: bold; color: #cdd; margin: 0 0 3px; }
+.anggota { list-style: none; margin: 0 0 8px; padding: 0; max-height: 150px; overflow-y: auto; }
+.anggota .unit { display: flex; align-items: center; gap: 6px; line-height: 18px; color: #aab; }
+.anggota .unit.dimiliki { color: #fff; }
+.anggota .tier { flex: none; width: 20px; font-size: 10px; font-weight: bold; }
+.anggota .tier-1 .tier { color: #cdd; }
+.anggota .tier-2 .tier { color: #7d7; }
+.anggota .tier-3 .tier { color: #7af; }
+.anggota .tier-4 .tier { color: #d8f; }
+.anggota .tier-5 .tier { color: #fb5; }
+.anggota .nama-unit { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.anggota .milik { flex: none; color: #fd4; font-size: 11px; }

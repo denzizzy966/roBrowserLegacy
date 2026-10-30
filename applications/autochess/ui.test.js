@@ -262,8 +262,9 @@ describe('ikatAksi', () => {
 			['beli', { slot: 2 }],
 			['jual', { bidakId: 7 }],
 			['ke-bangku', { bidakId: 8 }],
-			['kunci', { kunci: true }],
-			['kunci', { kunci: false }],
+			// Tanpa data-slot (panel lama): slot -1 = semua slot (AC6 K2).
+			['kunci', { slot: -1, kunci: true }],
+			['kunci', { slot: -1, kunci: false }],
 			['refresh', {}],
 			['beli-exp', {}],
 			['lewati', {}]
@@ -292,7 +293,8 @@ describe('sandikanAksi', () => {
 		expect(balik(sandikanAksi(ClientMsg, 'taruh', { bidakId: 1, kolom: 3, baris: 2 })))
 			.toEqual({ caturTaruh: { bidakId: 1, kolom: 3, baris: 2 } });
 		expect(balik(sandikanAksi(ClientMsg, 'ke-bangku', { bidakId: 8 }))).toEqual({ caturKeBangku: { bidakId: 8 } });
-		expect(balik(sandikanAksi(ClientMsg, 'kunci', { kunci: true }))).toEqual({ caturKunci: { kunci: true } });
+		expect(balik(sandikanAksi(ClientMsg, 'kunci', { kunci: true }))).toEqual({ caturKunci: { kunci: true, slot: -1 } });
+		expect(balik(sandikanAksi(ClientMsg, 'kunci', { slot: 3, kunci: true }))).toEqual({ caturKunci: { kunci: true, slot: 3 } });
 		expect(balik(sandikanAksi(ClientMsg, 'refresh', {}))).toEqual({ caturRefresh: {} });
 		expect(balik(sandikanAksi(ClientMsg, 'beli-exp', {}))).toEqual({ caturBeliExp: {} });
 		expect(balik(sandikanAksi(ClientMsg, 'lewati', {}))).toEqual({ caturLewati: {} });

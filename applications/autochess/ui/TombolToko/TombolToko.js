@@ -23,6 +23,8 @@ TombolToko.init = function init() {
 	this.labelJual = root.querySelector('.label-jual');
 	this.tombol.addEventListener('click', () => Toko.toggle());
 	Toko.padaUbah((terbuka) => this.tombol.classList.toggle('terbuka', terbuka));
+	// AC6: Toko tampil bawaan; sorotan awal mengikuti keadaannya sekarang.
+	this.tombol.classList.toggle('terbuka', Toko.terbuka());
 };
 
 /**

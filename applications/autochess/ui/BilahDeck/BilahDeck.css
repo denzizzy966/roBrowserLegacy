@@ -1,0 +1,23 @@
+/* Posisi :host (top/left/bottom/right/transform) diatur ui/tataLetak.js lewat gaya inline. */
+:host { width: 640px; height: 34px; }
+.bingkai { width: 640px; height: 34px; border-radius: 4px; background-color: #1c1c28; background-size: 280px 120px; background-blend-mode: multiply; border: 1px solid #556; box-sizing: border-box; padding: 0 8px; color: #fff; font: 11px Arial, sans-serif; }
+.isi { display: flex; align-items: center; gap: 14px; height: 32px; }
+.sel { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.label { color: #99a; font-weight: bold; }
+.label.lv { color: #fff; font-size: 12px; }
+.angka { color: #fff; font-weight: bold; }
+.bar { position: relative; height: 6px; border: 1px solid #afafaf; background-color: #fff; }
+.bar div { position: absolute; top: 0; left: 0; height: 6px; }
+.bar-hp { width: 90px; }
+.bar-hp div { background-color: #3bb34a; }
+.hp.rendah .bar-hp div { background-color: #e03131; }
+.bar-exp { width: 110px; }
+.bar-exp div { background-color: #4262a5; }
+.beli { height: 22px; padding: 0 7px; font: 11px Arial, sans-serif; color: #fff; background: #3b4a78; border: 1px solid #7788bb; border-radius: 3px; cursor: pointer; }
+.beli:hover:not([disabled]) { background: #4a5c92; }
+.beli[disabled] { color: #889; background: #2a2f44; border-color: #445; cursor: default; }
+.zeny .angka { color: #fe9; }
+.ikon-zeny { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ffe680, #d4a017); }
+.bingkai.zeny-bmp .ikon-zeny { border-radius: 0; background: var(--ikon-zeny) center / contain no-repeat; }
+.kapasitas { margin-left: auto; }
+.kapasitas.penuh .angka { color: #fc6; }

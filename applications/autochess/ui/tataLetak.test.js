@@ -4,12 +4,14 @@ import { hitungTataLetak, beririsan, posisiKartu, OVERLAY, TEPI } from './tataLe
 const UKURAN_LAYAR = [[1600, 900], [1536, 695], [1280, 720], [1314, 588]];
 
 /**
- * Satu-satunya tumpang tindih yang diizinkan: dua overlay yang tersembunyi
- * bawaan dan bisa digeser (Log dan DPS) hanya boleh beririsan pada layar
- * terpendek, karena di sana tidak ada slot bebas di antara Sinergi dan DPS.
- * Kunci "lebarxtinggi"; pasangan diurutkan menurut abjad.
+ * Tumpang tindih yang diizinkan, hanya pada layar terpendek: dua overlay
+ * yang tersembunyi bawaan dan bisa digeser (Log dan DPS) karena Log tidak
+ * muat di bawah DPS tanpa menabrak BilahDeck; dan (AC6, tata letak kasar
+ * Task 5 -- Task 6 menuntaskannya) kolom Toko 470 px yang harus naik ke
+ * atas tombol K sehingga menimpa Sinergi. Kunci "lebarxtinggi"; pasangan
+ * diurutkan menurut abjad, urutan daftar = urutan keluaran tumpang().
  */
-const PENGECUALIAN_TUMPANG = { '1314x588': ['DPSxLog'] };
+const PENGECUALIAN_TUMPANG = { '1314x588': ['SinergixToko', 'DPSxLog'] };
 
 /** Pasangan jendela (urut abjad, "AxB") yang kotaknya beririsan. */
 function tumpang(letak, abaikan = []) {
@@ -29,14 +31,27 @@ describe('hitungTataLetak', () => {
 	it('posisi sudut sesuai gambar referensi pada 1600x900', () => {
 		const l = hitungTataLetak(1600, 900);
 		expect(l.Timer).toMatchObject({ top: 8, left: 8 });
-		expect(l.Kapasitas).toMatchObject({ top: 8, left: 755 });
-		expect(l.Zeny).toMatchObject({ top: 8, left: 1600 - 8 - 140 });
 		expect(l.Sinergi).toMatchObject({ top: 52, right: 8 });
-		expect(l.Exp).toMatchObject({ top: 900 - 8 - 70, left: 8 });
-		expect(l.InfoPemain).toMatchObject({ bottom: 84, left: 8 });
+		// AC6 K4: Exp, Zeny, Kapasitas dihapus; InfoPemain turun ke pojok.
+		expect(l.Exp).toBeUndefined();
+		expect(l.Zeny).toBeUndefined();
+		expect(l.Kapasitas).toBeUndefined();
+		expect(l.InfoPemain).toMatchObject({ bottom: 8, left: 8 });
 		expect(l.Bangku).toMatchObject({ top: 900 - 8 - 110, left: 480 });
+		expect(l.BilahDeck).toMatchObject({ top: 900 - 8 - 110 - 6 - 34, left: 480 });
 		expect(l.TombolToko).toMatchObject({ top: 900 - 56, left: 1600 - 56 });
+		expect(l.TombolDPS).toMatchObject({ top: 900 - 56, left: 1600 - 56 - 6 - 48 });
+		expect(l.Toko).toMatchObject({ top: 52 + 106 + 6, left: 1600 - 8 - 170 });
 		expect(l.DaftarPemain).toMatchObject({ top: 80, left: 8 });
+	});
+
+	it.each(UKURAN_LAYAR)('%ix%i: Toko kolom kanan di atas tombol K; BilahDeck tepat di atas Bangku', (w, h) => {
+		const l = hitungTataLetak(w, h);
+		expect(l.Toko.kotak.x + l.Toko.kotak.lebar).toBe(w - TEPI);
+		expect(l.Toko.kotak.y + l.Toko.kotak.tinggi).toBeLessThanOrEqual(l.TombolToko.kotak.y);
+		expect(l.BilahDeck.kotak.x).toBe(l.Bangku.kotak.x);
+		expect(l.BilahDeck.kotak.lebar).toBe(l.Bangku.kotak.lebar);
+		expect(l.BilahDeck.kotak.y + l.BilahDeck.kotak.tinggi + 6).toBe(l.Bangku.kotak.y);
 	});
 
 	it.each(UKURAN_LAYAR)('%ix%i: jendela tetap tidak saling tumpang', (w, h) => {
@@ -47,17 +62,11 @@ describe('hitungTataLetak', () => {
 		expect(tumpang(hitungTataLetak(w, h), ['Lore'])).toEqual(PENGECUALIAN_TUMPANG[`${w}x${h}`] ?? []);
 	});
 
-	it('Log bergeser ke slot di antara Sinergi dan DPS pada 1280x720 (bukan di atas Bangku)', () => {
-		const l = hitungTataLetak(1280, 720);
-		expect(l.Log.kotak).toEqual({ x: 952, y: 178, lebar: 320, tinggi: 140 });
-		expect(l.Log.kotak.y).toBeGreaterThanOrEqual(l.Sinergi.kotak.y + l.Sinergi.kotak.tinggi);
-		expect(l.Log.kotak.y + 140).toBeLessThanOrEqual(l.DPS.kotak.y);
-	});
-
-	it('Log 320x140 di kanan-bawah tepat di atas tombol K pada 1600x900', () => {
-		const l = hitungTataLetak(1600, 900);
-		expect(l.Log.kotak).toEqual({ x: 1600 - 8 - 320, y: 900 - 8 - 48 - 6 - 140, lebar: 320, tinggi: 140 });
-		expect(l.Log.kotak.y + l.Log.kotak.tinggi).toBeLessThanOrEqual(l.TombolToko.kotak.y);
+	it.each([[1600, 900, 1096], [1280, 720, 776]])('%ix%i: Log 320x140 di kiri kolom Toko, tepat di bawah DPS (AC6)', (w, h, x) => {
+		const l = hitungTataLetak(w, h);
+		expect(l.Log.kotak).toEqual({ x, y: 52 + 106 + 6 + 180 + 6, lebar: 320, tinggi: 140 });
+		expect(l.Log.kotak.x + l.Log.kotak.lebar).toBeLessThanOrEqual(l.Toko.kotak.x);
+		expect(l.Log.kotak.y).toBeGreaterThanOrEqual(l.DPS.kotak.y + l.DPS.kotak.tinggi);
 		expect(OVERLAY).toContain('Log');
 	});
 

@@ -1,10 +1,13 @@
 /**
- * Jendela Toko (K): overlay tengah-bawah dengan lima kartu unit berpotret,
- * tombol Kunci, tombol Refresh, dan baris peluang tier. Tersembunyi sampai
- * dibuka lewat TombolToko (buka/tutup/toggle).
+ * Jendela Toko (K), AC6: kolom vertikal di sisi kanan (di bawah Sinergi,
+ * di atas tombol K) dengan tombol Refresh, baris peluang, dan lima kartu
+ * mendatar berpotret yang masing-masing punya gembok sendiri (K2) dan tanda
+ * deck (K6). Tampil bawaan dan tetap terbuka di semua fase (G2/O1); tombol
+ * K/TombolToko masih bisa menyembunyikannya, dan seret.js menyembunyikannya
+ * selama seret bidak.
  *
  * gambar() dipanggil tiap 250 ms; isi baru ditulis ulang bila keluaran
- * renderToko berubah (slot, Zeny, kunci, fase, bahasa, level). Sesudah
+ * renderToko berubah (slot, kunci, Zeny, deck, bahasa, level). Sesudah
  * ditulis ulang, kanvas kartu yang slot+unit-nya sama dipindahkan dari
  * tulisan lama (pikselnya dan pendaftarannya di potret tetap), sisanya
  * didaftarkan ke potret.statis; kanvas lama yang tidak terpakai lagi
@@ -30,6 +33,9 @@ let kirimTerakhir = null;
 // Dipanggil sesudah buka/tutup (TombolToko menyalakan sorotannya).
 const pendengar = new Set();
 
+// Kanvas 72x84 ditampilkan 60x70: sprite diperkecil seperti di Bangku.
+const OPSI_POTRET = { skala: 0.8, kaki: 0.88 };
+
 /** Kunci kanvas potret untuk dipakai ulang: slot dan unit harus sama. */
 function kunciKanvas(kanvas) {
 	return `${kanvas.closest('.kartu')?.dataset.slot}:${kanvas.dataset.unit}`;
@@ -45,10 +51,9 @@ Toko.init = function init() {
 		this.bingkai.style.setProperty('--ikon-zeny', `url(${url})`);
 		this.bingkai.classList.add('zeny-bmp');
 	});
-	// beli {slot}, kunci {kunci}, refresh {} -- pembaca argumen yang sama
-	// dengan panel #ui lama.
+	// beli {slot}, kunci {slot, kunci}, refresh {} -- pembaca argumen yang
+	// sama dengan panel #ui lama (ui.js BACA_ARG).
 	ikatAksi(root, (aksi, arg) => kirimTerakhir?.(aksi, arg));
-	this._host.style.display = 'none';
 };
 
 /** @returns {boolean} true bila overlay sedang tampil */
@@ -112,7 +117,7 @@ Toko.gambar = function gambar(snap, deps) {
 		}
 		const sprite = deps.katalog.spriteUnit(baru.dataset.unit);
 		if (sprite) {
-			deps.potret.statis(sprite, baru);
+			deps.potret.statis(sprite, baru, OPSI_POTRET);
 		}
 	}
 	for (const k of lama.values()) {

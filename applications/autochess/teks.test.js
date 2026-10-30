@@ -8,7 +8,7 @@ function prefPalsu(bahasa = 'id') {
 	return { bahasa, save: vi.fn() };
 }
 
-// Semua alasan tetap EvtError yang bisa sampai ke pemain: dua belas dari
+// Semua alasan tetap EvtError yang bisa sampai ke pemain: empat belas dari
 // server/internal/catur/galat.go, lalu milik aktor pertandingan dan
 // roserver (lihat komentar per kelompok). Kunci kamus HARUS sama persis
 // dengan teks server supaya pesan galat bisa dicocokkan; alasan baru di
@@ -26,6 +26,9 @@ const ALASAN_SERVER = [
 	'cell terisi',
 	'cell di luar separuh sendiri',
 	'level maksimum',
+	// AC6 (galat.go): kunci per slot dan perintah selama mode tempur
+	'slot kosong tidak bisa dikunci',
+	'bidak sedang bertempur',
 	// server/internal/pertandingan/aktor.go (pesanBukanPersiapan,
 	// pesanPerintahGagal, pesanGalatInternal, mulai) dan registry.go
 	'bukan fase persiapan',
