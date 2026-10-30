@@ -1,8 +1,8 @@
 /* Posisi :host (left/top) diatur KartuBidak.js dari pointer (posisiKartu di ui/tataLetak.js). */
 /* pointer-events none: kartu tidak pernah merebut pointer dari kanvas 3D, jadi tidak berkedip. */
-:host { width: 200px; display: none; pointer-events: none; }
+:host { width: 300px; display: none; pointer-events: none; }
 :host(.terbuka) { display: block; }
-.bingkai { width: 200px; border-radius: 3px; background-color: #1c1c28; background-size: 280px 120px; background-blend-mode: multiply; border: 1px solid #556; box-sizing: border-box; color: #fff; font: 11px Arial, sans-serif; overflow: hidden; box-shadow: 2px 2px 4px #0008; }
+.bingkai { width: 300px; border-radius: 3px; background-color: #1c1c28; background-size: 300px 120px; background-blend-mode: multiply; border: 1px solid #556; box-sizing: border-box; color: #fff; font: 11px Arial, sans-serif; overflow: hidden; box-shadow: 2px 2px 4px #0008; }
 .isi { padding: 5px 7px 6px; }
 .nama { font-weight: bold; font-size: 12px; color: #fe9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lawan .nama { color: #f99; }
@@ -21,3 +21,13 @@
 .status { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; }
 .status img { width: 24px; height: 24px; image-rendering: pixelated; }
 .status.tanpa-ikon { padding: 0 3px; background: #5338; border: 1px solid #a66; border-radius: 2px; font-size: 10px; }
+
+.stat { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px; margin-top: 5px; padding-top: 4px; border-top: 1px solid #556; }
+.stat-baris { display: flex; justify-content: space-between; }
+.stat-nama { color: #9ab; }
+.stat-nilai { color: #fff; font-weight: bold; }
+.stat-kecil { margin-top: 2px; font-size: 10px; color: #99a; }
+.skill { margin-top: 4px; color: #fe9; }
+.skill-ringkas { color: #dde; line-height: 1.25; }
+.bonus-sinergi { margin-top: 4px; padding-top: 3px; border-top: 1px solid #556; }
+.bonus { color: #8e8; line-height: 1.3; }

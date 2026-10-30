@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buatKartu, cariBidak, infoBidak, tandaiSpawn, hidup, bidakAutochess, JEDA_KARTU_MS } from './kartu.js';
+import { buatKartu, cariBidak, infoBidak, infoDom, pasangHoverDom, tandaiSpawn, hidup, bidakAutochess, JEDA_KARTU_MS } from './kartu.js';
 import { buatKatalog } from './katalog.js';
 import { FASE, EFEK_STATUS } from './pesan.js';
 
@@ -277,5 +277,124 @@ describe('buatKartu (pengendali hover)', () => {
 		const s = siapkan();
 		expect(() => s.kartu.denyut()).not.toThrow();
 		expect(s.jendela.sembunyikan).not.toHaveBeenCalled();
+	});
+});
+
+describe('hover kartu Toko dan slot Bangku (AC6 K5)', () => {
+	const kat = buatKatalog({
+		units: {
+			wizard: {
+				nama: { id: 'Penyihir', en: 'Wizard' }, tier: 3, origin: 'geffen', kelas: 'elementalist',
+				stat_bintang: [{ hp: 100, sp_awal: 5, sp_maks: 50 }, { hp: 180, sp_awal: 5, sp_maks: 50 }, { hp: 300, sp_awal: 5, sp_maks: 50 }]
+			}
+		}
+	});
+	const snap = {
+		fase: 3,
+		state: {
+			saya: {
+				toko: [{ slot: 0, unitId: 'wizard' }, { slot: 1, unitId: '' }],
+				bidak: [{ bidakId: 4, unitId: 'wizard', bintang: 2, diPapan: false }, { bidakId: 5, unitId: 'wizard', bintang: 1, diPapan: true }]
+			}
+		}
+	};
+
+	function el(kelas, dataset) {
+		return { dataset, classList: { contains: (k) => k === kelas }, contains: () => false };
+	}
+
+	function siapkan() {
+		const jendela = { tampilkan: vi.fn(), sembunyikan: vi.fn() };
+		const pewaktu = [];
+		let seret = false;
+		const kartu = buatKartu({
+			EntityManager: buatEM([]), ambilSnap: () => snap, katalog: () => kat, jendela,
+			cariTarget: () => null, seretAktif: () => seret,
+			tunda: (fn, ms) => { pewaktu.push({ fn, ms, batal: false }); return pewaktu.length - 1; },
+			batalTunda: (id) => { pewaktu[id].batal = true; }
+		});
+		const root = { baru: {}, addEventListener(n, f) { this.baru[n] = f; } };
+		pasangHoverDom(root, kartu);
+		const jalan = () => pewaktu.filter((p) => !p.batal && !p.jalan).forEach((p) => { p.jalan = true; p.fn(); });
+		const ev = (jalur, extra = {}) => ({ clientX: 50, clientY: 60, composedPath: () => jalur, ...extra });
+		return { jendela, root, kartu, jalan, pewaktu, ev, seret: (v) => { seret = v; } };
+	}
+
+	it('kartu Toko: info bintang 1 sumber toko setelah 250 ms', () => {
+		const s = siapkan();
+		s.root.baru.pointerover(s.ev([el('x', {}), el('kartu', { slot: '0' })]));
+		expect(s.pewaktu[0].ms).toBe(JEDA_KARTU_MS);
+		expect(s.jendela.tampilkan).not.toHaveBeenCalled();
+		s.jalan();
+		expect(s.jendela.tampilkan).toHaveBeenCalledWith(
+			expect.objectContaining({ unitId: 'wizard', bintang: 1, sumber: 'toko', maxHp: 0, maxSp: 0 }), { x: 50, y: 60 });
+		expect(s.kartu.tampilDom()).toEqual({ sumber: 'toko', kunci: 0 });
+	});
+
+	it('gembok ber-data-slot (bukan .kartu) dan kartu kosong tidak memunculkan kartu', () => {
+		const s = siapkan();
+		s.root.baru.pointerover(s.ev([el('gembok', { slot: '0' })]));
+		expect(s.pewaktu).toHaveLength(0);
+		s.root.baru.pointerover(s.ev([el('kartu', { slot: '1' })]));
+		s.jalan();
+		expect(s.jendela.tampilkan).not.toHaveBeenCalled();
+	});
+
+	it('slot bangku: info bidak itu, HP/SP dari katalog pada bintangnya', () => {
+		const s = siapkan();
+		s.root.baru.pointerover(s.ev([el('slot', { slot: '0', bidak: '4' })]));
+		s.jalan();
+		expect(s.jendela.tampilkan).toHaveBeenCalledWith(
+			expect.objectContaining({ unitId: 'wizard', bintang: 2, sumber: 'bangku', hp: 180, maxHp: 180, sp: 5, maxSp: 50 }), expect.anything());
+	});
+
+	it('keluar sebelum jeda: tidak tampil; keluar sesudah tampil: sembunyi', () => {
+		const s = siapkan();
+		const slot = el('slot', { bidak: '4' });
+		s.root.baru.pointerover(s.ev([slot]));
+		s.root.baru.pointerout(s.ev([slot], { relatedTarget: null }));
+		expect(s.pewaktu[0].batal).toBe(true);
+		s.jalan();
+		expect(s.jendela.tampilkan).not.toHaveBeenCalled();
+
+		s.root.baru.pointerover(s.ev([slot]));
+		s.jalan();
+		expect(s.kartu.tampilDom()).not.toBeNull();
+		s.root.baru.pointerout(s.ev([slot], { relatedTarget: null }));
+		expect(s.jendela.sembunyikan).toHaveBeenCalledTimes(1);
+		expect(s.kartu.tampilDom()).toBeNull();
+	});
+
+	it('menggeser pointer di atas sasaran yang sama tidak mengulang jeda tetapi memindah titik', () => {
+		const s = siapkan();
+		const slot = el('slot', { bidak: '4' });
+		s.root.baru.pointermove(s.ev([slot]));
+		s.root.baru.pointermove(s.ev([slot], { clientX: 70 }));
+		expect(s.pewaktu).toHaveLength(1);
+		s.jalan();
+		expect(s.jendela.tampilkan).toHaveBeenCalledWith(expect.anything(), { x: 70, y: 60 });
+	});
+
+	it('seret dimulai (pointerdown atau seretAktif) menutup kartu', () => {
+		const s = siapkan();
+		const slot = el('slot', { bidak: '4' });
+		s.root.baru.pointerover(s.ev([slot]));
+		s.jalan();
+		s.root.baru.pointerdown(s.ev([slot]));
+		expect(s.jendela.sembunyikan).toHaveBeenCalledTimes(1);
+
+		s.root.baru.pointerover(s.ev([slot]));
+		s.jalan();
+		expect(s.kartu.tampilDom()).not.toBeNull();
+		s.seret(true);
+		s.kartu.denyut();
+		expect(s.kartu.tampilDom()).toBeNull();
+		expect(s.jendela.sembunyikan).toHaveBeenCalledTimes(2);
+	});
+
+	it('infoDom: bidak di papan atau slot kosong menghasilkan null', () => {
+		expect(infoDom('bangku', 5, { snap, katalog: kat })).toBeNull();
+		expect(infoDom('toko', 1, { snap, katalog: kat })).toBeNull();
+		expect(infoDom('toko', 0, { snap, katalog: kat })).toMatchObject({ bintang: 1, sumber: 'toko' });
 	});
 });

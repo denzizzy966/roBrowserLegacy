@@ -8,6 +8,8 @@
  * yang tidak ada di katalog (creep) hanya menampilkan nama dari EvtSpawn.
  */
 
+import { teksNilaiEfek } from './sinergi.js';
+
 const ENTITAS = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
 function esc(teks) {
@@ -27,6 +29,67 @@ function bar(jenis, label, kini, maks) {
 		+ `<span class="label">${esc(label)}</span><span class="angka">${k}/${angka(maks)}</span></div>`;
 }
 
+const KOLOM_STAT = ['hp', 'atk', 'matk', 'def', 'mdef', 'aspd', 'jangkauan', 'sp_maks'];
+
+/** Blok statistik dua kolom; '' bila unit tanpa stat katalog (creep). */
+function blokStat(info, deps) {
+	const { t, katalog } = deps;
+	const stat = info.unitId ? katalog.statBintang?.(info.unitId, angka(info.bintang) || 1) : null;
+	if (!stat) {
+		return '';
+	}
+	let html = '<div class="stat">';
+	for (const k of KOLOM_STAT) {
+		html += `<span class="stat-baris" data-stat="${k}"><span class="stat-nama">${esc(t('stat.' + k))}</span>`
+			+ `<span class="stat-nilai">${esc(stat[k] ?? 0)}</span></span>`;
+	}
+	html += '</div>';
+	const kecil = [stat.elemen, stat.ukuran, stat.ras].filter((x) => x !== undefined && x !== null && x !== '');
+	if (kecil.length) {
+		html += `<div class="stat-kecil">${kecil.map(esc).join(' · ')}</div>`;
+	}
+	return html;
+}
+
+/** Baris skill unit "nama (Lv n)" + ringkasan bila ada; '' bila tak ada skill. */
+function blokSkill(info, deps) {
+	const { t, bahasa, katalog } = deps;
+	const sk = info.unitId ? katalog.skillUnit?.(info.unitId) : null;
+	if (!sk) {
+		return '';
+	}
+	const nama = sk.nama?.[bahasa] ?? sk.nama?.id ?? sk.id;
+	let html = `<div class="skill"><b>${esc(t('label.skill'))}:</b> ${esc(t('label.skillLv', nama, sk.lv))}</div>`;
+	const ringkas = sk.ringkasan?.[bahasa] ?? sk.ringkasan?.id ?? '';
+	if (ringkas) {
+		html += `<div class="skill-ringkas">${esc(ringkas)}</div>`;
+	}
+	return html;
+}
+
+/**
+ * Baris bonus sinergi aktif yang mencakup unit ini: "+10% ATK — Prontera 3".
+ * deps.sinergiAktif = sinergiTampil(snap) ({id, jumlah, tingkatAktif}).
+ */
+function blokBonus(info, deps) {
+	const { t, bahasa, katalog } = deps;
+	const unit = info.unitId ? katalog.unit(info.unitId) : null;
+	if (!unit) {
+		return '';
+	}
+	const baris = [];
+	for (const s of deps.sinergiAktif ?? []) {
+		if (!(s.tingkatAktif > 0) || (s.id !== unit.origin && s.id !== unit.kelas)) {
+			continue;
+		}
+		const nama = katalog.namaSinergi(s.id, bahasa);
+		for (const e of katalog.sinergi(s.id).efek?.[s.tingkatAktif - 1] ?? []) {
+			baris.push(`<div class="bonus">${esc(teksNilaiEfek(e, t))} — ${esc(nama)} ${s.jumlah}</div>`);
+		}
+	}
+	return baris.length ? `<div class="bonus-sinergi">${baris.join('')}</div>` : '';
+}
+
 /**
  * @param {object} info keluaran infoBidak
  * @param {number} info.entityId
@@ -39,10 +102,12 @@ function bar(jenis, label, kini, maks) {
  * @param {number} info.sp
  * @param {number} info.maxSp 0 = tanpa SP (baris SP tidak digambar)
  * @param {number[]} info.status EFEK_STATUS yang aktif
+ * @param {'toko'|'bangku'} [info.sumber] kartu Toko (tanpa bar HP/SP) atau slot Bangku; kosong = bidak di arena
  * @param {object} deps
  * @param {function} deps.t teks.t
  * @param {string} deps.bahasa
  * @param {object} deps.katalog buatKatalog(...)
+ * @param {object[]} [deps.sinergiAktif] sinergiTampil(snap), untuk baris bonus sinergi
  * @param {function(number): (string|null)} [deps.ikon] URL ikon status (null = belum/tidak ada)
  * @returns {string} HTML isi kartu
  */
@@ -71,10 +136,13 @@ export function renderKartuBidak(info, deps) {
 		html += `<div class="sinergi">${sinergi.join(' · ')}</div>`;
 	}
 
-	html += bar('hp', t('label.hp'), info.hp, info.maxHp);
-	if (angka(info.maxSp) > 0) {
-		html += bar('sp', t('label.sp'), info.sp, info.maxSp);
+	if (info.sumber !== 'toko') {
+		html += bar('hp', t('label.hp'), info.hp, info.maxHp);
+		if (angka(info.maxSp) > 0) {
+			html += bar('sp', t('label.sp'), info.sp, info.maxSp);
+		}
 	}
+	html += blokStat(info, deps) + blokSkill(info, deps) + blokBonus(info, deps);
 
 	const status = info.status ?? [];
 	if (status.length) {

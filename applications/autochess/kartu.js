@@ -103,6 +103,92 @@ export function infoBidak(entity, { snap, katalog, namaMob }) {
 }
 
 /**
+ * Info kartu untuk sasaran DOM (AC6 K5): kartu Toko (slot) atau slot
+ * Bangku (bidakId). Toko: bintang 1, tanpa HP/SP berjalan (renderer
+ * menyembunyikan bar bila sumber 'toko'). Bangku: HP/SP dari katalog
+ * pada bintangnya (SP awal sebagai SP). null bila sasaran sudah hilang.
+ *
+ * @param {'toko'|'bangku'} sumber
+ * @param {number} kunci slot toko, atau bidakId bangku
+ * @param {{snap: object, katalog: object}} d
+ * @returns {object|null} info untuk renderKartuBidak
+ */
+export function infoDom(sumber, kunci, { snap, katalog }) {
+	const saya = snap?.state?.saya;
+	let unitId = '';
+	let bintang = 1;
+	if (sumber === 'toko') {
+		unitId = (saya?.toko ?? []).find((x) => x.slot === kunci)?.unitId ?? '';
+	} else {
+		const b = (saya?.bidak ?? []).find((x) => x.bidakId === kunci && !x.diPapan);
+		unitId = b?.unitId ?? '';
+		bintang = b?.bintang ?? 1;
+	}
+	if (!unitId) {
+		return null;
+	}
+	const stat = sumber === 'bangku' ? katalog?.statBintang?.(unitId, bintang) : null;
+	return {
+		entityId: 0, unitId, nama: unitId, sendiri: true, sumber, bintang,
+		hp: stat?.hp ?? 0, maxHp: stat?.hp ?? 0,
+		sp: stat?.sp_awal ?? 0, maxSp: stat?.sp_maks ?? 0,
+		status: []
+	};
+}
+
+/**
+ * Sasaran hover DOM dari composedPath() sebuah event pointer pada root
+ * jendela Toko/Bangku: `.kartu[data-slot]` (Toko) atau `.slot[data-bidak]`
+ * (Bangku). Tombol ber-data-slot (gembok) bukan sasaran.
+ *
+ * @returns {{sumber:'toko'|'bangku', kunci:number, el:object}|null}
+ */
+export function sasaranDom(ev) {
+	for (const el of ev?.composedPath?.() ?? []) {
+		const ds = el?.dataset;
+		if (!ds) {
+			continue;
+		}
+		if (ds.slot !== undefined && el.classList?.contains('kartu')) {
+			return { sumber: 'toko', kunci: Number(ds.slot), el };
+		}
+		if (ds.bidak !== undefined && el.classList?.contains('slot')) {
+			return { sumber: 'bangku', kunci: Number(ds.bidak), el };
+		}
+	}
+	return null;
+}
+
+/**
+ * Memasang hover kartu pada root jendela Toko/Bangku (shadow root).
+ * pointerover/pointermove masuk atau menggeser sasaran, pointerout
+ * (yang benar-benar meninggalkan elemennya) dan pointerdown (awal seret)
+ * menutup.
+ *
+ * @param {{addEventListener: function}} root
+ * @param {{masukDom: function, keluarDom: function}} kartu hasil buatKartu
+ */
+export function pasangHoverDom(root, kartu) {
+	const masuk = (ev) => {
+		const s = sasaranDom(ev);
+		if (s) {
+			kartu.masukDom(s.sumber, s.kunci, ev);
+		} else {
+			kartu.keluarDom();
+		}
+	};
+	root.addEventListener('pointerover', masuk);
+	root.addEventListener('pointermove', masuk);
+	root.addEventListener('pointerout', (ev) => {
+		const s = sasaranDom(ev);
+		if (!s || !(ev.relatedTarget && s.el.contains?.(ev.relatedTarget))) {
+			kartu.keluarDom();
+		}
+	});
+	root.addEventListener('pointerdown', () => kartu.keluarDom());
+}
+
+/**
  * Bidak di bawah pointer. Urutan: entity di bawah kursor (kotak sprite) ->
  * bidak sendiri di petak (snapshot, hanya PERSIAPAN) -> entity bertim yang
  * posisinya jatuh di petak.
@@ -174,6 +260,10 @@ export function buatKartu({
 	let pewaktu = null;
 	/** Entity yang kartunya sedang tampil. */
 	let tampil = null;
+	/** Sasaran DOM (Toko/Bangku) yang ditunggu atau tampil: {sumber, kunci}. */
+	let calonDom = null;
+	let pewaktuDom = null;
+	let tampilDom = null;
 
 	const ambilKatalog = () => (typeof katalog === 'function' ? katalog() : katalog);
 
@@ -185,11 +275,29 @@ export function buatKartu({
 		calon = null;
 	}
 
+	function batalDom() {
+		if (pewaktuDom !== null) {
+			batalTunda(pewaktuDom);
+			pewaktuDom = null;
+		}
+		calonDom = null;
+	}
+
 	function sembunyikan() {
-		if (tampil) {
+		if (tampil || tampilDom) {
 			tampil = null;
+			tampilDom = null;
 			jendela.sembunyikan();
 		}
+	}
+
+	function gambarDom() {
+		const info = infoDom(tampilDom.sumber, tampilDom.kunci, { snap: ambilSnap(), katalog: ambilKatalog() });
+		if (!info) {
+			sembunyikan();
+			return;
+		}
+		jendela.tampilkan(info, { ...titik });
 	}
 
 	function gambar() {
@@ -197,6 +305,7 @@ export function buatKartu({
 	}
 
 	function tampilkan(e) {
+		tampilDom = null;
 		tampil = e;
 		gambar();
 	}
@@ -249,6 +358,10 @@ export function buatKartu({
 		 * @param {{clientX:number, clientY:number}} ev
 		 */
 		gerak(ev) {
+			batalDom();
+			if (tampilDom) {
+				sembunyikan();
+			}
 			titik.x = ev.clientX;
 			titik.y = ev.clientY;
 			diKanvas = true;
@@ -269,6 +382,14 @@ export function buatKartu({
 		 * dari pointer yang diam) dan isi kartu digambar ulang.
 		 */
 		denyut() {
+			if (tampilDom) {
+				if (seretAktif()) {
+					sembunyikan();
+				} else {
+					gambarDom();
+				}
+				return;
+			}
 			if (!tampil) {
 				return;
 			}
@@ -284,8 +405,61 @@ export function buatKartu({
 
 		sembunyikan() {
 			batalCalon();
+			batalDom();
 			sembunyikan();
 		},
+
+		/**
+		 * Pointer di atas kartu Toko / slot Bangku (K5). Sasaran yang sama
+		 * hanya menggeser titik; sasaran baru memulai jeda 250 ms.
+		 * @param {'toko'|'bangku'} sumber
+		 * @param {number} kunci slot toko atau bidakId
+		 * @param {{clientX:number, clientY:number}} ev
+		 */
+		masukDom(sumber, kunci, ev) {
+			titik.x = ev.clientX;
+			titik.y = ev.clientY;
+			diKanvas = false;
+			batalCalon();
+			const sama = (d) => d && d.sumber === sumber && d.kunci === kunci;
+			if (sama(tampilDom)) {
+				return;
+			}
+			if (sama(calonDom)) {
+				return;
+			}
+			sembunyikan();
+			batalDom();
+			if (seretAktif()) {
+				return;
+			}
+			const calonBaru = { sumber, kunci };
+			calonDom = calonBaru;
+			pewaktuDom = tunda(() => {
+				pewaktuDom = null;
+				if (calonDom !== calonBaru) {
+					return;
+				}
+				calonDom = null;
+				if (seretAktif()) {
+					return;
+				}
+				tampilDom = calonBaru;
+				tampil = null;
+				gambarDom();
+			}, JEDA_KARTU_MS);
+		},
+
+		/** Pointer meninggalkan kartu Toko / slot Bangku, atau seret dimulai. */
+		keluarDom() {
+			batalDom();
+			if (tampilDom) {
+				sembunyikan();
+			}
+		},
+
+		/** @returns {{sumber:string, kunci:number}|null} sasaran DOM yang kartunya tampil */
+		tampilDom: () => (tampilDom ? { ...tampilDom } : null),
 
 		/** @returns {number|null} entityId kartu yang tampil */
 		tampil: () => (tampil ? tampil.GID : null)

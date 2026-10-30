@@ -68,6 +68,18 @@ export const KAMUS = {
 	'label.zeny':       { id: 'Zeny', en: 'Zeny' },
 	'label.hp':         { id: 'HP', en: 'HP' },
 	'label.sp':         { id: 'SP', en: 'SP' },
+	// AC6 K5/K17: statistik, skill, dan bonus sinergi di kartu hover
+	'stat.hp':          { id: 'HP', en: 'HP' },
+	'stat.atk':         { id: 'ATK', en: 'ATK' },
+	'stat.matk':        { id: 'MATK', en: 'MATK' },
+	'stat.def':         { id: 'DEF', en: 'DEF' },
+	'stat.mdef':        { id: 'MDEF', en: 'MDEF' },
+	'stat.aspd':        { id: 'ASPD', en: 'ASPD' },
+	'stat.jangkauan':   { id: 'Jangkauan', en: 'Range' },
+	'stat.sp_maks':     { id: 'SP maks', en: 'Max SP' },
+	'label.skill':      { id: 'Skill', en: 'Skill' },
+	'label.skillLv':    { id: '{0} (Lv {1})', en: '{0} (Lv {1})' },
+	'label.bonus_sinergi': { id: 'Bonus sinergi', en: 'Synergy bonus' },
 
 	// Status pada kartu bidak (kunci = 'status.' + EFEK_STATUS di pesan.js)
 	'status.1': { id: 'Beku', en: 'Frozen' },

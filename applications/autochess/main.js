@@ -93,7 +93,7 @@ import { buatTeks, formatZeny } from './teks.js';
 import { buatPotret } from './potret.js';
 import { buatSorot } from './sorot.js';
 import { buatSeret, petakDiBawahPointer } from './seret.js';
-import { buatKartu, cariBidak, tandaiSpawn } from './kartu.js';
+import { buatKartu, cariBidak, tandaiSpawn, pasangHoverDom } from './kartu.js';
 import { buatPemuatIkon } from './statusIkon.js';
 import { buatDPS } from './dps.js';
 import { deteksiNaikBintang } from './bintang.js';
@@ -878,6 +878,9 @@ function pasangJendela() {
 		Renderer.canvas.addEventListener('pointermove', (ev) => kartu.gerak(ev));
 		Renderer.canvas.addEventListener('pointerleave', () => kartu.keluar());
 		Renderer.canvas.addEventListener('pointerdown', () => kartu.sembunyikan());
+		// K5: kartu yang sama saat hover kartu Toko dan slot Bangku.
+		pasangHoverDom(TokoJ.getRoot(), kartu);
+		pasangHoverDom(BangkuJ.getRoot(), kartu);
 	}
 	tataLetak();
 	gambarJendela();

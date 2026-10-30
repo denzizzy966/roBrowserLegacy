@@ -5,13 +5,24 @@ import { buatKatalog } from '../../katalog.js';
 import { buatTeks } from '../../teks.js';
 import { EFEK_STATUS } from '../../pesan.js';
 
+const STAT = (hp, atk) => ({ hp, atk, matk: 5, def: 6, mdef: 7, aspd: 150, jangkauan: 9, sp_awal: 10, sp_maks: 120, elemen: 'Fire', ukuran: 'Medium', ras: 'Human' });
+
 const katalog = buatKatalog({
 	units: {
-		wizard: { nama: { id: 'Penyihir', en: 'Wizard' }, tier: 3, origin: 'geffen', kelas: 'elementalist' }
+		wizard: {
+			nama: { id: 'Penyihir', en: 'Wizard' }, tier: 3, origin: 'geffen', kelas: 'elementalist',
+			stat_bintang: [STAT(1000, 80), STAT(1800, 144), STAT(3200, 260)],
+			skill: { id: 'storm', lv: 5, nama: { id: 'Badai Petir', en: 'Lightning Storm' }, ringkasan: { id: 'Sambaran petir area.', en: 'Area lightning.' } }
+		},
+		tanpa_skill: { nama: { id: 'A', en: 'A' }, tier: 1, origin: 'geffen', kelas: 'vanguard', stat_bintang: [STAT(1, 1), STAT(2, 2), STAT(3, 3)] }
 	},
 	sinergi: {
-		geffen: { nama: { id: 'Geffen', en: 'Geffen' } },
-		elementalist: { nama: { id: 'Elementalis', en: 'Elementalist' } }
+		geffen: {
+			nama: { id: 'Geffen', en: 'Geffen' }, origin: true, ambang: [2, 4],
+			efek: [[{ stat: 'atk', persen: 10, sasaran: 'semua' }], [{ stat: 'hp_max', tambah: 150, sasaran: 'anggota' }]]
+		},
+		elementalist: { nama: { id: 'Elementalis', en: 'Elementalist' }, ambang: [2], efek: [[{ stat: 'matk', persen: 20, sasaran: 'semua' }]] },
+		prontera: { nama: { id: 'Prontera', en: 'Prontera' }, origin: true, ambang: [2], efek: [[{ stat: 'def', tambah: 5, sasaran: 'semua' }]] }
 	}
 });
 
@@ -79,6 +90,58 @@ describe('renderKartuBidak', () => {
 
 	it('nama di-escape', () => {
 		expect(renderKartuBidak({ ...INFO, unitId: null, nama: '<b>x</b>' }, deps())).toContain('&lt;b&gt;x&lt;/b&gt;');
+	});
+});
+
+describe('K5/K17: statistik, skill, bonus sinergi', () => {
+	it('statistik 1★ berbeda dari 2★ menurut katalog; elemen/ukuran/ras satu baris', () => {
+		const satu = renderKartuBidak({ ...INFO, bintang: 1 }, deps());
+		const dua = renderKartuBidak({ ...INFO, bintang: 2 }, deps());
+		expect(satu).toContain('data-stat="hp"><span class="stat-nama">HP</span><span class="stat-nilai">1000</span>');
+		expect(satu).toContain('data-stat="atk"><span class="stat-nama">ATK</span><span class="stat-nilai">80</span>');
+		expect(dua).toContain('<span class="stat-nilai">1800</span>');
+		expect(dua).toContain('<span class="stat-nilai">144</span>');
+		expect(satu).not.toContain('1800');
+		expect(satu.match(/data-stat=/g)).toHaveLength(8);
+		expect(satu).toContain('<div class="stat-kecil">Fire · Medium · Human</div>');
+	});
+
+	it('creep (stat null): tanpa blok statistik, skill, bonus, dan tanpa galat', () => {
+		const h = renderKartuBidak({ ...INFO, unitId: null, nama: 'dracula', sendiri: false, bintang: 0 }, { ...deps(), sinergiAktif: [{ id: 'geffen', jumlah: 3, tingkatAktif: 1 }] });
+		expect(h).not.toContain('class="stat"');
+		expect(h).not.toContain('class="skill');
+		expect(h).not.toContain('bonus');
+	});
+
+	it('baris skill ID/EN dengan ringkasan; tanpa skill tidak ada baris', () => {
+		expect(renderKartuBidak(INFO, deps('id'))).toContain('Badai Petir (Lv 5)');
+		expect(renderKartuBidak(INFO, deps('id'))).toContain('<div class="skill-ringkas">Sambaran petir area.</div>');
+		const en = renderKartuBidak(INFO, deps('en'));
+		expect(en).toContain('Lightning Storm (Lv 5)');
+		expect(en).toContain('Area lightning.');
+		expect(renderKartuBidak({ ...INFO, unitId: 'tanpa_skill' }, deps())).not.toContain('class="skill');
+	});
+
+	it('bonus sinergi hanya bila aktif DAN mencakup unit ini', () => {
+		const aktif = [
+			{ id: 'geffen', jumlah: 3, tingkatAktif: 1, origin: true },
+			{ id: 'prontera', jumlah: 2, tingkatAktif: 1, origin: true },
+			{ id: 'elementalist', jumlah: 1, tingkatAktif: 0, origin: false }
+		];
+		const h = renderKartuBidak(INFO, { ...deps(), sinergiAktif: aktif });
+		expect(h).toContain('<div class="bonus">+10% ATK — Geffen 3</div>');
+		expect(h).not.toContain('Prontera');
+		expect(h).not.toContain('+20% MATK');
+		const dua = renderKartuBidak(INFO, { ...deps('en'), sinergiAktif: [{ id: 'geffen', jumlah: 4, tingkatAktif: 2 }] });
+		expect(dua).toContain('+150 Max HP — Geffen 4');
+		expect(renderKartuBidak(INFO, deps())).not.toContain('bonus');
+	});
+
+	it("sumber 'toko': tanpa bar HP/SP, statistik tetap ada; 'bangku' berbar", () => {
+		const toko = renderKartuBidak({ ...INFO, bintang: 1, sumber: 'toko', hp: 0, maxHp: 0, maxSp: 0 }, deps());
+		expect(toko).not.toContain('class="bar');
+		expect(toko).toContain('class="stat"');
+		expect(renderKartuBidak({ ...INFO, sumber: 'bangku' }, deps())).toContain('class="bar hp"');
 	});
 });
 

@@ -17,6 +17,7 @@ import htmlText from './KartuBidak.html?raw';
 import cssText from './KartuBidak.css?raw';
 import { renderKartuBidak } from '../render/kartuBidak.js';
 import { posisiKartu } from '../tataLetak.js';
+import { sinergiTampil } from '../../state.js';
 import { pasangKerangka, tulisBila } from '../janela.js';
 
 const KartuBidak = new GUIComponent('KartuBidak', cssText);
@@ -90,11 +91,11 @@ KartuBidak.terbuka = function terbuka() {
  * (bahasa, katalog, ikonStatus). TIDAK menggambar: kartu.denyut() (kartu.js)
  * dipanggil tepat sesudahnya dan menggambar info yang segar, jadi
  * menggambar di sini hanya render ganda dari info basi.
- * @param {object} snap state.ambil() (tak dipakai)
+ * @param {object} snap state.ambil() (sinergi yang tampil untuk baris bonus)
  * @param {object} deps {t, bahasa, katalog, ikonStatus}
  */
 KartuBidak.gambar = function gambar(snap, deps) {
-	depsTerakhir = deps;
+	depsTerakhir = { ...deps, sinergiAktif: sinergiTampil(snap) };
 };
 
 export default UIManager.addComponent(KartuBidak);

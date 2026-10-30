@@ -95,12 +95,17 @@ export function renderSinergi(snap, deps) {
 	}).join('');
 }
 
-/** Satu efek jadi teks: "+150 HP maks (semua)", persen: "+15% ATK (anggota)". */
-function teksEfek(e, t) {
+/** Teks efek tanpa sasaran: "+150 HP maks", persen: "+15% ATK" (dipakai Lore dan kartu bidak). */
+export function teksNilaiEfek(e, t) {
 	const nilai = e.tambah ? e.tambah : (e.persen ? `${e.persen}%` : 0);
 	// aspd_persen sudah memuat '%' di kamus; angkanya polos.
 	const angka = e.stat === 'aspd_persen' ? (e.tambah || e.persen) : nilai;
-	return `${t('efek.' + e.stat, angka)} ${t('sasaran.' + e.sasaran)}`;
+	return t('efek.' + e.stat, angka);
+}
+
+/** Satu efek jadi teks: "+150 HP maks (semua)", persen: "+15% ATK (anggota)". */
+function teksEfek(e, t) {
+	return `${teksNilaiEfek(e, t)} ${t('sasaran.' + e.sasaran)}`;
 }
 
 /**
