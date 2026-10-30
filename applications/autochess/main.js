@@ -1119,7 +1119,8 @@ function cobaSorot(kolom, baris) {
 // Task 10: __ac.debug(true|false) (panel #ui AC3), __ac.tataLetak()
 // (terapkan ulang dan kembalikan posisi), __ac.pesan('teks') (kotak RO).
 // AC6: __ac.tonton(kursi) (tonton kursi lain; kursi sendiri = pulang),
-// __ac.selesaikan() (sesudah tersingkir: langsung ke peringkat akhir).
+// __ac.selesaikan() (sesudah tersingkir: langsung ke peringkat akhir),
+// __ac.kotakSeparuh() / __ac.kotakPapan() (kotak layar papan untuk cek kamera).
 window.__ac = {
 	BGM, SoundManager, bgmKendali: kendaliBGM, deteksiNaikBintang, rayakanNaikBintang, st: () => st,
 	Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek,
@@ -1129,13 +1130,6 @@ window.__ac = {
 	Sinergi: SinergiJ, Lore: LoreJ, DPS: DPSJ, dps: () => dps.ambil(), lore: (id) => LoreJ.buka(id),
 	debug, tataLetak, pesan: tampilkanPesan,
 	kotakSeparuh, kotakPapan, kameraUntuk, terapkanKameraViewport,
-	kameraCoba: (zoom, geserY) => {
-		const pusat = pusatPapan(ASAL_PAPAN, SKALA_PETAK);
-		terapkanKamera(Camera, spot, pusat, { zoom, sudut: SUDUT, geserY }, (x, y) => Altitude.getCellHeight(x, y));
-		Camera.position[0] = -spot.position[0];
-		Camera.position[1] = -spot.position[1];
-		Camera.position[2] = spot.position[2];
-	},
 	kartu, KartuBidak: KartuBidakJ, pemuatIkon,
 	auto: (nyala) => {
 		auto.atur(nyala, st.ambil());

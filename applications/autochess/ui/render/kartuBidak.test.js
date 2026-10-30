@@ -5,13 +5,13 @@ import { buatKatalog } from '../../katalog.js';
 import { buatTeks } from '../../teks.js';
 import { EFEK_STATUS } from '../../pesan.js';
 
-const STAT = (hp, atk) => ({ hp, atk, matk: 5, def: 6, mdef: 7, aspd: 150, jangkauan: 9, sp_awal: 10, sp_maks: 120, elemen: 'Fire', ukuran: 'Medium', ras: 'Human' });
+const STAT = (hp, atk, aspd = 0.75) => ({ hp, atk, matk: 5, def: 6, mdef: 7, aspd, jangkauan: 9, sp_awal: 10, sp_maks: 120, elemen: 'Fire', ukuran: 'Medium', ras: 'Human' });
 
 const katalog = buatKatalog({
 	units: {
 		wizard: {
 			nama: { id: 'Penyihir', en: 'Wizard' }, tier: 3, origin: 'geffen', kelas: 'elementalist',
-			stat_bintang: [STAT(1000, 80), STAT(1800, 144), STAT(3200, 260)],
+			stat_bintang: [STAT(1000, 80), STAT(1800, 144, 0.8), STAT(3200, 260)],
 			skill: { id: 'storm', lv: 5, nama: { id: 'Badai Petir', en: 'Lightning Storm' }, ringkasan: { id: 'Sambaran petir area.', en: 'Area lightning.' } }
 		},
 		tanpa_skill: { nama: { id: 'A', en: 'A' }, tier: 1, origin: 'geffen', kelas: 'vanguard', stat_bintang: [STAT(1, 1), STAT(2, 2), STAT(3, 3)] }
@@ -169,8 +169,9 @@ describe('I1/I2: sumber sinergi dan bidak lawan', () => {
 		expect(h).not.toContain('bonus');
 	});
 
-	it('ASPD satu desimal', () => {
-		expect(renderKartuBidak({ ...INFO, bintang: 1 }, deps())).toContain('<span class="stat-nilai">150.0</span>');
+	it('ASPD dua desimal: 0.75 tidak tampil sebagai 0.8 (units.yml memakai 0.7/0.75/0.8)', () => {
+		expect(renderKartuBidak({ ...INFO, bintang: 1 }, deps())).toContain('<span class="stat-nilai">0.75</span>');
+		expect(renderKartuBidak({ ...INFO, bintang: 2 }, deps())).toContain('<span class="stat-nilai">0.80</span>');
 	});
 });
 

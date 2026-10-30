@@ -130,6 +130,33 @@ export function gambarBarSP(life, sp, maxSp) {
  * @returns {{mulaiSkill: function, kenaSkill: function, ubahStatus: function, ubahSP: function, bersihkanStatus: function}}
  */
 export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer, Altitude, SkillEffect = {}, hidupkanBar, mainkanAksi, log, tunda = (fn, ms) => setTimeout(fn, ms) }) {
+	// Skill yang efek tabelnya pernah melempar; dilaporkan sekali saja.
+	const skidGagal = new Set();
+
+	/**
+	 * Memutar efek dari tabel efek roBrowserLegacy tanpa membiarkan galat
+	 * di dalamnya membatalkan sisa handler. Contoh nyata (soak AC6):
+	 * ef_rush_windmill (MI_RUSH_WINDMILL, skill 2381) di
+	 * src/DB/Effects/EffectTable.js membaca Params.Init.animations alih-alih
+	 * Params.Init.ownerEntity dan melempar TypeError dari EffectBodyColor.
+	 * Tanpa jaga ini, setiap korban skill itu kehilangan efek kena, bar HP,
+	 * angka damage, dan sentakan HURT. Galat dicatat SEKALI per id skill
+	 * (bukan per kena); client/src tidak disentuh (D3).
+	 *
+	 * @param {number} skid
+	 * @param {function(): void} fn
+	 */
+	function efekAman(skid, fn) {
+		try {
+			fn();
+		} catch (err) {
+			if (!skidGagal.has(skid)) {
+				skidGagal.add(skid);
+				log(`! efek skill ${skid} gagal (src): ${err && err.message}`);
+			}
+		}
+	}
+
 	/**
 	 * EvtSkillMulai. Meniru onEntityCastSkill (MapEngine/Entity.js):
 	 * pose skill DITAHAN di frame pertama selama cast dan baru diputar saat
@@ -186,7 +213,7 @@ export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer
 			src.cast.set(ev.castMs);
 		}
 
-		EffectManager.spamSkillCast(ev.skid, ev.src, Renderer.tick, ev.src);
+		efekAman(ev.skid, () => EffectManager.spamSkillCast(ev.skid, ev.src, Renderer.tick, ev.src));
 
 		const dst = ev.dst ? EntityManager.get(ev.dst) : null;
 		if (dst && dst !== src) {
@@ -246,11 +273,11 @@ export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer
 		const keUnit = terakhir && terakhir.dst;
 		const pemilik = keUnit ? terakhir.dst : (ev.kena[0] ? ev.kena[0].dst : ev.src);
 		const pos = keUnit ? null : [ev.x, ev.y, Altitude.getCellHeight(ev.x, ev.y)];
-		EffectManager.spamSkill(ev.skid, pemilik, pos, Renderer.tick, ev.src);
+		efekAman(ev.skid, () => EffectManager.spamSkill(ev.skid, pemilik, pos, Renderer.tick, ev.src));
 
 		for (const k of ev.kena) {
-			EffectManager.spamSkillBeforeHit(ev.skid, k.dst, Renderer.tick, ev.src);
-			EffectManager.spamSkillHit(ev.skid, k.dst, Renderer.tick, ev.src);
+			efekAman(ev.skid, () => EffectManager.spamSkillBeforeHit(ev.skid, k.dst, Renderer.tick, ev.src));
+			efekAman(ev.skid, () => EffectManager.spamSkillHit(ev.skid, k.dst, Renderer.tick, ev.src));
 
 			const korban = EntityManager.get(k.dst);
 			if (!korban) {

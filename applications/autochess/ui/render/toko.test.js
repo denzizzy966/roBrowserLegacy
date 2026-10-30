@@ -73,7 +73,9 @@ function tagKartu(h, slot) {
 describe('tandaKartu', () => {
 	const archer = { slot: 1, unitId: 'archer', harga: 2 };
 
-	it.each([[0, false], [1, false], [2, true]])('%i salinan 1★ -> punya %i, gabung hanya saat 2', (n, gabung) => {
+	// Ruling T5: GABUNG = punya % 3 === 2 (bukan n === 2 literal K6), supaya
+	// tanda tetap benar saat salinan tertunda menumpuk selama TEMPUR.
+	it.each([[0, false], [1, false], [2, true], [3, false], [4, false], [5, true]])('%i salinan 1★ -> gabung %s (punya %% 3 === 2)', (n, gabung) => {
 		const milik = Array.from({ length: n }, (_, i) => bidak('archer', { diPapan: i === 0 }));
 		const t = tandaKartu(snap({ bidak: milik }), archer, katalog);
 		expect(t.punya).toBe(n);

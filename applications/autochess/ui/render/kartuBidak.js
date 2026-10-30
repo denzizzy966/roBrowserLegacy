@@ -42,7 +42,7 @@ function blokStat(info, deps) {
 	let html = '<div class="stat">';
 	for (const k of KOLOM_STAT) {
 		html += `<span class="stat-baris" data-stat="${k}"><span class="stat-nama">${esc(t('stat.' + k))}</span>`
-			+ `<span class="stat-nilai">${esc(k === 'aspd' && Number.isFinite(stat.aspd) ? Number(stat.aspd).toFixed(1) : (stat[k] ?? 0))}</span></span>`;
+			+ `<span class="stat-nilai">${esc(k === 'aspd' && Number.isFinite(stat.aspd) ? Number(stat.aspd).toFixed(2) : (stat[k] ?? 0))}</span></span>`;
 	}
 	html += '</div>';
 	const kecil = [stat.elemen, stat.ukuran, stat.ras].filter((x) => x !== undefined && x !== null && x !== '');

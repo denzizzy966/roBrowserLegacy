@@ -172,6 +172,50 @@ describe('efek.js', () => {
 		expect(deps.mainkanAksi).not.toHaveBeenCalled();
 	});
 
+	it('efekAman: efek tabel yang melempar (EffectBodyColor, skill 2381) tidak membatalkan bar dan angka; dicatat sekali per skill', () => {
+		const wanderer = entityPalsu(1);
+		const a = entityPalsu(4, 15, 25);
+		const b = entityPalsu(5, 16, 25);
+		const { deps, efek } = siapkan([wanderer, a, b]);
+		// Meniru ef_rush_windmill di EffectTable.js: Params.Init.animations undefined.
+		const lempar = () => { throw new TypeError("Cannot read properties of undefined (reading 'add')"); };
+		deps.EffectManager.spamSkill.mockImplementation(lempar);
+		deps.EffectManager.spamSkillHit.mockImplementation(lempar);
+		deps.EffectManager.spamSkillCast.mockImplementation(lempar);
+
+		const ev = {
+			src: 1, skid: 2381, lv: 1, x: 15, y: 25,
+			kena: [
+				{ dst: 4, amount: 120, hpSisa: 80, jenis: 0 },
+				{ dst: 5, amount: 90, hpSisa: 10, jenis: 0 }
+			]
+		};
+		expect(() => efek.mulaiSkill({ src: 1, skid: 2381, lv: 1, dst: 0, x: 15, y: 25, castMs: 0 })).not.toThrow();
+		expect(() => efek.kenaSkill(ev)).not.toThrow();
+		expect(() => efek.kenaSkill(ev)).not.toThrow();
+
+		// Setiap korban tetap mendapat bar HP, angka damage, dan HURT, di kedua event.
+		expect(deps.hidupkanBar).toHaveBeenCalledWith(a.life, 80, 100);
+		expect(deps.hidupkanBar).toHaveBeenCalledWith(b.life, 10, 100);
+		expect(deps.hidupkanBar).toHaveBeenCalledTimes(4);
+		const D = deps.Damage.TYPE;
+		expect(deps.Damage.add).toHaveBeenCalledWith(120, a, TICK, null, D.DAMAGE | D.ENEMY);
+		expect(deps.Damage.add).toHaveBeenCalledWith(90, b, TICK, null, D.DAMAGE | D.ENEMY);
+		expect(deps.Damage.add).toHaveBeenCalledTimes(4);
+		expect(deps.mainkanAksi).toHaveBeenCalledWith(a, a.ACTION.HURT, a.ACTION.IDLE);
+		// Efek sebelum-kena tetap diputar walau spamSkillHit melempar.
+		expect(deps.EffectManager.spamSkillBeforeHit).toHaveBeenCalledTimes(4);
+
+		// Satu baris log untuk skill 2381, bukan per kena atau per event.
+		const baris = deps.log.mock.calls.map((c) => c[0]).filter((t) => t.includes('efek skill 2381 gagal'));
+		expect(baris).toHaveLength(1);
+		expect(baris[0]).toContain("reading 'add'");
+
+		// Skill lain yang gagal mendapat barisnya sendiri.
+		efek.kenaSkill({ src: 1, skid: 89, lv: 1, x: 15, y: 25, kena: [] });
+		expect(deps.log.mock.calls.filter((c) => c[0].includes('efek skill 89 gagal'))).toHaveLength(1);
+	});
+
 	it('ubahStatus beku/pingsan/tidur/bisu membatalkan cast seperti server', () => {
 		const { BodyState } = StatusState;
 		const kasus = [
