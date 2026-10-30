@@ -1,17 +1,21 @@
 /**
  * Tata letak jendela RO autochess (Q8), awalnya mengikuti gambar referensi
- * autochess-game-interface.jpg, disesuaikan kasar untuk AC6 (K4; Task 6
- * AC6 menuntaskan tata letak dan kamera, K8):
+ * autochess-game-interface.jpg, dituntaskan untuk layar pendek di AC6 (K8;
+ * pemilik bermain di viewport 1536x695):
  *
- *   A Timer kiri-atas          E Sinergi kanan-atas       Toko kolom kanan di bawah E
- *   B DaftarPemain kolom kiri  DPS lalu Log di kiri kolom Toko (overlay)
- *   G InfoPemain (terlipat) kiri-bawah                    F tombol DPS di kiri K
- *   BilahDeck tepat di atas I  I Bangku tengah-bawah      K tombol Toko kanan-bawah
+ *   A Timer kiri-atas          E Sinergi kanan-atas (puncak layar)
+ *   B DaftarPemain kolom kiri  Toko kolom kanan di bawah E, di atas K
+ *   DPS lalu Log di kolom kiri di bawah B (overlay, tersembunyi bawaan)
+ *   G InfoPemain (terlipat) kiri-bawah      F tombol DPS di kiri K
+ *   BilahDeck tepat di atas I  I Bangku tengah-bawah   K tombol Toko kanan-bawah
  *   Lore di tengah (tersembunyi bawaan).
  *
+ * Papan (separuh sendiri) ditaruh kamera.js di tengah layar, di atas
+ * BilahDeck; tidak ada jendela tetap yang boleh menutupnya (uji memakai
+ * SEPARUH_SENDIRI hasil __ac.kotakSeparuh()).
+ *
  * AC6 K4: jendela Exp (H), Kapasitas (C), dan Zeny (D) dihapus; isinya
- * pindah ke BilahDeck. Toko kini kolom 170 px di kanan, jadi tombol F turun
- * ke baris bawah di kiri K, dan DPS/Log pindah ke kiri kolom Toko.
+ * pindah ke BilahDeck, jadi Sinergi naik ke puncak layar.
  *
  * hitungTataLetak murni (teruji di vitest); aturTataLetak menerapkannya ke
  * host GUIComponent. Posisi di sini MENIMPA :host di berkas .css (inline
@@ -34,14 +38,14 @@ export const SELA = 6;
 export const UKURAN = {
 	Timer:        { lebar: 220, tinggi: 64 },
 	Sinergi:      { lebar: 260, tinggi: 106 },
-	DaftarPemain: { lebar: 170, tinggi: 396 },
+	DaftarPemain: { lebar: 190, tinggi: 8 * 32 + 22 },  // 8 baris 30 px + sela 2 px + kepala 22 px, tanpa gulir
 	TombolDPS:    { lebar: 48,  tinggi: 48 },
 	DPS:          { lebar: 220, tinggi: 180 },
 	InfoPemain:   { lebar: 200, tinggi: 18, tinggiTerbuka: 166 },  // terlipat; terbuka tumbuh ke atas
 	BilahDeck:    { lebar: 640, tinggi: 34 },
 	Bangku:       { lebar: 640, tinggi: 110 },
 	TombolToko:   { lebar: 48,  tinggi: 48 },
-	Toko:         { lebar: 170, tinggi: 470 },
+	Toko:         { lebar: 170, tinggi: 453 },  // terukur: 4+5+2 bingkai, 16 judul, 28 kepala, 5 kartu 78 px + 4 sela 2 px
 	Lore:         { lebar: 360, tinggi: 220 },
 	Log:          { lebar: 320, tinggi: 140 }
 };
@@ -56,11 +60,8 @@ export const OVERLAY = ['Toko', 'DPS', 'Lore', 'Log'];
 /** Puncak kolom DaftarPemain: di bawah Timer. */
 const ATAS_DAFTAR = 80;
 
-/**
- * Puncak Sinergi. Dulu di bawah jendela Zeny (TEPI + 36 + TEPI); slot Zeny
- * kosong sejak AC6 tetapi angkanya dipertahankan sampai Task 6 menata ulang.
- */
-const ATAS_SINERGI = 52;
+/** Puncak Sinergi: pojok kanan-atas layar (slot Zeny di atasnya sudah dihapus, AC6 K4). */
+const ATAS_SINERGI = TEPI;
 
 /**
  * Menghitung posisi semua jendela untuk layar lebar x tinggi.
@@ -94,23 +95,48 @@ export function hitungTataLetak(lebar, tinggi) {
 	const atasTombolBawah = tinggi - TEPI - U.TombolToko.tinggi;
 	const kiriTombolDPS = kiriTombolKanan - SELA - U.TombolDPS.lebar;
 	const bawahSinergi = ATAS_SINERGI + U.Sinergi.tinggi + SELA;
-	// Toko: kolom kanan di bawah Sinergi; di layar pendek naik secukupnya
-	// supaya tetap di atas tombol K (boleh menimpa Sinergi: tercatat di uji).
+	// Toko: kolom kanan di bawah Sinergi dan di atas tombol K.
 	const kiriToko = lebar - TEPI - U.Toko.lebar;
 	const atasToko = Math.max(TEPI, Math.min(bawahSinergi, atasTombolBawah - SELA - U.Toko.tinggi));
-	// DPS dan Log: overlay di kiri kolom Toko, DPS di atas dan Log di
-	// bawahnya. Bila Log menabrak BilahDeck/Bangku (layar pendek) ia
-	// menumpuk di slot DPS: dua overlay yang tersembunyi bawaan dan bisa
-	// digeser (PENGECUALIAN_TUMPANG di uji).
-	const kiriDPS = kiriToko - SELA - U.DPS.lebar;
-	const atasDPS = bawahSinergi;
-	const kiriLog = kiriToko - SELA - U.Log.lebar;
-	let atasLog = atasDPS + U.DPS.tinggi + SELA;
+	// DPS dan Log: overlay tersembunyi bawaan yang bisa digeser, ditaruh di
+	// kiri papan (kamera.js menaruh papan di tengah layar). Calon tempat
+	// diperiksa berurutan terhadap jendela tetap dan Toko; pilihan pertama
+	// yang tidak menabrak apa pun menang. Bila tidak ada, jatuh ke calon
+	// terakhir yang boleh menabrak (PENGECUALIAN_TUMPANG di uji).
+	const tetap = [
+		kotak(TEPI, TEPI, 'Timer'),
+		kotak(lebar - TEPI - U.Sinergi.lebar, ATAS_SINERGI, 'Sinergi'),
+		kotak(TEPI, ATAS_DAFTAR, 'DaftarPemain'),
+		kotak(TEPI, atasInfo, 'InfoPemain'),
+		kotak(kiriBangku, atasBilah, 'BilahDeck'),
+		kotak(kiriBangku, atasBangku, 'Bangku'),
+		kotak(kiriTombolKanan, atasTombolBawah, 'TombolToko'),
+		kotak(kiriTombolDPS, atasTombolBawah, 'TombolDPS'),
+		kotak(kiriToko, atasToko, 'Toko')
+	];
+	const infoTerbuka = kotak(TEPI, atasInfoTerbuka, 'InfoPemain', U.InfoPemain.tinggiTerbuka);
+	const bawahDaftar = ATAS_DAFTAR + U.DaftarPemain.tinggi + SELA;
+	const sampingInfo = TEPI + U.InfoPemain.lebar + SELA;
+	const pilih = (nama, calon, lain) => {
+		const kotakDi = ([x, y]) => ({ x, y, lebar: U[nama].lebar, tinggi: U[nama].tinggi });
+		const bebas = (c, rintangan) => !rintangan.some((r) => beririsan(kotakDi(c), r));
+		return calon.find((c) => bebas(c, [...tetap, infoTerbuka, ...lain]))
+			?? calon.find((c) => bebas(c, [...tetap, ...lain]))
+			?? calon[calon.length - 1];
+	};
+	// Log: di bawah DaftarPemain, atau di samping InfoPemain (bawah-kiri).
+	const [kiriLog, atasLog] = pilih('Log', [
+		[TEPI, bawahDaftar],
+		[sampingInfo, tinggi - TEPI - U.Log.tinggi],
+		[TEPI, bawahDaftar]
+	], []);
 	const kotakLog = { x: kiriLog, y: atasLog, lebar: U.Log.lebar, tinggi: U.Log.tinggi };
-	const kotakBawah = { x: kiriBangku, y: atasBilah, lebar: U.Bangku.lebar, tinggi: tinggi - TEPI - atasBilah };
-	if (beririsan(kotakLog, kotakBawah)) {
-		atasLog = atasDPS;
-	}
+	// DPS: di bawah Log, di samping InfoPemain, atau (terakhir) di bawah DaftarPemain.
+	const [kiriDPS, atasDPS] = pilih('DPS', [
+		[TEPI, atasLog + U.Log.tinggi + SELA],
+		[sampingInfo, tinggi - TEPI - U.DPS.tinggi],
+		[TEPI, bawahDaftar]
+	], [kotakLog]);
 
 	return {
 		Timer:        { top: TEPI, left: TEPI, kotak: kotak(TEPI, TEPI, 'Timer') },

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { renderDaftarPemain, avatarKursi, kodeAvatar, urutKursi, MOB_BOT } from './daftarPemain.js';
+import { readFileSync } from 'node:fs';
+import { renderDaftarPemain, avatarKursi, kodeAvatar, urutKursi, MOB_BOT, TINGGI_BARIS, SELA_BARIS, TINGGI_KEPALA, tinggiDaftar, LEBAR_AVATAR } from './daftarPemain.js';
+import { UKURAN } from '../tataLetak.js';
 import { buatTeks } from '../../teks.js';
 
 const id = buatTeks();
@@ -58,9 +60,9 @@ describe('renderDaftarPemain', () => {
 		expect(h).toContain('<div style="width:40%">');
 		expect(h).not.toContain('<div style="width:80%">');
 	});
-	it('kanvas avatar 36x42 per kursi menurut Q11', () => {
+	it('kanvas avatar 24x24 per kursi menurut Q11', () => {
 		const h = renderDaftarPemain(snap(), { t: id.t });
-		expect(h.match(/<canvas class="avatar" width="36" height="42"/g)).toHaveLength(8);
+		expect(h.match(/<canvas class="avatar" width="24" height="24"/g)).toHaveLength(8);
 		expect(h).toContain('data-avatar="pc:0:1"');
 		expect(h).toContain('data-avatar="mob:1002"');
 		expect(h).toContain('data-avatar="mob:1014"');
@@ -84,5 +86,37 @@ describe('renderDaftarPemain', () => {
 	});
 	it('tanpa state: kosong', () => {
 		expect(renderDaftarPemain({ state: null }, { t: id.t })).toBe('');
+	});
+});
+
+describe('geometri kolom DaftarPemain (AC6 K8)', () => {
+	const css = readFileSync(new URL('../DaftarPemain/DaftarPemain.css', import.meta.url), 'utf8');
+	const aturan = (selektor) => css.split(/\r?\n/).find((b) => b.startsWith(`${selektor} {`)) ?? '';
+	const px = (selektor, properti) => Number(aturan(selektor).match(new RegExp(`(?:^|[ ;{])${properti}: ([0-9]+)px`))?.[1]);
+
+	it('delapan baris 30 px + sela 2 px + kepala 22 px muat di UKURAN.DaftarPemain.tinggi, tanpa gulir', () => {
+		const h = renderDaftarPemain(snap(), { t: id.t });
+		const jumlah = (h.match(/class="baris/g) ?? []).length;
+		expect(jumlah).toBe(8);
+		expect(tinggiDaftar(jumlah)).toBeLessThanOrEqual(UKURAN.DaftarPemain.tinggi);
+		expect(UKURAN.DaftarPemain).toEqual({ lebar: 190, tinggi: 8 * 32 + 22 });
+		expect(TINGGI_BARIS + SELA_BARIS).toBe(32);
+		expect(TINGGI_KEPALA).toBe(22);
+	});
+	it('CSS memakai angka yang sama: baris 30, avatar 24, lebar 190, bingkai tidak bergulir', () => {
+		expect(px('.baris', 'height')).toBe(TINGGI_BARIS);
+		expect(px('.baris', 'margin-top')).toBe(SELA_BARIS);
+		expect(px('.avatar', 'width')).toBe(24);
+		expect(px('.avatar', 'height')).toBe(24);
+		expect(LEBAR_AVATAR).toBe(24);
+		expect(px('.bingkai', 'width')).toBe(UKURAN.DaftarPemain.lebar);
+		expect(px(':host', 'width')).toBe(UKURAN.DaftarPemain.lebar);
+		// Kepala: border 2 + padding 4 + judul 14 = 20 <= 22; delapan baris di bawahnya.
+		expect(2 + 4 + px('.judul', 'height') + 8 * (TINGGI_BARIS + SELA_BARIS)).toBeLessThanOrEqual(UKURAN.DaftarPemain.tinggi);
+		expect(aturan('.bingkai')).not.toMatch(/overflow/);
+	});
+	it('isi baris (nama + Lv satu baris 14 px, bar HP 8 px) muat di dalam baris 30 px', () => {
+		// 30 - border 2 - padding 4 = 24 px isi; avatar 24 px; teks 14 + 1 + 8 = 23 px.
+		expect(px('.atas', 'height') + 1 + px('.bawah', 'height')).toBeLessThanOrEqual(TINGGI_BARIS - 2 - 4);
 	});
 });

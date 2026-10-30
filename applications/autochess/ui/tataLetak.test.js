@@ -1,17 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import { hitungTataLetak, beririsan, posisiKartu, OVERLAY, TEPI } from './tataLetak.js';
+import { hitungTataLetak, beririsan, posisiKartu, OVERLAY, TEPI, UKURAN } from './tataLetak.js';
+import { SEPARUH_SENDIRI } from '../kamera.fixture.js';
 
-const UKURAN_LAYAR = [[1600, 900], [1536, 695], [1280, 720], [1314, 588]];
+const UKURAN_LAYAR = [[1920, 1080], [1600, 900], [1536, 695], [1366, 641], [1280, 720]];
 
 /**
- * Tumpang tindih yang diizinkan, hanya pada layar terpendek: dua overlay
- * yang tersembunyi bawaan dan bisa digeser (Log dan DPS) karena Log tidak
- * muat di bawah DPS tanpa menabrak BilahDeck; dan (AC6, tata letak kasar
- * Task 5 -- Task 6 menuntaskannya) kolom Toko 470 px yang harus naik ke
- * atas tombol K sehingga menimpa Sinergi. Kunci "lebarxtinggi"; pasangan
- * diurutkan menurut abjad, urutan daftar = urutan keluaran tumpang().
+ * Tumpang tindih yang diizinkan, hanya antara overlay (DPS, Log; tersembunyi
+ * bawaan, bisa digeser) dan hal yang tidak selalu terbuka: InfoPemain
+ * TERBUKA (terlipat bawaan) dan kotak separuh papan sendiri (kotak pembatas
+ * trapesium: sudut kirinya kosong). Kunci "lebarxtinggi"; nama pasangan
+ * diurutkan menurut abjad, "InfoTerbuka" = InfoPemain.kotakTerbuka,
+ * "Separuh" = SEPARUH_SENDIRI. Jendela tetap dan Toko (tampil bawaan) tidak
+ * pernah boleh bertumpang.
  */
-const PENGECUALIAN_TUMPANG = { '1314x588': ['SinergixToko', 'DPSxLog'] };
+const PENGECUALIAN = {
+	'1366x641': ['DPSxLog', 'DPSxInfoTerbuka', 'InfoTerbukaxLog', 'LogxSeparuh'],
+	'1280x720': ['DPSxInfoTerbuka', 'LogxSeparuh']
+};
+const pengecualian = (w, h) => [...(PENGECUALIAN[`${w}x${h}`] ?? [])].map(urut).sort();
+
+/** "BxA" -> "AxB". */
+function urut(pasangan) {
+	return pasangan.split('x').sort().join('x');
+}
 
 /** Pasangan jendela (urut abjad, "AxB") yang kotaknya beririsan. */
 function tumpang(letak, abaikan = []) {
@@ -27,12 +38,30 @@ function tumpang(letak, abaikan = []) {
 	return hasil;
 }
 
+/** Pasangan overlay vs (overlay, InfoTerbuka, Separuh) yang beririsan, urut abjad. */
+function tumpangOverlay(w, h) {
+	const l = hitungTataLetak(w, h);
+	const sasaran = {
+		DPS: l.DPS.kotak, Log: l.Log.kotak,
+		InfoTerbuka: l.InfoPemain.kotakTerbuka, Separuh: SEPARUH_SENDIRI[`${w}x${h}`]
+	};
+	const hasil = new Set();
+	for (const o of ['DPS', 'Log']) {
+		for (const n of Object.keys(sasaran)) {
+			if (o !== n && beririsan(sasaran[o], sasaran[n])) {
+				hasil.add(urut([o, n].join('x')));
+			}
+		}
+	}
+	return [...hasil].sort();
+}
+
 describe('hitungTataLetak', () => {
-	it('posisi sudut sesuai gambar referensi pada 1600x900', () => {
+	it('posisi sudut pada 1600x900', () => {
 		const l = hitungTataLetak(1600, 900);
 		expect(l.Timer).toMatchObject({ top: 8, left: 8 });
-		expect(l.Sinergi).toMatchObject({ top: 52, right: 8 });
-		// AC6 K4: Exp, Zeny, Kapasitas dihapus; InfoPemain turun ke pojok.
+		// AC6 K4: Exp, Zeny, Kapasitas dihapus; Sinergi naik ke puncak, InfoPemain turun ke pojok.
+		expect(l.Sinergi).toMatchObject({ top: 8, right: 8 });
 		expect(l.Exp).toBeUndefined();
 		expect(l.Zeny).toBeUndefined();
 		expect(l.Kapasitas).toBeUndefined();
@@ -41,14 +70,24 @@ describe('hitungTataLetak', () => {
 		expect(l.BilahDeck).toMatchObject({ top: 900 - 8 - 110 - 6 - 34, left: 480 });
 		expect(l.TombolToko).toMatchObject({ top: 900 - 56, left: 1600 - 56 });
 		expect(l.TombolDPS).toMatchObject({ top: 900 - 56, left: 1600 - 56 - 6 - 48 });
-		expect(l.Toko).toMatchObject({ top: 52 + 106 + 6, left: 1600 - 8 - 170 });
+		expect(l.Toko).toMatchObject({ top: 8 + 106 + 6, left: 1600 - 8 - 170 });
 		expect(l.DaftarPemain).toMatchObject({ top: 80, left: 8 });
 	});
 
-	it.each(UKURAN_LAYAR)('%ix%i: Toko kolom kanan di atas tombol K; BilahDeck tepat di atas Bangku', (w, h) => {
+	it('DaftarPemain 190 px, delapan baris tanpa gulir (maxHeight >= tinggi)', () => {
+		expect(UKURAN.DaftarPemain).toEqual({ lebar: 190, tinggi: 8 * 32 + 22 });
+		for (const [w, h] of UKURAN_LAYAR) {
+			const l = hitungTataLetak(w, h);
+			expect(l.DaftarPemain.maxHeight, `${w}x${h}`).toBeGreaterThanOrEqual(UKURAN.DaftarPemain.tinggi);
+			expect(l.DaftarPemain.kotak.tinggi, `${w}x${h}`).toBe(UKURAN.DaftarPemain.tinggi);
+		}
+	});
+
+	it.each(UKURAN_LAYAR)('%ix%i: Toko kolom kanan di bawah Sinergi dan di atas tombol K; BilahDeck tepat di atas Bangku', (w, h) => {
 		const l = hitungTataLetak(w, h);
 		expect(l.Toko.kotak.x + l.Toko.kotak.lebar).toBe(w - TEPI);
-		expect(l.Toko.kotak.y + l.Toko.kotak.tinggi).toBeLessThanOrEqual(l.TombolToko.kotak.y);
+		expect(l.Toko.kotak.y).toBeGreaterThanOrEqual(l.Sinergi.kotak.y + l.Sinergi.kotak.tinggi + 6);
+		expect(l.Toko.kotak.y + l.Toko.kotak.tinggi).toBeLessThanOrEqual(l.TombolToko.kotak.y - 6);
 		expect(l.BilahDeck.kotak.x).toBe(l.Bangku.kotak.x);
 		expect(l.BilahDeck.kotak.lebar).toBe(l.Bangku.kotak.lebar);
 		expect(l.BilahDeck.kotak.y + l.BilahDeck.kotak.tinggi + 6).toBe(l.Bangku.kotak.y);
@@ -58,31 +97,42 @@ describe('hitungTataLetak', () => {
 		expect(tumpang(hitungTataLetak(w, h), OVERLAY)).toEqual([]);
 	});
 
-	it.each(UKURAN_LAYAR)('%ix%i: Toko, DPS, dan Log terbuka tidak saling menutup (kecuali Lore dan PENGECUALIAN_TUMPANG)', (w, h) => {
-		expect(tumpang(hitungTataLetak(w, h), ['Lore'])).toEqual(PENGECUALIAN_TUMPANG[`${w}x${h}`] ?? []);
-	});
-
-	it.each([[1600, 900, 1096], [1280, 720, 776]])('%ix%i: Log 320x140 di kiri kolom Toko, tepat di bawah DPS (AC6)', (w, h, x) => {
+	it.each(UKURAN_LAYAR)('%ix%i: tidak ada jendela tetap, dan tidak juga Toko, yang menutup separuh papan sendiri', (w, h) => {
 		const l = hitungTataLetak(w, h);
-		expect(l.Log.kotak).toEqual({ x, y: 52 + 106 + 6 + 180 + 6, lebar: 320, tinggi: 140 });
-		expect(l.Log.kotak.x + l.Log.kotak.lebar).toBeLessThanOrEqual(l.Toko.kotak.x);
-		expect(l.Log.kotak.y).toBeGreaterThanOrEqual(l.DPS.kotak.y + l.DPS.kotak.tinggi);
-		expect(OVERLAY).toContain('Log');
-	});
-
-	it.each(UKURAN_LAYAR)('%ix%i: Log terbuka tidak menutup jendela tetap (juga InfoPemain terbuka), Toko, DPS, maupun pusat papan', (w, h) => {
-		const l = hitungTataLetak(w, h);
-		const tetap = Object.keys(l).filter((n) => !OVERLAY.includes(n) || n === 'Toko');
-		for (const n of tetap) {
-			expect(beririsan(l.Log.kotak, l[n].kotak), `Log x ${n}`).toBe(false);
+		const separuh = SEPARUH_SENDIRI[`${w}x${h}`];
+		expect(separuh, 'fixture ada').toBeTruthy();
+		const wajib = Object.keys(l).filter((n) => !OVERLAY.includes(n) || n === 'Toko');
+		for (const n of wajib) {
+			expect(beririsan(l[n].kotak, separuh), `${n} x separuh sendiri`).toBe(false);
 		}
-		expect(beririsan(l.Log.kotak, l.InfoPemain.kotakTerbuka), 'Log x InfoPemain terbuka').toBe(false);
-		// DPS dicek di setiap ukuran kecuali yang tercatat sebagai pengecualian.
-		const kenaDPS = beririsan(l.Log.kotak, l.DPS.kotak);
-		expect(kenaDPS, 'Log x DPS').toBe((PENGECUALIAN_TUMPANG[`${w}x${h}`] ?? []).includes('DPSxLog'));
-		// Pusat papan = pusat layar (kamera menengahkan papan): kotak 200x200 di tengah.
-		const pusat = { x: w / 2 - 100, y: h / 2 - 100, lebar: 200, tinggi: 200 };
-		expect(beririsan(l.Log.kotak, pusat)).toBe(false);
+		// Separuh itu sendiri tampak penuh di layar dan di atas BilahDeck.
+		expect(separuh.y + separuh.tinggi).toBeLessThan(l.BilahDeck.kotak.y);
+		expect(separuh.x).toBeGreaterThanOrEqual(0);
+		expect(separuh.x + separuh.lebar).toBeLessThanOrEqual(w);
+	});
+
+	it.each(UKURAN_LAYAR)('%ix%i: Toko dan jendela tetap tidak bertumpang dengan DPS atau Log; DPS x Log hanya lewat PENGECUALIAN', (w, h) => {
+		// Semua kecuali Lore (modal di tengah): Toko, DPS, dan Log terbuka bersamaan.
+		expect(tumpang(hitungTataLetak(w, h), ['Lore'])).toEqual(pengecualian(w, h).filter((p) => p === 'DPSxLog'));
+	});
+
+	it.each(UKURAN_LAYAR)('%ix%i: DPS dan Log vs InfoPemain terbuka dan separuh papan sendiri hanya lewat PENGECUALIAN bernama', (w, h) => {
+		expect(tumpangOverlay(w, h)).toEqual(pengecualian(w, h));
+	});
+
+	it.each([[1920, 1080], [1600, 900]])('%ix%i: Log 320x140 di kolom kiri di bawah DaftarPemain, DPS di bawah Log (AC6)', (w, h) => {
+		const l = hitungTataLetak(w, h);
+		expect(l.Log.kotak).toEqual({ x: 8, y: 80 + 278 + 6, lebar: 320, tinggi: 140 });
+		expect(l.DPS.kotak).toEqual({ x: 8, y: 80 + 278 + 6 + 140 + 6, lebar: 220, tinggi: 180 });
+		expect(OVERLAY).toContain('Log');
+		expect(OVERLAY).toContain('DPS');
+	});
+
+	it('1536x695: Log di bawah DaftarPemain, DPS di samping InfoPemain (tanpa tumpang tindih)', () => {
+		const l = hitungTataLetak(1536, 695);
+		expect(l.Log.kotak).toEqual({ x: 8, y: 364, lebar: 320, tinggi: 140 });
+		expect(l.DPS.kotak).toEqual({ x: 214, y: 695 - 8 - 180, lebar: 220, tinggi: 180 });
+		expect(beririsan(l.DPS.kotak, l.Log.kotak)).toBe(false);
 	});
 
 	it.each(UKURAN_LAYAR)('%ix%i: semua kotak di dalam layar', (w, h) => {
@@ -94,13 +144,13 @@ describe('hitungTataLetak', () => {
 		}
 	});
 
-	it('DaftarPemain berhenti di atas InfoPemain (bergulir di layar pendek)', () => {
+	it('DaftarPemain berhenti di atas InfoPemain terbuka (bergulir bila layar lebih pendek dari 8 baris)', () => {
 		const l = hitungTataLetak(1314, 588);
-		const info = l.InfoPemain.kotak;
+		const info = l.InfoPemain.kotakTerbuka;
 		expect(80 + l.DaftarPemain.maxHeight).toBeLessThanOrEqual(info.y - TEPI);
 	});
 
-	it.each(UKURAN_LAYAR)('%ix%i: InfoPemain TERBUKA tidak menutupi DaftarPemain atau jendela lain', (w, h) => {
+	it.each(UKURAN_LAYAR)('%ix%i: InfoPemain TERBUKA tidak menutupi DaftarPemain atau jendela tetap lain', (w, h) => {
 		const l = hitungTataLetak(w, h);
 		const terbuka = { ...l, InfoPemain: { ...l.InfoPemain, kotak: l.InfoPemain.kotakTerbuka } };
 		expect(l.InfoPemain.kotakTerbuka.tinggi).toBe(166);

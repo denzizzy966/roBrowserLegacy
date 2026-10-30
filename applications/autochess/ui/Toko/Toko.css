@@ -13,8 +13,8 @@
 .peluang .tier-3 { color: #7af; }
 .peluang .tier-4 { color: #d8f; }
 .peluang .tier-5 { color: #fb5; }
-.kolom-kartu { display: flex; flex-direction: column; gap: 3px; }
-.kartu { position: relative; display: flex; align-items: stretch; gap: 3px; width: 158px; height: 80px; box-sizing: border-box; padding: 2px; border: 1px solid #667; border-radius: 3px; background: linear-gradient(90deg, #2c2c40, #191924); cursor: pointer; overflow: hidden; }
+.kolom-kartu { display: flex; flex-direction: column; gap: 2px; }
+.kartu { position: relative; display: flex; align-items: stretch; gap: 3px; width: 158px; height: 78px; box-sizing: border-box; padding: 2px; border: 1px solid #667; border-radius: 3px; background: linear-gradient(90deg, #2c2c40, #191924); cursor: pointer; overflow: hidden; }
 .kartu:hover:not(.nonaktif):not(.kosong) { border-color: #fe9; box-shadow: 0 0 6px #fe9a; }
 .kartu.tier-1 { border-color: #9aa; }
 .kartu.tier-2 { border-color: #5c5; }

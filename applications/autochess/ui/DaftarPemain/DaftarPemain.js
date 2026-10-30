@@ -24,10 +24,10 @@ DaftarPemain.mouseMode = GUIComponent.MouseMode.STOP;
 // "kursi:data-avatar" -> kanvas yang sudah didaftarkan ke potret.statis.
 const simpanan = new Map();
 
-// Kanvas avatar hanya 36x42: sprite diperkecil separuh. Kaki di 0.8 tinggi
-// supaya mob kecil (Poring) tetap menutup blok tengah yang diperiksa
-// potret.statis sebelum membekukan gambar.
-const OPSI_AVATAR = { skala: 0.5, kaki: 0.8 };
+// Kanvas avatar hanya 24x24 (AC6 K8): sprite diperkecil ke 0.3. Kaki di
+// 0.85 tinggi supaya mob kecil (Poring) tetap menutup blok tengah yang
+// diperiksa potret.statis sebelum membekukan gambar.
+const OPSI_AVATAR = { skala: 0.3, kaki: 0.85 };
 
 /** Kunci kanvas: kursi dan avatarnya harus sama. */
 function kunciKanvas(kanvas) {

@@ -9,9 +9,19 @@
 /** HP awal kursi bila katalog tidak membawa ekonomi.hp_kursi (gagal dimuat). */
 export const HP_KURSI_BAWAAN = 100;
 
-/** Ukuran intrinsik kanvas avatar. */
-export const LEBAR_AVATAR = 36;
-export const TINGGI_AVATAR = 42;
+/** Ukuran intrinsik kanvas avatar (AC6 K8: 24 px). */
+export const LEBAR_AVATAR = 24;
+export const TINGGI_AVATAR = 24;
+
+/**
+ * Geometri kolom (px), sama dengan DaftarPemain.css: baris 30 px + sela
+ * 2 px, kepala (judul 14 + padding 2+2 + bingkai 2 + sisa) 22 px. Delapan
+ * baris = 8*32 + 22 = UKURAN.DaftarPemain.tinggi, tanpa gulir.
+ */
+export const TINGGI_BARIS = 30;
+export const SELA_BARIS = 2;
+export const TINGGI_KEPALA = 22;
+export const tinggiDaftar = (jumlahBaris) => jumlahBaris * (TINGGI_BARIS + SELA_BARIS) + TINGGI_KEPALA;
 
 /**
  * Avatar bot per nomor kursi 1..7 (keputusan Q11): Poring, Lunatic, Fabre,
