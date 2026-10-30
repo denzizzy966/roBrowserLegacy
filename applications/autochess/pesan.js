@@ -169,6 +169,30 @@ export function encodeCaturLewati(ClientMsg) {
 }
 
 /**
+ * Membangun ClientMsg berisi CmdCaturTonton (AC6 K3): tampilkan papan atau
+ * pertempuran kursi itu. Kursi sendiri = kembali ke papan sendiri.
+ *
+ * @param {object} ClientMsg - tipe ClientMsg dari skema
+ * @param {number} kursi
+ * @returns {ArrayBuffer}
+ */
+export function encodeCaturTonton(ClientMsg, kursi) {
+	return encodeSatuField(ClientMsg, 'caturTonton', { kursi });
+}
+
+/**
+ * Membangun ClientMsg berisi CmdCaturSelesaikan (AC6 K11): selesaikan sisa
+ * pertandingan seketika. Server hanya menerimanya sesudah kursi sendiri
+ * tersingkir.
+ *
+ * @param {object} ClientMsg - tipe ClientMsg dari skema
+ * @returns {ArrayBuffer}
+ */
+export function encodeCaturSelesaikan(ClientMsg) {
+	return encodeSatuField(ClientMsg, 'caturSelesaikan', {});
+}
+
+/**
  * Membaca EvtSpawn beserta field autochess (8-13).
  *
  * EvtSpawn dari zone MMO tidak menyetel satu pun field baru; hasilnya
@@ -253,13 +277,60 @@ export function decodeCaturHasil(msg) {
 	};
 }
 
+/** Satu BidakCatur (saya.bidak dan tontonan.bidak). */
+function bacaBidak(d) {
+	return {
+		bidakId:  angka(d.bidakId),
+		unitId:   d.unitId || '',
+		bintang:  angka(d.bintang),
+		diPapan:  Boolean(d.diPapan),
+		kolom:    angka(d.kolom),
+		baris:    angka(d.baris),
+		// 0 = tidak ada entity yang tampil untuk bidak ini: di bangku,
+		// bidak sendiri saat menonton kursi lain di PERSIAPAN, atau
+		// spawn-nya ditolak.
+		entityId: angka(d.entityId)
+	};
+}
+
+/** Satu SinergiCatur (saya.sinergi dan tontonan.sinergi). */
+function bacaSinergi(n) {
+	return {
+		id:           n.id || '',
+		jumlah:       angka(n.jumlah),
+		tingkatAktif: angka(n.tingkatAktif),
+		origin:       Boolean(n.origin)
+	};
+}
+
+/**
+ * Membaca EvtCaturTonton (AC6 K3/K13) dari sebuah ServerMsg.
+ *
+ * kursi 0 dan lawan_kursi/kursi_bawah 0 hilang dari kawat; angka() menjadikannya 0.
+ *
+ * @param {object} msg - ServerMsg hasil decode
+ * @returns {{kursi:number, lawanKursi:number, kursiBawah:number}|null}
+ *   lawanKursi -1 = creep atau PERSIAPAN (tanpa lawan)
+ */
+export function decodeCaturTonton(msg) {
+	const m = msg && msg.caturTonton;
+	if (!m) {
+		return null;
+	}
+	return {
+		kursi:      angka(m.kursi),
+		lawanKursi: angka(m.lawanKursi),
+		kursiBawah: angka(m.kursiBawah)
+	};
+}
+
 /**
  * Membaca EvtCaturState (snapshot penuh sisi pemain) dari sebuah ServerMsg.
  * Daftar selalu array walau kosong (proto3 membuang repeated kosong dari
  * kawat); unitId slot toko kosong tiba sebagai ''.
  *
  * @param {object} msg - ServerMsg hasil decode
- * @returns {{ronde:number, fase:number, sisaMs:number, kursi:object[], saya:object}|null}
+ * @returns {{ronde:number, fase:number, sisaMs:number, kursi:object[], tontonan:object|null, saya:object}|null}
  */
 export function decodeCaturState(msg) {
 	const b = msg && msg.caturState;
@@ -281,6 +352,13 @@ export function decodeCaturState(msg) {
 			hidup:  Boolean(k.hidup),
 			streak: angka(k.streak)
 		})),
+		// AC6 K3: sisi tampil kursi lain yang sedang ditonton; null saat
+		// menonton papan sendiri. saya TIDAK pernah berisi kursi lain.
+		tontonan: b.tontonan ? {
+			kursi:   angka(b.tontonan.kursi),
+			bidak:   (b.tontonan.bidak || []).map(bacaBidak),
+			sinergi: (b.tontonan.sinergi || []).map(bacaSinergi)
+		} : null,
 		saya: {
 			kursi:      angka(s.kursi),
 			zeny:       angka(s.zeny),
@@ -297,24 +375,8 @@ export function decodeCaturState(msg) {
 				// AC6 K2: slot ini dikunci (bertahan melewati Refresh).
 				terkunci: Boolean(t.terkunci)
 			})),
-			bidak:      (s.bidak || []).map((d) => ({
-				bidakId:  angka(d.bidakId),
-				unitId:   d.unitId || '',
-				bintang:  angka(d.bintang),
-				diPapan:  Boolean(d.diPapan),
-				kolom:    angka(d.kolom),
-				baris:    angka(d.baris),
-				// 0 = tidak ada entity di arena untuk bidak ini: di
-				// bangku, atau di papan selama TEMPUR/HASIL (entity
-				// PERSIAPAN sudah dilepas), atau spawn-nya ditolak.
-				entityId: angka(d.entityId)
-			})),
-			sinergi:    (s.sinergi || []).map((n) => ({
-				id:           n.id || '',
-				jumlah:       angka(n.jumlah),
-				tingkatAktif: angka(n.tingkatAktif),
-				origin:       Boolean(n.origin)
-			})),
+			bidak:      (s.bidak || []).map(bacaBidak),
+			sinergi:    (s.sinergi || []).map(bacaSinergi),
 			peluang:    (s.peluang || []).map((p) => ({
 				tier:   angka(p.tier),
 				persen: angka(p.persen)

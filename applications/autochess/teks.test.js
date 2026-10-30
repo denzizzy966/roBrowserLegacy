@@ -35,6 +35,11 @@ const ALASAN_SERVER = [
 	'perintah gagal karena galat internal',
 	'pertandingan berhenti karena galat internal',
 	'pertandingan gagal dimulai',
+	// AC6 (aktor.go): pesanSedangMenonton, pesanBelumTersingkir,
+	// pesanKursiTakBisaDitonton
+	'sedang menonton kursi lain',
+	'belum tersingkir',
+	'kursi tidak bisa ditonton',
 	'server sedang berhenti, pertandingan tidak dimulai',
 	// server/cmd/roserver/main.go
 	'server sibuk, coba lagi',

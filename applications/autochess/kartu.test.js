@@ -51,7 +51,7 @@ describe('tandaiSpawn / hidup / bidakAutochess', () => {
 	});
 
 	it('bidakAutochess: bertim, atau entity bidak sendiri di snapshot', () => {
-		const snap = { state: { saya: { bidak: [{ entityId: 5 }] } } };
+		const snap = { state: { saya: { bidak: [{ entityId: 5, diPapan: true }] } } };
 		expect(bidakAutochess(entity(9, 0, 0, { __acTim: 2 }), snap)).toBe(true);
 		expect(bidakAutochess(entity(5, 0, 0), snap)).toBe(true);
 		expect(bidakAutochess(entity(6, 0, 0), snap)).toBe(false);
@@ -64,7 +64,7 @@ describe('infoBidak', () => {
 			__acNama: 'Wizard', __acBintang: 1, __acSP: 40, __acMaxSP: 100,
 			__acStatus: new Set([EFEK_STATUS.RACUN, EFEK_STATUS.BEKU])
 		});
-		const snap = { state: { saya: { bidak: [{ entityId: 7, unitId: 'wizard', bintang: 2 }] } } };
+		const snap = { state: { saya: { bidak: [{ entityId: 7, unitId: 'wizard', bintang: 2, diPapan: true }] } } };
 		expect(infoBidak(e, { snap, katalog })).toEqual({
 			entityId: 7, unitId: 'wizard', nama: 'Wizard', sendiri: true, bintang: 2,
 			hp: 100, maxHp: 200, sp: 40, maxSp: 100, status: [EFEK_STATUS.BEKU, EFEK_STATUS.RACUN]

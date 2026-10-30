@@ -10,3 +10,8 @@
 .hasil.menang { color: #7f7; }
 .hasil.kalah { color: #f77; }
 .hasil.seri { color: #ee8; }
+/* AC6 K13: baris "Menonton: ..." -- digit diperkecil agar tiga baris muat di 64 px. */
+.tonton { position: absolute; left: 4px; right: 4px; bottom: 3px; text-align: center; color: #fd8; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bingkai.menonton .digit { left: 69px; top: 1px; width: 82px; height: 30px; }
+.bingkai.menonton .waktu-teks { font-size: 20px; line-height: 28px; }
+.bingkai.menonton .info { bottom: 18px; }

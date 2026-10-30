@@ -23,12 +23,18 @@
  * Bidak papan dipilih lewat petak di bawah pointer (state.saya.bidak
  * berflag diPapan), bukan ray-cast entity.
  *
+ * AC6 K14: saat menonton kursi lain di PERSIAPAN, seret dari Bangku lebih
+ * dulu mengirim `tonton` ke kursi sendiri (server menolak Taruh/KeBangku
+ * selama menonton), lalu seret berjalan seperti biasa. Seret dari papan
+ * tidak dimulai: bidak sendiri tidak tampil di papan yang ditonton.
+ *
  * Semua dependensi DOM/WebGL disuntikkan supaya teruji di vitest node.
  */
 
 import { FASE } from './pesan.js';
 import { petakDariCell } from './papan.js';
 import { BARIS_SENDIRI } from './sorot.js';
+import { menontonLain, kursiSendiriHidup } from './state.js';
 
 /** Ukuran kanvas hantu, sama dengan potret bangku. */
 export const LEBAR_HANTU = 72;
@@ -292,6 +298,18 @@ export function buatSeret({
 		return true;
 	}
 
+	/**
+	 * K14: seret dari Bangku saat menonton kursi lain di PERSIAPAN
+	 * memulangkan tontonan dulu. Di luar PERSIAPAN (seret apa pun akan
+	 * batal) dan bila kursi sendiri sudah mati (server menolak) tidak ada
+	 * yang dikirim.
+	 */
+	function pulangBilaMenonton(snap) {
+		if (snap.fase === FASE.PERSIAPAN && !snap.selesai && menontonLain(snap) && kursiSendiriHidup(snap)) {
+			kirim('tonton', { kursi: snap.state.saya.kursi });
+		}
+	}
+
 	function bolehMulai(ev) {
 		return !seret && (ev.button === undefined || ev.button === 0);
 	}
@@ -307,8 +325,13 @@ export function buatSeret({
 			if (!bolehMulai(ev)) {
 				return false;
 			}
-			const bidak = (ambilSnap().state?.saya?.bidak ?? []).find((b) => b.bidakId === bidakId && !b.diPapan);
-			return bidak ? mulai(bidak, ev) : false;
+			const snap = ambilSnap();
+			const bidak = (snap.state?.saya?.bidak ?? []).find((b) => b.bidakId === bidakId && !b.diPapan);
+			if (!bidak) {
+				return false;
+			}
+			pulangBilaMenonton(snap);
+			return mulai(bidak, ev);
 		},
 
 		/**
@@ -323,6 +346,9 @@ export function buatSeret({
 			}
 			const snap = ambilSnap();
 			if (snap.fase !== FASE.PERSIAPAN || snap.selesai) {
+				return false;
+			}
+			if (menontonLain(snap)) {
 				return false;
 			}
 			const p = petakSendiri(asal, skala, Mouse.world);

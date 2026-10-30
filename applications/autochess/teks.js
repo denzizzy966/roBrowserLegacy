@@ -59,6 +59,8 @@ export const KAMUS = {
 	'tombol.keluar':   { id: 'Keluar', en: 'Leave' },
 	'tombol.log':      { id: 'Log', en: 'Log' },
 	'tombol.bgm':      { id: 'Musik', en: 'Music' },
+	// AC6 K11: hanya tampil sesudah kursi sendiri tersingkir.
+	'tombol.lewati_akhir': { id: 'Lewati ke peringkat akhir', en: 'Skip to final ranking' },
 
 	// Label
 	'label.ronde':      { id: 'Ronde {0}', en: 'Round {0}' },
@@ -109,6 +111,12 @@ export const KAMUS = {
 	'label.milikPapan':  { id: '★{0} papan', en: '★{0} board' },
 	'label.milikBangku': { id: '★{0} bangku', en: '★{0} bench' },
 
+	// AC6 K3/K13: menonton kursi lain (baris Timer, tooltip Daftar Pemain)
+	'label.menonton':    { id: 'Menonton: {0}', en: 'Watching: {0}' },
+	'label.menontonVs':  { id: 'Menonton: {0} vs {1}', en: 'Watching: {0} vs {1}' },
+	'petunjuk.tonton':   { id: 'Klik untuk menonton pemain ini', en: 'Click to watch this player' },
+	'petunjuk.pulang':   { id: 'Klik untuk kembali ke papanmu', en: 'Click to return to your board' },
+
 	// Petunjuk (tooltip)
 	'petunjuk.seret': {
 		id: 'Seret ke papan untuk menaruh, ke tombol Toko (K) untuk menjual',
@@ -146,6 +154,12 @@ export const KAMUS = {
 	// AC6: kunci per slot dan perintah selama mode tempur.
 	'slot kosong tidak bisa dikunci': { id: 'Slot kosong tidak bisa dikunci', en: 'An empty slot cannot be locked' },
 	'bidak sedang bertempur':       { id: 'Bidak itu sedang bertempur', en: 'That unit is in combat' },
+	// AC6 (aktor.go): menonton dan Selesaikan.
+	'sedang menonton kursi lain': {
+		id: 'Sedang menonton pemain lain; kembali ke papanmu dulu', en: 'You are watching another player; return to your board first'
+	},
+	'belum tersingkir':             { id: 'Kamu belum tersingkir', en: 'You have not been eliminated yet' },
+	'kursi tidak bisa ditonton':    { id: 'Pemain itu tidak bisa ditonton', en: 'That player cannot be watched' },
 
 	// Alasan penolakan aktor pertandingan (server/internal/pertandingan/
 	// aktor.go) dan roserver (server/cmd/roserver/main.go, registry.go).

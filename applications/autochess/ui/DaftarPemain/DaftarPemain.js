@@ -1,7 +1,8 @@
 /**
  * Jendela DaftarPemain (B): kolom kiri delapan kursi urut HP turun, tiap
  * baris berpotret (Q11: manusia = PC novice, bot = mob tetap per kursi),
- * nama, bar HP hijau, dan level. Tanpa tombol.
+ * nama, bar HP hijau, dan level. Tanpa tombol; mengklik baris kursi hidup
+ * menontonnya (AC6 K3), baris sendiri kembali ke papan sendiri.
  *
  * gambar() dipanggil tiap 250 ms; isi baru ditulis ulang bila keluaran
  * renderDaftarPemain berubah (HP, level, hidup, nama, bahasa). Kanvas
@@ -14,7 +15,7 @@ import UIManager from 'UI/UIManager.js';
 import GUIComponent from 'UI/GUIComponent.js';
 import htmlText from './DaftarPemain.html?raw';
 import cssText from './DaftarPemain.css?raw';
-import { renderDaftarPemain, avatarKursi } from '../render/daftarPemain.js';
+import { renderDaftarPemain, avatarKursi, kursiTontonKlik } from '../render/daftarPemain.js';
 import { pasangKerangka, tulisBila } from '../janela.js';
 
 const DaftarPemain = new GUIComponent('DaftarPemain', cssText);
@@ -23,6 +24,9 @@ DaftarPemain.mouseMode = GUIComponent.MouseMode.STOP;
 
 // "kursi:data-avatar" -> kanvas yang sudah didaftarkan ke potret.statis.
 const simpanan = new Map();
+
+// snap dan deps terakhir dari gambar(); klik bisa tiba kapan saja sesudah itu.
+let terakhir = null;
 
 // Kanvas avatar hanya 24x24 (AC6 K8): sprite diperkecil ke 0.3. Kaki di
 // 0.85 tinggi supaya mob kecil (Poring) tetap menutup blok tengah yang
@@ -39,13 +43,25 @@ DaftarPemain.init = function init() {
 	this.judul = root.querySelector('.judul');
 	this.isi = root.querySelector('.isi');
 	pasangKerangka(root.querySelector('.bingkai'));
+
+	this.isi.addEventListener('click', (ev) => {
+		const baris = ev.target.closest?.('.baris[data-kursi]');
+		if (!baris || !terakhir) {
+			return;
+		}
+		const kursi = kursiTontonKlik(terakhir.snap, Number(baris.dataset.kursi));
+		if (kursi !== null) {
+			terakhir.deps.kirim('tonton', { kursi });
+		}
+	});
 };
 
 /**
  * @param {object} snap state.ambil()
- * @param {object} deps {t, ekonomi, potret}
+ * @param {object} deps {t, ekonomi, potret, kirim}
  */
 DaftarPemain.gambar = function gambar(snap, deps) {
+	terakhir = { snap, deps };
 	tulisBila(this.judul, deps.t('jendela.daftarPemain'));
 	if (!tulisBila(this.isi, renderDaftarPemain(snap, deps))) {
 		return;

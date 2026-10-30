@@ -19,6 +19,7 @@
  */
 
 import { FASE } from './pesan.js';
+import { papanTampil } from './state.js';
 import { petakDariCell } from './papan.js';
 
 /** Lama pointer berada di atas bidak yang sama sebelum kartu tampil (ms; dwell sejak masuk, bukan diam). */
@@ -54,9 +55,12 @@ export function hidup(entity) {
 	return !(entity.ACTION && entity.action === entity.ACTION.DIE);
 }
 
-/** Bidak sendiri di snapshot yang entity-nya `gid`, atau undefined. */
+/**
+ * Bidak papan yang tampil (papanTampil: sendiri, atau kursi yang ditonton)
+ * yang entity-nya `gid`, atau undefined.
+ */
 function bidakSendiri(snap, gid) {
-	return (snap?.state?.saya?.bidak ?? []).find((b) => b.entityId > 0 && b.entityId === gid);
+	return papanTampil(snap).find((b) => b.entityId > 0 && b.entityId === gid);
 }
 
 /** true bila entity adalah bidak autochess (bertim, atau milik sendiri di snapshot). */
@@ -120,7 +124,7 @@ export function cariBidak({ EntityManager, snap, over, petak, asal, skala }) {
 		return null;
 	}
 	if (snap?.fase === FASE.PERSIAPAN) {
-		const b = (snap.state?.saya?.bidak ?? [])
+		const b = papanTampil(snap)
 			.find((x) => x.diPapan && x.entityId > 0 && x.kolom === petak.kolom && x.baris === petak.baris);
 		const e = b ? EntityManager.get(b.entityId) : null;
 		if (hidup(e)) {

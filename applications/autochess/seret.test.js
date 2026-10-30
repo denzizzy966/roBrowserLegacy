@@ -510,3 +510,59 @@ describe('petakDiBawahPointer', () => {
 		expect(petakDiBawahPointer(asal, 2, null)).toBeNull();
 	});
 });
+
+describe('seret saat menonton kursi lain (AC6 K14)', () => {
+	const KURSI_HIDUP = [
+		{ kursi: 0, hidup: true }, { kursi: 2, hidup: true }
+	];
+	function snapMenonton(ekstra = {}, kursi = KURSI_HIDUP) {
+		return snapDengan({
+			state: { saya: { kursi: 0, bidak: BIDAK.filter((b) => b.bidakId !== 3) }, kursi },
+			ditonton: 2,
+			...ekstra
+		});
+	}
+
+	it('seret dari Bangku mengirim tonton kursi sendiri DULU, lalu taruh saat dilepas', () => {
+		snap = snapMenonton();
+		expect(seret.mulaiDariBangku(1, pev(600, 840))).toBe(true);
+		expect(kirim).toHaveBeenCalledTimes(1);
+		expect(kirim).toHaveBeenNthCalledWith(1, 'tonton', { kursi: 0 });
+		// Server memulangkan tontonan; seret berjalan seperti biasa.
+		snap = { ...snap, ditonton: 0 };
+		diAtasPapan(48.4, 45.7);
+		lepasDi(760, 550);
+		expect(kirim).toHaveBeenNthCalledWith(2, 'taruh', { bidakId: 1, kolom: 3, baris: 2 });
+		expect(kirim).toHaveBeenCalledTimes(2);
+		harusBersih();
+	});
+
+	it('menonton papan sendiri: tidak ada tonton yang dikirim', () => {
+		snap = snapMenonton({ ditonton: 0 });
+		seret.mulaiDariBangku(1, pev(600, 840));
+		expect(kirim).not.toHaveBeenCalled();
+	});
+
+	it('di luar PERSIAPAN atau sesudah kursi sendiri tersingkir: tidak memulangkan', () => {
+		snap = snapMenonton({ fase: FASE.TEMPUR });
+		seret.mulaiDariBangku(1, pev(600, 840));
+		dok.picu('pointercancel', pev(600, 840));
+		expect(kirim).not.toHaveBeenCalled();
+
+		snap = snapMenonton({}, [{ kursi: 0, hidup: false }, { kursi: 2, hidup: true }]);
+		seret.mulaiDariBangku(1, pev(600, 840));
+		expect(kirim).not.toHaveBeenCalled();
+	});
+
+	it('seret dari papan tidak dimulai: bidak sendiri tidak tampil', () => {
+		snap = snapMenonton();
+		diAtasPapan(52.5, 43.5); // petak (5,1): bidak 2 milik sendiri
+		expect(seret.mulaiDariPapan(pev(700, 600))).toBe(false);
+		expect(seret.aktif()).toBe(false);
+		expect(kirim).not.toHaveBeenCalled();
+		// Papan sendiri: bidak yang sama bisa diseret.
+		snap = { ...snap, ditonton: 0 };
+		expect(seret.mulaiDariPapan(pev(700, 600))).toBe(true);
+	});
+});
+

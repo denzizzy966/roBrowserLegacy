@@ -10,6 +10,10 @@
  * #log tersembunyi di index.html). Hanya Lewati
  * yang menjadi perintah server. Tombol BGM (data-aksi="bgm") memanggil
  * deps.bgm.toggle(); nonaktif bila tidak ada mp3 yang dipilih.
+ *
+ * AC6 K11: sesudah kursi sendiri tersingkir tombol "Lewati ke peringkat
+ * akhir" (data-aksi="selesaikan") tampil, dan jendela yang terlipat dibuka
+ * SEKALI saat tersingkir supaya tombol itu terlihat.
  */
 
 import UIManager from 'UI/UIManager.js';
@@ -26,6 +30,8 @@ InfoPemain.mouseMode = GUIComponent.MouseMode.STOP;
 
 // deps terakhir dari gambar(); klik bisa tiba kapan saja sesudah itu.
 let depsTerakhir = null;
+// Kursi sendiri tersingkir pada gambar() terakhir (untuk membuka sekali).
+let tersingkirTadi = false;
 
 InfoPemain.init = function init() {
 	const root = this.getRoot();
@@ -55,6 +61,8 @@ InfoPemain.init = function init() {
 			depsTerakhir.gambarUlang?.();
 		} else if (aksi === 'lewati') {
 			depsTerakhir.kirim('lewati', {});
+		} else if (aksi === 'selesaikan') {
+			depsTerakhir.kirim('selesaikan', {});
 		}
 	});
 };
@@ -67,6 +75,12 @@ InfoPemain.gambar = function gambar(snap, deps) {
 	depsTerakhir = deps;
 	tulisBila(this.judul, deps.t('jendela.infoPemain'));
 	tulisBila(this.isi, renderInfoPemain(snap, deps));
+	const saya = snap.state?.saya;
+	const tersingkir = !!saya && snap.state.kursi?.some((k) => k.kursi === saya.kursi && !k.hidup);
+	if (tersingkir && !tersingkirTadi && !snap.selesai) {
+		this._host?.classList.remove('terlipat');
+	}
+	tersingkirTadi = tersingkir;
 };
 
 export default UIManager.addComponent(InfoPemain);

@@ -4,6 +4,10 @@
  * kode bahasa LAIN, ID/EN), log (buka/tutup jendela Log), dan Lewati (hanya di
  * PERSIAPAN). Tombol bahasa dan log ditangani lokal oleh InfoPemain.js;
  * Lewati diteruskan ke deps.kirim.
+ *
+ * AC6 K11: sesudah kursi sendiri tersingkir, baris Zeny dan Beruntun
+ * (tidak bermakna lagi) diganti tombol lebar "Lewati ke peringkat akhir"
+ * (data-aksi="selesaikan"), dan Lewati mati (server mengabaikannya).
  */
 
 import { FASE } from '../../pesan.js';
@@ -52,14 +56,19 @@ export function renderInfoPemain(snap, deps) {
 	const kursi = snap.state?.kursi?.find((k) => k.kursi === saya?.kursi);
 	const nama = kursi?.nama || t('label.anda');
 	const hp = kursi ? Math.max(0, kursi.hp) : 0;
-	const bisaLewati = !!saya && snap.fase === FASE.PERSIAPAN && !snap.selesai;
+	const tersingkir = !!kursi && !kursi.hidup;
+	const bisaLewati = !!saya && snap.fase === FASE.PERSIAPAN && !snap.selesai && !tersingkir;
 	const kodeLain = deps.bahasa === 'en' ? 'id' : 'en';
 
-	return `<div class="nama${kursi && !kursi.hidup ? ' tersingkir' : ''}">${esc(nama)}</div>`
+	const ekonomi = tersingkir
+		? (snap.selesai ? '' : `<button class="tombol akhir" data-aksi="selesaikan">${esc(t('tombol.lewati_akhir'))}</button>`)
+		: baris(t('label.zeny'), `<span class="zeny">${formatZeny(saya?.zeny ?? 0)}</span>`)
+			+ baris(t('label.streak'), teksStreak(kursi?.streak ?? 0));
+
+	return `<div class="nama${tersingkir ? ' tersingkir' : ''}">${esc(nama)}</div>`
 		+ baris(t('label.hp'), `<span class="hp">${hp}</span>`)
 		+ baris(t('label.namaLevel'), `<span class="lv">${saya?.level ?? 1}</span>`)
-		+ baris(t('label.zeny'), `<span class="zeny">${formatZeny(saya?.zeny ?? 0)}</span>`)
-		+ baris(t('label.streak'), teksStreak(kursi?.streak ?? 0))
+		+ ekonomi
 		+ baris(t('label.namaRonde'), `<span class="ronde">${snap.ronde ?? 0}</span>`)
 		+ baris(t('label.fase'), `<span class="fase">${esc(t(KUNCI_FASE[snap.fase] ?? 'fase.menunggu'))}</span>`)
 		+ '<div class="tombol-baris">'

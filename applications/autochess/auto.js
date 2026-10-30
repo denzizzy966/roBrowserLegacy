@@ -248,8 +248,11 @@ function lebihBaik(t, u, dimiliki) {
  * @param {function(any): void} d.batalkan clearTimeout
  * @param {function(string): void} [d.log]
  * @param {number} [d.jedaLewatiMs]
+ * @param {function(): boolean} [d.menonton] true selama menonton kursi lain
+ *   (AC6 K14): keputusan ditunda sampai papan sendiri tampil lagi; state
+ *   yang menyusul kepulangan menjalankannya.
  */
-export function buatPemainOtomatis({ kirim, aturan, sekarang, jadwalkan, batalkan, log = () => {}, jedaLewatiMs = JEDA_LEWATI_MS }) {
+export function buatPemainOtomatis({ kirim, aturan, sekarang, jadwalkan, batalkan, log = () => {}, jedaLewatiMs = JEDA_LEWATI_MS, menonton = () => false }) {
 	let aktif = false;
 	let perintahDikirim = 0;
 	// Ronde PERSIAPAN yang sedang berjalan; null di luar PERSIAPAN.
@@ -324,6 +327,9 @@ export function buatPemainOtomatis({ kirim, aturan, sekarang, jadwalkan, batalka
 			// Keputusan ronde ini sudah dihentikan (galat, kirim gagal, atau
 			// batas): sisa batch sudah dijawab, jadi lewati menyusul.
 			jadwalLewati();
+			return;
+		}
+		if (menonton()) {
 			return;
 		}
 		const a = aturan();

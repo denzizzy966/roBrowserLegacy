@@ -127,7 +127,7 @@ export function gambarBarSP(life, sp, maxSp) {
  * @param {function} d.mainkanAksi  harness/tempur.js
  * @param {function(string): void} d.log
  * @param {function(function, number): any} [d.tunda]  setTimeout; disuntikkan untuk test
- * @returns {{mulaiSkill: function, kenaSkill: function, ubahStatus: function, ubahSP: function}}
+ * @returns {{mulaiSkill: function, kenaSkill: function, ubahStatus: function, ubahSP: function, bersihkanStatus: function}}
  */
 export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer, Altitude, SkillEffect = {}, hidupkanBar, mainkanAksi, log, tunda = (fn, ms) => setTimeout(fn, ms) }) {
 	/**
@@ -398,5 +398,73 @@ export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer
 		gambarBarSP(entity.life, ev.sp, ev.maxSp);
 	}
 
-	return { mulaiSkill, kenaSkill, ubahStatus, ubahSP };
+	/**
+	 * EvtCaturTonton (AC6 K3): tontonan berganti, jadi status, SP, dan cast
+	 * yang diingat client untuk entity yang tampil tidak lagi berlaku.
+	 * Server sudah mengirim EvtDespawn lebih dulu dan akan mengirim ulang
+	 * EvtSpawn (HP/SP saat ini) dan EvtStatus (durasi sisa) sesudahnya.
+	 *
+	 * Menyapu SEMUA entity di EntityManager, termasuk yang sedang memudar
+	 * sesudah mati. Satu entity yang setengah dibongkar (life/cast sudah
+	 * dibuang EntityManager.remove) tidak boleh menghentikan sapuan: tiap
+	 * entity dibungkus sendiri (Review Focus 2).
+	 *
+	 * @returns {number} jumlah entity yang dibersihkan
+	 */
+	function bersihkanStatus() {
+		if (typeof EntityManager.forEach !== 'function') {
+			return 0;
+		}
+		let n = 0;
+		EntityManager.forEach((entity) => {
+			if (!entity) {
+				return true;
+			}
+			const punya = entity.__acStatus?.size > 0 || entity.__acSP !== undefined || !!entity.__acSkill;
+			if (!punya) {
+				return true;
+			}
+			try {
+				for (const efst of entity.__acStatus ?? []) {
+					const effectId = EFEK_BADAN_STATUS[efst];
+					if (effectId !== undefined) {
+						EffectManager.endRepeat(null, entity.GID, effectId);
+						EffectManager.remove(null, entity.GID, effectId);
+					}
+				}
+				if (entity.__acSkill) {
+					entity.cast?.clean?.();
+					EffectManager.remove(null, entity.GID, EFEK_AURA_CAST);
+				}
+			} catch (err) {
+				log(`! bersihkan status entity ${entity.GID}: ${err.message}`);
+			}
+			entity.__acStatus = new Set();
+			entity.__acSkill = null;
+			delete entity.__acSP;
+			delete entity.__acMaxSP;
+			try {
+				if (entity.bodyState) {
+					entity.bodyState = 0;
+				}
+				if (entity.healthState) {
+					entity.healthState = 0;
+				}
+				if (entity.life) {
+					entity.life.sp = -1;
+					entity.life.sp_max = -1;
+					if (entity.life.hp >= 0 && entity.life.hp_max >= 0) {
+						entity.life.update?.();
+					}
+				}
+			} catch (err) {
+				log(`! bersihkan bar entity ${entity.GID}: ${err.message}`);
+			}
+			n++;
+			return true;
+		});
+		return n;
+	}
+
+	return { mulaiSkill, kenaSkill, ubahStatus, ubahSP, bersihkanStatus };
 }

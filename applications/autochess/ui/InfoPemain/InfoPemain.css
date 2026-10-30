@@ -21,3 +21,6 @@
 .tombol { flex: 1; height: 20px; padding: 0; font: 11px Arial, sans-serif; color: #fff; background: #3b4a78; border: 1px solid #7788bb; border-radius: 3px; cursor: pointer; }
 .tombol:hover:not([disabled]) { background: #4a5c92; }
 .tombol[disabled] { color: #889; background: #2a2f44; border-color: #445; cursor: default; }
+/* AC6 K11: menggantikan baris Zeny + Beruntun (2 x 15 px) sesudah tersingkir. */
+.tombol.akhir { display: block; width: 100%; flex: none; height: 22px; margin: 4px 0 4px; background: #7a3b3b; border-color: #c88; font-weight: bold; }
+.tombol.akhir:hover { background: #924a4a; }

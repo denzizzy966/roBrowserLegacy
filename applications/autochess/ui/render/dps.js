@@ -1,8 +1,10 @@
 /**
- * Renderer murni jendela DPS (F): satu baris per bidak sendiri di papan
- * (entityId > 0) dengan nama unit, ★n, total damage, dan bar relatif
+ * Renderer murni jendela DPS (F): satu baris per bidak papan yang TAMPIL
+ * (papanTampil: bidak sendiri, atau milik kursi yang ditonton; entityId > 0) dengan nama unit, ★n, total damage, dan bar relatif
  * terhadap total terbesar. Urut turun menurut total.
  */
+
+import { papanTampil } from '../../state.js';
 
 const ENTITAS = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -18,7 +20,7 @@ function esc(teks) {
  */
 export function renderDPS(snap, deps, daftar) {
 	const peta = new Map((daftar ?? []).map((d) => [d.entityId, d.total]));
-	const baris = (snap.state?.saya?.bidak ?? [])
+	const baris = papanTampil(snap)
 		.filter((b) => b.entityId > 0)
 		.map((b) => ({ b, total: peta.get(b.entityId) ?? 0 }))
 		.sort((x, y) => y.total - x.total);

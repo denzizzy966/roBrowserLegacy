@@ -299,6 +299,10 @@ describe('sandikanAksi', () => {
 		expect(balik(sandikanAksi(ClientMsg, 'beli-exp', {}))).toEqual({ caturBeliExp: {} });
 		expect(balik(sandikanAksi(ClientMsg, 'lewati', {}))).toEqual({ caturLewati: {} });
 		expect(balik(sandikanAksi(ClientMsg, 'keluar', {}))).toEqual({ caturKeluar: {} });
+		// AC6 K3/K11.
+		expect(balik(sandikanAksi(ClientMsg, 'tonton', { kursi: 4 }))).toEqual({ caturTonton: { kursi: 4 } });
+		expect(balik(sandikanAksi(ClientMsg, 'tonton', { kursi: 0 }))).toEqual({ caturTonton: {} });
+		expect(balik(sandikanAksi(ClientMsg, 'selesaikan', {}))).toEqual({ caturSelesaikan: {} });
 	});
 
 	it('aksi tak dikenal melempar', () => {

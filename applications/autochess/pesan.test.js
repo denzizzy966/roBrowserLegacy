@@ -18,6 +18,9 @@ import {
 	encodeCaturKeBangku,
 	encodeCaturKeluar,
 	encodeCaturLewati,
+	encodeCaturTonton,
+	encodeCaturSelesaikan,
+	decodeCaturTonton,
 	decodeCaturState,
 	decodeCaturSelesai,
 	decodeSpawnLengkap,
@@ -422,5 +425,68 @@ describe('decodeCaturState dan decodeCaturSelesai', () => {
 
 		expect(decodeCaturState(spawn)).toBeNull();
 		expect(decodeCaturSelesai(spawn)).toBeNull();
+	});
+});
+
+describe('AC6 tonton dan selesaikan', () => {
+	const dekode = (buf) => types().ClientMsg.decode(new Uint8Array(buf));
+
+	it('encodeCaturTonton membawa kursi, termasuk kursi 0 (pulang)', () => {
+		const { ClientMsg } = types();
+		const m = dekode(encodeCaturTonton(ClientMsg, 3));
+		expect(m.body).toBe('caturTonton');
+		expect(m.caturTonton.kursi).toBe(3);
+		// Kursi 0 hilang dari kawat tetapi oneof-nya tetap terkirim.
+		const nol = dekode(encodeCaturTonton(ClientMsg, 0));
+		expect(nol.body).toBe('caturTonton');
+		expect(nol.caturTonton.kursi).toBe(0);
+	});
+
+	it('encodeCaturSelesaikan tiba sebagai caturSelesaikan, bukan body kosong', () => {
+		const { ClientMsg } = types();
+		expect(dekode(encodeCaturSelesaikan(ClientMsg)).body).toBe('caturSelesaikan');
+	});
+
+	it('decodeCaturTonton membaca kursi, lawanKursi -1, dan kursiBawah 0 yang hilang dari kawat', () => {
+		const { ServerMsg } = types();
+		expect(decodeCaturTonton(lewatKawat(ServerMsg, { caturTonton: { kursi: 2, lawanKursi: 5, kursiBawah: 5 } })))
+			.toEqual({ kursi: 2, lawanKursi: 5, kursiBawah: 5 });
+		expect(decodeCaturTonton(lewatKawat(ServerMsg, { caturTonton: { kursi: 4, lawanKursi: -1, kursiBawah: 4 } })))
+			.toEqual({ kursi: 4, lawanKursi: -1, kursiBawah: 4 });
+		// Pulang ke kursi 0 di pertempuran sendiri: semua nol kecuali lawan.
+		expect(decodeCaturTonton(lewatKawat(ServerMsg, { caturTonton: { lawanKursi: 3 } })))
+			.toEqual({ kursi: 0, lawanKursi: 3, kursiBawah: 0 });
+		expect(decodeCaturTonton(lewatKawat(ServerMsg, { spawn: { entityId: 1 } }))).toBeNull();
+	});
+
+	it('decodeCaturState: tontonan null bila absen, terisi bila ada; saya tetap terpisah', () => {
+		const { ServerMsg } = types();
+		const tanpa = decodeCaturState(lewatKawat(ServerMsg, { caturState: { ronde: 2, saya: { kursi: 0 } } }));
+		expect(tanpa.tontonan).toBeNull();
+
+		const dengan = decodeCaturState(lewatKawat(ServerMsg, {
+			caturState: {
+				ronde: 2, fase: 2,
+				saya: {
+					kursi: 0,
+					bidak: [{ bidakId: 1, unitId: 'poring', bintang: 1, diPapan: true, kolom: 0, baris: 0, entityId: 11 }]
+				},
+				tontonan: {
+					kursi: 3,
+					bidak: [{ bidakId: 9, unitId: 'archer', bintang: 2, diPapan: true, kolom: 3, baris: 1, entityId: 77 }],
+					sinergi: [{ id: 'pemburu', jumlah: 2, tingkatAktif: 1 }]
+				}
+			}
+		}));
+		expect(dengan.tontonan).toEqual({
+			kursi: 3,
+			bidak: [{ bidakId: 9, unitId: 'archer', bintang: 2, diPapan: true, kolom: 3, baris: 1, entityId: 77 }],
+			sinergi: [{ id: 'pemburu', jumlah: 2, tingkatAktif: 1, origin: false }]
+		});
+		expect(dengan.saya.bidak.map((b) => b.entityId)).toEqual([11]);
+
+		// Tontonan tanpa bidak/sinergi: array kosong, bukan undefined.
+		const kosong = decodeCaturState(lewatKawat(ServerMsg, { caturState: { tontonan: { kursi: 5 } } }));
+		expect(kosong.tontonan).toEqual({ kursi: 5, bidak: [], sinergi: [] });
 	});
 });

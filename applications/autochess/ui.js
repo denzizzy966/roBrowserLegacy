@@ -16,7 +16,8 @@
 
 import {
 	FASE, encodeCaturBeli, encodeCaturJual, encodeCaturRefresh, encodeCaturKunci, encodeCaturBeliExp,
-	encodeCaturTaruh, encodeCaturKeBangku, encodeCaturKeluar, encodeCaturLewati
+	encodeCaturTaruh, encodeCaturKeBangku, encodeCaturKeluar, encodeCaturLewati, encodeCaturTonton,
+	encodeCaturSelesaikan
 } from './pesan.js';
 import { formatWaktu } from './ui/render/waktu.js';
 
@@ -370,7 +371,10 @@ const PENYANDI = {
 	taruh:       (C, a) => encodeCaturTaruh(C, a.bidakId, a.kolom, a.baris),
 	'ke-bangku': (C, a) => encodeCaturKeBangku(C, a.bidakId),
 	lewati:      (C) => encodeCaturLewati(C),
-	keluar:      (C) => encodeCaturKeluar(C)
+	keluar:      (C) => encodeCaturKeluar(C),
+	// AC6 K3/K11: menonton kursi lain; selesaikan sesudah tersingkir.
+	tonton:      (C, a) => encodeCaturTonton(C, a.kursi),
+	selesaikan:  (C) => encodeCaturSelesaikan(C)
 };
 
 /**

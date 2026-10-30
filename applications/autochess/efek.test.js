@@ -365,3 +365,79 @@ describe('efek.js', () => {
 		expect(log).toHaveBeenCalledWith('! galat saat menjalankan pesan: boom');
 	});
 });
+
+describe('bersihkanStatus (AC6 K3, Review Focus 2)', () => {
+	function siapkanDenganDaftar(entities) {
+		const r = siapkan(entities);
+		r.deps.EntityManager.forEach = (fn) => {
+			for (const e of [...entities]) {
+				if (fn(e) === false) {
+					return;
+				}
+			}
+		};
+		return r;
+	}
+
+	it('mengosongkan __acStatus, SP, cast, dan bar setiap entity', () => {
+		const a = entityPalsu(1);
+		const b = entityPalsu(2);
+		const polos = entityPalsu(3);
+		const { deps, efek } = siapkanDenganDaftar([a, b, polos]);
+		efek.ubahStatus({ entityId: 1, efst: EFEK_STATUS.RACUN, aktif: true, durasiMs: 3000 });
+		efek.ubahStatus({ entityId: 2, efst: EFEK_STATUS.BEKU, aktif: true, durasiMs: 3000 });
+		efek.ubahSP({ entityId: 1, sp: 20, maxSp: 50 });
+		efek.mulaiSkill({ src: 2, skid: 89, lv: 5, dst: 0, x: 15, y: 25, castMs: 1200 });
+		expect(a.healthState).not.toBe(0);
+		expect(b.bodyState).not.toBe(0);
+		deps.EffectManager.remove.mockClear();
+
+		expect(efek.bersihkanStatus()).toBe(2);
+
+		expect(a.__acStatus.size).toBe(0);
+		expect(b.__acStatus.size).toBe(0);
+		expect(a.__acSP).toBeUndefined();
+		expect(a.__acMaxSP).toBeUndefined();
+		expect(a.life.sp).toBe(-1);
+		expect(a.life.sp_max).toBe(-1);
+		expect(a.healthState).toBe(0);
+		expect(b.bodyState).toBe(0);
+		expect(b.__acSkill).toBeNull();
+		expect(b.cast.clean).toHaveBeenCalled();
+		expect(deps.EffectManager.remove).toHaveBeenCalledWith(null, 1, EFEK_BADAN_STATUS[EFEK_STATUS.RACUN]);
+		expect(deps.EffectManager.remove).toHaveBeenCalledWith(null, 2, EFEK_BADAN_STATUS[EFEK_STATUS.BEKU]);
+		// Entity tanpa status tidak disentuh.
+		expect(polos.__acStatus).toBeUndefined();
+		// Status yang dikirim ulang sesudahnya berlaku seperti biasa.
+		efek.ubahStatus({ entityId: 1, efst: EFEK_STATUS.BISU, aktif: true, durasiMs: 1000 });
+		expect([...a.__acStatus]).toEqual([EFEK_STATUS.BISU]);
+	});
+
+	it('tidak melempar untuk entity yang sudah dibongkar (life/cast hilang) atau EffectManager yang melempar', () => {
+		const hilang = entityPalsu(5);
+		const sehat = entityPalsu(6);
+		const { deps, efek } = siapkanDenganDaftar([hilang, sehat]);
+		efek.ubahStatus({ entityId: 5, efst: EFEK_STATUS.TIDUR, aktif: true, durasiMs: 3000 });
+		efek.ubahStatus({ entityId: 6, efst: EFEK_STATUS.BUTA, aktif: true, durasiMs: 3000 });
+		efek.ubahSP({ entityId: 6, sp: 5, maxSp: 10 });
+		// Seperti sesudah EntityManager.remove -> entity.clean().
+		hilang.life = null;
+		hilang.cast = null;
+		hilang.__acSkill = { castMs: 500 };
+		deps.EffectManager.endRepeat.mockImplementationOnce(() => {
+			throw new Error('efek sudah dibuang');
+		});
+
+		expect(() => efek.bersihkanStatus()).not.toThrow();
+		expect(hilang.__acStatus.size).toBe(0);
+		expect(sehat.__acStatus.size).toBe(0);
+		expect(sehat.__acSP).toBeUndefined();
+		expect(sehat.life.sp).toBe(-1);
+	});
+
+	it('EntityManager tanpa forEach: tidak melakukan apa pun', () => {
+		const { efek } = siapkan([entityPalsu(1)]);
+		expect(efek.bersihkanStatus()).toBe(0);
+	});
+});
+

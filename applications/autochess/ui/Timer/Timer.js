@@ -77,6 +77,8 @@ function gambarDigit(ctx, teks) {
 /** @param {object} snap state.ambil() + sisaMs; @param {object} deps {t} */
 Timer.gambar = function gambar(snap, deps) {
 	tulisBila(this.isi, renderTimer(snap, deps.t));
+	// AC6 K13: baris tontonan butuh tempat; digit diperkecil (Timer.css).
+	this.bingkai.classList.toggle('menonton', !!this.isi.querySelector('.tonton'));
 	if (act) {
 		const waktu = formatWaktu(snap.sisaMs ?? 0);
 		if (waktu !== waktuTerakhir) {

@@ -183,7 +183,7 @@ describe('aturanDariKatalog', () => {
 });
 
 /** Jam dan timer palsu untuk pengendali. */
-function lingkungan({ tolak = new Set(), gagal = () => false } = {}) {
+function lingkungan({ tolak = new Set(), gagal = () => false, menonton } = {}) {
 	const terkirim = [];
 	const timer = [];
 	const log = [];
@@ -204,7 +204,8 @@ function lingkungan({ tolak = new Set(), gagal = () => false } = {}) {
 			return t;
 		},
 		batalkan: (t) => { t.batal = true; },
-		log: (m) => log.push(m)
+		log: (m) => log.push(m),
+		menonton
 	});
 	return {
 		p, terkirim, log, timer,
@@ -221,6 +222,18 @@ function lingkungan({ tolak = new Set(), gagal = () => false } = {}) {
 }
 
 describe('buatPemainOtomatis', () => {
+	it('AC6 K14: tidak memutuskan selama menonton kursi lain; state sesudah pulang memutuskan', () => {
+		let lain = true;
+		const L = lingkungan({ menonton: () => lain });
+		L.p.atur(true);
+		L.p.terimaFase({ fase: FASE.PERSIAPAN, ronde: 1 });
+		L.p.terimaState(stateSkrip(9, 1, 1, tokoSkrip('a', 1, 'b', 1)));
+		expect(L.terkirim).toEqual([]);
+		lain = false;
+		L.p.terimaState(stateSkrip(9, 1, 1, tokoSkrip('a', 1, 'b', 1)));
+		expect(L.terkirim).toEqual([beli(0), beli(1)]);
+	});
+
 	it('mati: tidak mengirim apa pun', () => {
 		const L = lingkungan();
 		L.p.terimaFase({ fase: FASE.PERSIAPAN, ronde: 1 });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { renderDaftarPemain, avatarKursi, kodeAvatar, urutKursi, MOB_BOT, TINGGI_BARIS, SELA_BARIS, TINGGI_KEPALA, tinggiDaftar, LEBAR_AVATAR } from './daftarPemain.js';
+import { renderDaftarPemain, kursiTontonKlik, avatarKursi, kodeAvatar, urutKursi, MOB_BOT, TINGGI_BARIS, SELA_BARIS, TINGGI_KEPALA, tinggiDaftar, LEBAR_AVATAR } from './daftarPemain.js';
 import { UKURAN } from '../tataLetak.js';
 import { buatTeks } from '../../teks.js';
 
@@ -86,6 +86,51 @@ describe('renderDaftarPemain', () => {
 	});
 	it('tanpa state: kosong', () => {
 		expect(renderDaftarPemain({ state: null }, { t: id.t })).toBe('');
+	});
+});
+
+describe('menonton dari Daftar Pemain (AC6 K3/K13)', () => {
+	const menonton = (ditonton, kursi = KURSI) => ({ ...snap(kursi), ditonton });
+	/** Atribut class baris kursi n. */
+	const kelas = (h, n) => h.match(new RegExp(`class="([^"]*)" data-kursi="${n}"`))[1].split(' ');
+
+	it('setiap baris membawa data-kursi', () => {
+		const h = renderDaftarPemain(menonton(0), { t: id.t });
+		expect([...h.matchAll(/data-kursi="(\d+)"/g)].map((m) => Number(m[1])).sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+	});
+	it('kelas ditonton hanya pada kursi LAIN yang ditonton', () => {
+		const sendiri = renderDaftarPemain(menonton(0), { t: id.t });
+		expect(sendiri).not.toContain('ditonton');
+		const h = renderDaftarPemain(menonton(3), { t: id.t });
+		expect(kelas(h, 3)).toContain('ditonton');
+		expect(h.match(/ditonton/g)).toHaveLength(1);
+		expect(kelas(h, 0)).toContain('sendiri');
+	});
+	it('baris yang bisa diklik berkelas bisa-tonton dan bertooltip dwibahasa', () => {
+		const h = renderDaftarPemain(menonton(3), { t: id.t });
+		expect(kelas(h, 1)).toContain('bisa-tonton');
+		// Yang sedang ditonton dan yang tersingkir tidak.
+		expect(kelas(h, 3)).not.toContain('bisa-tonton');
+		expect(kelas(h, 2)).not.toContain('bisa-tonton');
+		// Baris sendiri = pulang.
+		expect(kelas(h, 0)).toContain('bisa-tonton');
+		expect(h).toContain('title="Klik untuk kembali ke papanmu"');
+		expect(renderDaftarPemain(menonton(3), { t: en.t })).toContain('title="Click to watch this player"');
+	});
+	it('kursiTontonKlik: kursi hidup lain, pulang ke kursi sendiri, null untuk yang tak perlu dikirim', () => {
+		expect(kursiTontonKlik(menonton(0), 4)).toBe(4);
+		expect(kursiTontonKlik(menonton(4), 0)).toBe(0);
+		// Sudah ditonton: server mengabaikan, jadi tidak dikirim.
+		expect(kursiTontonKlik(menonton(4), 4)).toBeNull();
+		expect(kursiTontonKlik(menonton(0), 0)).toBeNull();
+		// Tersingkir atau tak dikenal: server menolak.
+		expect(kursiTontonKlik(menonton(0), 2)).toBeNull();
+		expect(kursiTontonKlik(menonton(0), 9)).toBeNull();
+		// Kursi sendiri tersingkir: barisnya tidak memulangkan.
+		const mati = KURSI.map((k) => (k.kursi === 0 ? { ...k, hidup: false, hp: 0 } : k));
+		expect(kursiTontonKlik(menonton(4, mati), 0)).toBeNull();
+		expect(kursiTontonKlik(menonton(4, mati), 1)).toBe(1);
+		expect(kursiTontonKlik({ state: null }, 1)).toBeNull();
 	});
 });
 

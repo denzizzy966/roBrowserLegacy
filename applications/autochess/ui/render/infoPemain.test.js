@@ -83,4 +83,27 @@ describe('renderInfoPemain', () => {
 		const mati = renderInfoPemain(snap(), { ...depsDari(teks), bgm: { aktif: () => false, toggle() {} } });
 		expect(tombol(mati, 'bgm')[1]).toContain('✕');
 	});
+
+	it('AC6 K11: tombol Lewati ke peringkat akhir hanya bila kursi sendiri tersingkir', () => {
+		const d = depsDari(buatTeks());
+		const hidup = renderInfoPemain(snap(), d);
+		expect(tombol(hidup, 'selesaikan')).toBeNull();
+		expect(hidup).toContain('class="zeny"');
+
+		const mati = renderInfoPemain(snap({}, {}, { hidup: false, hp: 0 }), d);
+		expect(tombol(mati, 'selesaikan')[1]).toBe('Lewati ke peringkat akhir');
+		expect(tombol(mati, 'selesaikan')[0]).not.toContain('disabled');
+		// Baris Zeny dan Beruntun memberi tempat; Lewati biasa mati.
+		expect(mati).not.toContain('class="zeny"');
+		expect(mati).not.toContain('class="streak');
+		expect(tombol(mati, 'lewati')[0]).toContain('disabled');
+
+		const en = buatTeks();
+		en.setBahasa('en');
+		expect(tombol(renderInfoPemain(snap({}, {}, { hidup: false, hp: 0 }), depsDari(en)), 'selesaikan')[1]).toBe('Skip to final ranking');
+		// Sesudah pertandingan selesai tidak ada lagi yang dilewati.
+		expect(tombol(renderInfoPemain(snap({ selesai: { peringkatSaya: 8 } }, {}, { hidup: false, hp: 0 }), d), 'selesaikan')).toBeNull();
+		// Tanpa state: tidak ada tombol.
+		expect(tombol(renderInfoPemain({ state: null, fase: 1 }, d), 'selesaikan')).toBeNull();
+	});
 });

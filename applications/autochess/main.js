@@ -36,6 +36,9 @@
 //   sink teks tersembunyi yang tetap diisi log().
 // - AC5: kartu.js + ui/KartuBidak (kartu detail bidak saat hover, R4) dan
 //   statusIkon.js (ikon status RO dari data/texture/effect/).
+// - AC6 K3/K11/K14: EvtCaturTonton (state.terimaTonton, efek.bersihkanStatus,
+//   DPS direset); klik nama di Daftar Pemain mengirim `tonton`, tombol
+//   "Lewati ke peringkat akhir" di InfoPemain mengirim `selesaikan`.
 //
 // Nol berkas client/src/ berubah: semuanya lewat API publik.
 
@@ -78,13 +81,13 @@ import { decodeDamage, decodeDeath, hidupkanBar, mainkanAksi } from '../harness/
 import { rswFileName, decodeMapInfo, decodeServerError, decodeMove, decodeDespawn, buatAntrean } from '../harness/mapinfo.js';
 import {
 	encodeCaturMasuk, encodeCaturSiap, decodeSpawnLengkap, decodeCaturFase, decodeCaturHasil,
-	decodeCaturState, decodeCaturSelesai,
+	decodeCaturState, decodeCaturSelesai, decodeCaturTonton,
 	decodeSkillMulai, decodeSkillKena, decodeStatus, decodeSP, JENIS_DAMAGE_HEAL, buatPenerima, amankan, FASE
 } from './pesan.js';
 import { buatManajerEfek } from './efek.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
 import { kameraUntuk, terapkanKamera, kotakSeparuhSendiri, kotakPapanPenuh, FASE_TEMPUR, FASE_HASIL } from './kamera.js';
-import { buatState } from './state.js';
+import { buatState, menontonLain } from './state.js';
 import { muatKatalog, buatKatalog } from './katalog.js';
 import { buatTeks, formatZeny } from './teks.js';
 import { buatPotret } from './potret.js';
@@ -182,7 +185,9 @@ const dps = buatDPS();
 // JS kebijakan R2 (auto.js); aturan dibaca dari katalog saat dipakai.
 const auto = buatPemainOtomatis({
 	kirim, aturan: () => aturanDariKatalog(katalog), sekarang: () => performance.now(),
-	jadwalkan: (fn, ms) => setTimeout(fn, ms), batalkan: (t) => clearTimeout(t), log
+	jadwalkan: (fn, ms) => setTimeout(fn, ms), batalkan: (t) => clearTimeout(t), log,
+	// AC6 K14: tidak menaruh bidak selama papan kursi lain yang tampil.
+	menonton: () => menontonLain(st.ambil())
 });
 
 // AC4: seret-lepas bidak (Q3). Jendela dan katalog diambil saat dipakai:
@@ -521,6 +526,24 @@ function tanganiPesan({ galat, info, msg }, data) {
 		gambarJendelaAman();
 		jalankan(() => {
 			log(`< fase: ${namaFase(fase.fase)} ronde ${fase.ronde} (sisa ${fase.sisaMs} ms)`);
+		});
+		return;
+	}
+
+	// AC6 K3: tontonan berganti. EvtDespawn papan/pertempuran lama sudah
+	// tiba lebih dulu; EvtSpawn, EvtStatus, dan EvtCaturState baru menyusul.
+	// State dan DPS diperbarui seketika (seperti EvtCaturState dan
+	// EvtDamage); status/SP/cast lokal disapu lewat antrean, setelah
+	// despawn dan sebelum spawn yang menyusul.
+	const tonton = decodeCaturTonton(msg);
+	if (tonton) {
+		st.terimaTonton(tonton);
+		dps.reset();
+		amankan(() => kartu.sembunyikan(), log)();
+		gambarJendelaAman();
+		jalankan(() => {
+			const n = efek.bersihkanStatus();
+			log(`< tonton: kursi ${tonton.kursi}, lawan ${tonton.lawanKursi}, bawah ${tonton.kursiBawah} (${n} entity dibersihkan)`);
 		});
 		return;
 	}
@@ -885,7 +908,8 @@ function gambarJendela() {
 	// Separuh sendiri disorot redup selama PERSIAPAN. Idempoten, jadi
 	// cukup dipanggil tiap gambar: pergantian fase terlihat paling lambat
 	// 250 ms, dan tile yang dibuang EffectManager.free dibuat ulang.
-	sorot.separuhSendiri(snap.fase === FASE.PERSIAPAN && !snap.selesai);
+	// Saat menonton kursi lain separuh bawah bukan milik sendiri: tanpa sorotan.
+	sorot.separuhSendiri(snap.fase === FASE.PERSIAPAN && !snap.selesai && !menontonLain(snap));
 }
 
 const gambarJendelaAman = amankan(gambarJendela, log);
@@ -1091,6 +1115,8 @@ function cobaSorot(kolom, baris) {
 // __ac.jumlahEntitas() (isi EntityManager).
 // Task 10: __ac.debug(true|false) (panel #ui AC3), __ac.tataLetak()
 // (terapkan ulang dan kembalikan posisi), __ac.pesan('teks') (kotak RO).
+// AC6: __ac.tonton(kursi) (tonton kursi lain; kursi sendiri = pulang),
+// __ac.selesaikan() (sesudah tersingkir: langsung ke peringkat akhir).
 window.__ac = {
 	BGM, SoundManager, bgmKendali: kendaliBGM, deteksiNaikBintang, rayakanNaikBintang, st: () => st,
 	Camera, EntityManager, EffectManager, SK, Session, log, ZOOM, SUDUT, antrean, ulang, cobaEfek,
@@ -1114,6 +1140,8 @@ window.__ac = {
 		return auto.status();
 	},
 	autoStatus: () => auto.status(),
+	tonton: (kursi) => kirim('tonton', { kursi }),
+	selesaikan: () => kirim('selesaikan', {}),
 	jumlahEntitas: () => {
 		let n = 0;
 		EntityManager.forEach(() => { n++; });
