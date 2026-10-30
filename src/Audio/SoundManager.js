@@ -122,6 +122,10 @@ class SoundManager {
 			});
 			_sounds[filename].instances.push(audio);
 			_sounds[filename].lastTick = Date.now();
+			// MemoryManager revokes this blob URL when the file expires from memory;
+			// drop our <audio> elements first instead of replaying a dead src
+			// (which logs net::ERR_FILE_NOT_FOUND before any fallback can run).
+			Memory.onRemove(`data/wav/${filename}`, onSoundFileRemoved);
 		});
 	}
 
@@ -207,6 +211,11 @@ class SoundManager {
  * Will avoid to re-create sound object at each request (re-usable object)
  */
 function onSoundEnded() {
+	// src was revoked while playing: discard instead of caching
+	if (this.srcRevoked) {
+		onSoundError.call(this);
+		return;
+	}
 	if (_sounds[this.filename]) {
 		const pos = _sounds[this.filename].instances.indexOf(this);
 
@@ -237,6 +246,32 @@ function onSoundError() {
 	}
 	this.remove();
 	mediaPlayerCount--;
+}
+
+/**
+ * File removed from memory (its blob URL is about to be revoked):
+ * discard cached elements now, and playing ones once they end
+ * (not cut short; already buffered).
+ *
+ * @param {string} path - memory key, `data/wav/${filename}`
+ */
+function onSoundFileRemoved(path) {
+	const filename = path.slice('data/wav/'.length);
+	if (filename in _cache) {
+		_cache[filename].instances.forEach(s => {
+			if (s.cleanupHandle) {
+				clearTimeout(s.cleanupHandle);
+			}
+			s.remove();
+			mediaPlayerCount--;
+		});
+		_cache[filename].instances.length = 0;
+	}
+	if (filename in _sounds) {
+		_sounds[filename].instances.forEach(s => {
+			s.srcRevoked = true;
+		});
+	}
 }
 
 /**

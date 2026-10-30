@@ -44,6 +44,12 @@ const _cleanUpInterval = 10 * 1000;
 let _cleaningInProgress = false; // Prevents multiple clean cycles running at the same time
 let _cleanIndex = 0; // Tracks the current cleanup position
 let _filesToClean = []; // List of memory entries scheduled for removal
+
+/**
+ * Callbacks to run once when a file is removed from memory, keyed by filename.
+ * @var {Object<string, function[]>}
+ */
+const _removeHooks = {};
 class MemoryManager {
 	/**
 	 * Get back data from memory
@@ -197,6 +203,23 @@ class MemoryManager {
 	};
 
 	/**
+	 * Register a callback run once when `filename` is removed from memory,
+	 * before its data is freed (blob URL revoked, textures deleted).
+	 * Lets owners of objects still pointing at that data drop them first,
+	 * e.g. SoundManager's cached <audio> elements whose src is the blob URL.
+	 * Registering the same callback twice for a file is a no-op.
+	 *
+	 * @param {string} filename
+	 * @param {function(string)} fn - called with filename
+	 */
+	static onRemove = (filename, fn) => {
+		const hooks = _removeHooks[filename] || (_removeHooks[filename] = []);
+		if (!hooks.includes(fn)) {
+			hooks.push(fn);
+		}
+	};
+
+	/**
 	 * Remove Item from memory
 	 *
 	 * @param {object} gl - WebGL Context
@@ -206,6 +229,13 @@ class MemoryManager {
 		// Not found or filename is undefined?
 		if (!filename || !_memory[filename]) {
 			return;
+		}
+
+		// Let owners release references before the data is freed
+		const hooks = _removeHooks[filename];
+		if (hooks) {
+			delete _removeHooks[filename];
+			hooks.forEach(fn => fn(filename));
 		}
 
 		const file = MemoryManager.get(filename);
