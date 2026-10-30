@@ -92,7 +92,8 @@ export function buatKatalog(json, log = () => {}) {
 		/**
 		 * Skill aktif unit apa adanya (AC7 K17): {id, lv, nama{id,en}, ringkasan{id,en},
 		 * jenis, target, rasio, status?: {nama, peluang, durasi_ms}, jangkauan, splash,
-		 * cast_ms, sp_maks}; null bila tak ada.
+		 * cast_ms, sp_maks}; null bila tak ada. jangkauan dan splash dalam petak
+		 * papan (boleh pecahan, mis. 2.5), cast_ms sesudah faktor_cast arena.
 		 * @returns {object|null}
 		 */
 		skillUnit: (id) => units[id]?.skill ?? null,

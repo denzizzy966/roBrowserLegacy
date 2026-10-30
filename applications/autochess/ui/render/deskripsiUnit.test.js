@@ -83,8 +83,8 @@ describe('renderDeskripsiUnit (K16)', () => {
 		expect(isi).toContain(d.t('skill.target.area_musuh'));
 		expect(isi).toContain('<dt>Rasio</dt><dd>280 %</dd>');
 		expect(isi).toContain('Pingsan 30 % 2,0 d');
-		expect(isi).toContain('<dt>Jangkauan</dt><dd>1</dd>');
-		expect(isi).toContain('<dt>Splash</dt><dd>2</dd>');
+		expect(isi).toContain('<dt>Jangkauan</dt><dd>1 petak</dd>');
+		expect(isi).toContain('<dt>Splash</dt><dd>2 petak</dd>');
 		expect(isi).toContain(`<dt>${d.t('label.cast')}</dt><dd>0,7 d</dd>`);
 		expect(isi).toContain(`<dt>${d.t('label.sp_penuh')}</dt><dd>80</dd>`);
 		expect(isi).toContain(`<div class="skill-ringkas">${SKILL.ringkasan.id}</div>`);
@@ -96,9 +96,26 @@ describe('renderDeskripsiUnit (K16)', () => {
 		expect(en).toContain(e.t('skill.target.area_musuh'));
 		expect(en).toContain('<dt>Ratio</dt><dd>280%</dd>');
 		expect(en).toContain('Stun 30% 2.0s');
-		expect(en).toContain('<dt>Range</dt><dd>1</dd>');
+		expect(en).toContain('<dt>Range</dt><dd>1 cell</dd>');
+		expect(en).toContain('<dt>Splash</dt><dd>2 cells</dd>');
 		expect(en).toContain(`<dt>${e.t('label.cast')}</dt><dd>0.7s</dd>`);
 		expect(en).toContain(`<div class="skill-ringkas">${SKILL.ringkasan.en}</div>`);
+	});
+
+	it('jangkauan/splash pecahan dalam petak papan: satu desimal, koma di ID; bulat tanpa desimal', () => {
+		const k = buatKatalog({
+			units: { pemanah: { nama: { id: 'Pemanah', en: 'Archer' }, tier: 1, skill: { ...SKILL, jangkauan: 2.5, splash: 3.5 } },
+				pemburu: { nama: { id: 'Pemburu', en: 'Hunter' }, tier: 4, skill: { ...SKILL, jangkauan: 4, splash: 1 / 3 } } }
+		});
+		const id = renderDeskripsiUnit({ ...INFO, unitId: 'pemanah' }, { ...deps('id'), katalog: k }).isi;
+		expect(id).toContain('<dt>Jangkauan</dt><dd>2,5 petak</dd>');
+		expect(id).toContain('<dt>Splash</dt><dd>3,5 petak</dd>');
+		const en = renderDeskripsiUnit({ ...INFO, unitId: 'pemanah' }, { ...deps('en'), katalog: k }).isi;
+		expect(en).toContain('<dt>Range</dt><dd>2.5 cells</dd>');
+		expect(en).toContain('<dt>Splash</dt><dd>3.5 cells</dd>');
+		const bulat = renderDeskripsiUnit({ ...INFO, unitId: 'pemburu' }, { ...deps('id'), katalog: k }).isi;
+		expect(bulat).toContain('<dt>Jangkauan</dt><dd>4 petak</dd>');
+		expect(bulat).toContain('<dt>Splash</dt><dd>0,3 petak</dd>');
 	});
 
 	it('skill tanpa rasio/status/splash/cast: baris itu tidak ada', () => {

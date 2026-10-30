@@ -87,6 +87,9 @@ export const KAMUS = {
 	'label.lore':       { id: 'Lore', en: 'Lore' },
 	'label.rasio':      { id: 'Rasio', en: 'Ratio' },
 	'label.splash':     { id: 'Splash', en: 'Splash' },
+	// Satuan jarak skill di Deskripsi Unit (petak papan, sama dengan tabel stat).
+	'satuan.petak':      { id: 'petak', en: 'cells' },
+	'satuan.petak_satu': { id: 'petak', en: 'cell' },
 	'label.cast':       { id: 'Waktu rapal', en: 'Cast time' },
 	'label.sp_penuh':   { id: 'Dirapal saat SP penuh', en: 'Cast when SP is full' },
 	'skill.jenis.fisik':  { id: 'Serangan fisik', en: 'Physical attack' },

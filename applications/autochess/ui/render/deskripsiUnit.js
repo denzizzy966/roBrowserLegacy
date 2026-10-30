@@ -37,6 +37,19 @@ function detik(ms, bahasa) {
 	return bahasa === 'en' ? `${s}s` : `${s.replace('.', ',')} d`;
 }
 
+/**
+ * Jarak skill dalam petak papan (katalog: cell arena ÷ skala, boleh
+ * pecahan) dengan paling banyak satu desimal dan satuan KAMUS:
+ * "2,5 petak" (ID) / "2.5 cells" (EN); bulat tanpa desimal; EN tunggal
+ * untuk tepat 1 ("1 cell"), seperti ringkasan server.
+ */
+function jarak(n, bahasa, t) {
+	const r = Math.round(n * 10) / 10;
+	const s = Number.isInteger(r) ? String(r) : r.toFixed(1);
+	const angkaTeks = bahasa === 'en' ? s : s.replace('.', ',');
+	return `${angkaTeks} ${t(r === 1 ? 'satuan.petak_satu' : 'satuan.petak')}`;
+}
+
 /** Teks KAMUS, atau cadangan bila kunci tak dikenal (t mengembalikan kuncinya). */
 function kataAtau(t, kunci, cadangan) {
 	const k = t(kunci);
@@ -114,10 +127,10 @@ function blokSkill(info, deps) {
 		dl += baris(t('label.rasio'), persen(Math.round(sk.rasio * 100), bahasa));
 	}
 	if (Number.isFinite(sk.jangkauan)) {
-		dl += baris(t('stat.jangkauan'), sk.jangkauan);
+		dl += baris(t('stat.jangkauan'), jarak(sk.jangkauan, bahasa, t));
 	}
-	if (angka(sk.splash) > 0) {
-		dl += baris(t('label.splash'), angka(sk.splash));
+	if (Number.isFinite(sk.splash) && sk.splash > 0) {
+		dl += baris(t('label.splash'), jarak(sk.splash, bahasa, t));
 	}
 	if (angka(sk.cast_ms) > 0) {
 		dl += baris(t('label.cast'), detik(angka(sk.cast_ms), bahasa));
