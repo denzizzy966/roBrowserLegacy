@@ -3,14 +3,22 @@ import { hitungTataLetak, beririsan, posisiKartu, OVERLAY, TEPI } from './tataLe
 
 const UKURAN_LAYAR = [[1600, 900], [1536, 695], [1280, 720], [1314, 588]];
 
-/** Pasangan jendela yang kotaknya beririsan. */
+/**
+ * Satu-satunya tumpang tindih yang diizinkan: dua overlay yang tersembunyi
+ * bawaan dan bisa digeser (Log dan DPS) hanya boleh beririsan pada layar
+ * terpendek, karena di sana tidak ada slot bebas di antara Sinergi dan DPS.
+ * Kunci "lebarxtinggi"; pasangan diurutkan menurut abjad.
+ */
+const PENGECUALIAN_TUMPANG = { '1314x588': ['DPSxLog'] };
+
+/** Pasangan jendela (urut abjad, "AxB") yang kotaknya beririsan. */
 function tumpang(letak, abaikan = []) {
 	const nama = Object.keys(letak).filter((n) => !abaikan.includes(n));
 	const hasil = [];
 	for (let i = 0; i < nama.length; i++) {
 		for (let j = i + 1; j < nama.length; j++) {
 			if (beririsan(letak[nama[i]].kotak, letak[nama[j]].kotak)) {
-				hasil.push(`${nama[i]}x${nama[j]}`);
+				hasil.push([nama[i], nama[j]].sort().join('x'));
 			}
 		}
 	}
@@ -35,8 +43,15 @@ describe('hitungTataLetak', () => {
 		expect(tumpang(hitungTataLetak(w, h), OVERLAY)).toEqual([]);
 	});
 
-	it.each(UKURAN_LAYAR)('%ix%i: Toko dan DPS terbuka tidak menutup jendela lain kecuali Lore dan Log', (w, h) => {
-		expect(tumpang(hitungTataLetak(w, h), ['Lore', 'Log'])).toEqual([]);
+	it.each(UKURAN_LAYAR)('%ix%i: Toko, DPS, dan Log terbuka tidak saling menutup (kecuali Lore dan PENGECUALIAN_TUMPANG)', (w, h) => {
+		expect(tumpang(hitungTataLetak(w, h), ['Lore'])).toEqual(PENGECUALIAN_TUMPANG[`${w}x${h}`] ?? []);
+	});
+
+	it('Log bergeser ke slot di antara Sinergi dan DPS pada 1280x720 (bukan di atas Bangku)', () => {
+		const l = hitungTataLetak(1280, 720);
+		expect(l.Log.kotak).toEqual({ x: 952, y: 178, lebar: 320, tinggi: 140 });
+		expect(l.Log.kotak.y).toBeGreaterThanOrEqual(l.Sinergi.kotak.y + l.Sinergi.kotak.tinggi);
+		expect(l.Log.kotak.y + 140).toBeLessThanOrEqual(l.DPS.kotak.y);
 	});
 
 	it('Log 320x140 di kanan-bawah tepat di atas tombol K pada 1600x900', () => {
@@ -46,12 +61,16 @@ describe('hitungTataLetak', () => {
 		expect(OVERLAY).toContain('Log');
 	});
 
-	it.each(UKURAN_LAYAR)('%ix%i: Log terbuka tidak menutup jendela tetap, Toko, maupun pusat papan', (w, h) => {
+	it.each(UKURAN_LAYAR)('%ix%i: Log terbuka tidak menutup jendela tetap (juga InfoPemain terbuka), Toko, DPS, maupun pusat papan', (w, h) => {
 		const l = hitungTataLetak(w, h);
 		const tetap = Object.keys(l).filter((n) => !OVERLAY.includes(n) || n === 'Toko');
 		for (const n of tetap) {
 			expect(beririsan(l.Log.kotak, l[n].kotak), `Log x ${n}`).toBe(false);
 		}
+		expect(beririsan(l.Log.kotak, l.InfoPemain.kotakTerbuka), 'Log x InfoPemain terbuka').toBe(false);
+		// DPS dicek di setiap ukuran kecuali yang tercatat sebagai pengecualian.
+		const kenaDPS = beririsan(l.Log.kotak, l.DPS.kotak);
+		expect(kenaDPS, 'Log x DPS').toBe((PENGECUALIAN_TUMPANG[`${w}x${h}`] ?? []).includes('DPSxLog'));
 		// Pusat papan = pusat layar (kamera menengahkan papan): kotak 200x200 di tengah.
 		const pusat = { x: w / 2 - 100, y: h / 2 - 100, lebar: 200, tinggi: 200 };
 		expect(beririsan(l.Log.kotak, pusat)).toBe(false);

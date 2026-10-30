@@ -200,3 +200,13 @@ describe('buatPemuatIkon', () => {
 		expect(Client.loadFile).not.toHaveBeenCalled();
 	});
 });
+
+describe('pewaktu batas decode', () => {
+	it('tidak dijadwalkan bila decode sudah tuntas sinkron', () => {
+		const { Client, Texture } = buatFakes({ ada: ['data/texture/effect/bd_freezing.tga'] });
+		const tunda = vi.fn();
+		const pemuat = buatPemuatIkon({ Client, Texture, StatusTable: StatusInfo, tunda });
+		expect(pemuat.ambil(EFEK_STATUS.BEKU)).not.toBeNull();
+		expect(tunda).not.toHaveBeenCalled();
+	});
+});

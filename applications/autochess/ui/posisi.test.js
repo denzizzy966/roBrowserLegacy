@@ -147,6 +147,46 @@ describe('buatPemantauPosisi', () => {
 		expect(pref.Lore).toEqual({ left: 50, top: 60 });
 	});
 
+	it('geseran lalu disembunyikan sebelum denyut: tidak menyimpan {0,0}; disimpan saat tampil lagi', () => {
+		const { jendela, pref, pantau } = siapkan();
+		const host = jendela.DPS._host;
+		host.style.left = '700px';
+		host.style.top = '300px';
+		host.style.display = 'none';
+		host.offsetLeft = 0; // host tanpa kotak melaporkan 0
+		host.offsetTop = 0;
+		expect(pantau.pantau()).toBe(false);
+		expect(pref.DPS).toBeUndefined();
+		expect(pref.save).not.toHaveBeenCalled();
+		host.style.display = '';
+		expect(pantau.pantau()).toBe(true);
+		expect(pref.DPS).toEqual({ left: 700, top: 300 });
+	});
+
+	it('host tersembunyi lewat kelas CSS (terlihat() palsu) juga dilewati dan nilai lama dipertahankan', () => {
+		const jendela = { Log: { _host: { style: { left: '10px', top: 'auto' }, offsetLeft: 0, offsetTop: 0 } } };
+		const pref = { Log: { left: 5, top: 6 }, save: vi.fn() };
+		let tampil = true;
+		const p = buatPemantauPosisi({ jendela, pref, dokumen: dokumenPalsu(), nama: ['Log'], terlihat: () => tampil });
+		p.catat();
+		jendela.Log._host.style.left = '400px';
+		jendela.Log._host.style.top = '200px';
+		tampil = false;
+		expect(p.pantau()).toBe(false);
+		expect(pref.Log).toEqual({ left: 5, top: 6 });
+	});
+
+	it('menyimpan nilai px inline, bukan offsetLeft/Top', () => {
+		const { jendela, pref, pantau } = siapkan();
+		const host = jendela.Lore._host;
+		host.style.left = '123.5px';
+		host.style.top = '45px';
+		host.offsetLeft = 999;
+		host.offsetTop = 999;
+		pantau.pantau();
+		expect(pref.Lore).toEqual({ left: 123.5, top: 45 });
+	});
+
 	it('jendela bukan-seret (Timer, KartuBidak) tidak pernah disimpan', () => {
 		const { jendela, pref, pantau } = siapkan();
 		geser(jendela.Timer._host, 5, 5);

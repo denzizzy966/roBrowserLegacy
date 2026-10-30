@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ekorLog, renderLog, BARIS_LOG_MAKS } from './log.js';
+import { ekorLog, renderLog, BARIS_LOG_MAKS, diDasar, perbaruiLog } from './log.js';
 
 describe('ekorLog', () => {
 	it('kosong -> tanpa baris', () => {
@@ -40,5 +40,58 @@ describe('renderLog', () => {
 	});
 	it('log kosong -> string kosong', () => {
 		expect(renderLog('')).toBe('');
+	});
+});
+
+describe('perbaruiLog (autoscroll hanya di dasar)', () => {
+	/** Elemen palsu: menulis html memperpanjang isi dan, seperti browser, tidak menggeser scrollTop. */
+	function elemen({ scrollTop = 0, scrollHeight = 500, clientHeight = 100 } = {}) {
+		return { scrollTop, scrollHeight, clientHeight };
+	}
+	const tulis = (el, html) => {
+		if (el._htmlTerakhir === html) {
+			return false;
+		}
+		el._htmlTerakhir = html;
+		el.scrollHeight += 13; // satu baris baru
+		return true;
+	};
+
+	it('diDasar: tepat di dasar dan dalam toleransi 4 px', () => {
+		expect(diDasar(elemen({ scrollTop: 400 }))).toBe(true);
+		expect(diDasar(elemen({ scrollTop: 396 }))).toBe(true);
+		expect(diDasar(elemen({ scrollTop: 395 }))).toBe(false);
+	});
+
+	it('di dasar sebelum menulis -> menggulir ke dasar baru', () => {
+		const el = elemen({ scrollTop: 400 });
+		el._htmlTerakhir = 'lama';
+		expect(perbaruiLog(el, 'baru', tulis)).toBe(true);
+		expect(el.scrollTop).toBe(513);
+	});
+
+	it('pembaca menggulir ke atas -> scrollTop dipertahankan walau isi berubah', () => {
+		const el = elemen({ scrollTop: 120 });
+		el._htmlTerakhir = 'lama';
+		perbaruiLog(el, 'baru1', tulis);
+		perbaruiLog(el, 'baru2', tulis);
+		expect(el.scrollTop).toBe(120);
+	});
+
+	it('isi sama (tidak berubah) -> scrollTop tak disentuh', () => {
+		const el = elemen({ scrollTop: 120 });
+		el._htmlTerakhir = 'sama';
+		expect(perbaruiLog(el, 'sama', tulis)).toBe(false);
+		expect(el.scrollTop).toBe(120);
+	});
+
+	it('penulisan pertama dan paksaDasar selalu ke dasar', () => {
+		const pertama = elemen({ scrollTop: 0 });
+		perbaruiLog(pertama, 'x', tulis);
+		expect(pertama.scrollTop).toBe(513);
+		const paksa = elemen({ scrollTop: 10 });
+		paksa._htmlTerakhir = 'lama';
+		perbaruiLog(paksa, 'baru', tulis, true);
+		expect(paksa.scrollTop).toBe(513);
 	});
 });

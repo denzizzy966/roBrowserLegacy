@@ -37,7 +37,8 @@ export function warnaKelas(id) {
 /**
  * Pengecualian kode lencana untuk id produksi yang bertabrakan dengan
  * aturan umum: `peco` dan `performer` sama-sama "PE". Dipilih huruf pertama
- * ditambah huruf konsonan kedua yang khas ("PF" = PerFormer); peco tetap PE.
+ * ditambah huruf khas berikutnya yang belum terpakai ("PF" = PerFormer;
+ * "PR" sudah milik prontera); peco tetap PE.
  */
 const KODE_KHUSUS = Object.freeze({ performer: 'PF' });
 

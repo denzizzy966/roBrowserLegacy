@@ -124,9 +124,6 @@ export function buatPemuatIkon({
 			}
 		};
 		Client.loadFile(daftar[i], (data) => {
-			// Decode yang tak pernah memanggil balik (gambar rusak tanpa
-			// onerror) dianggap gagal sesudah batasMs.
-			tunda(lanjut, batasMs);
 			Texture.load(data, function termuat(ok) {
 				if (tuntas) {
 					return;
@@ -138,6 +135,12 @@ export function buatPemuatIkon({
 					lanjut();
 				}
 			});
+			// Decode yang tak pernah memanggil balik (gambar rusak tanpa
+			// onerror) dianggap gagal sesudah batasMs; tak perlu pewaktu bila
+			// decode sudah tuntas (TGA memanggil balik sinkron).
+			if (!tuntas) {
+				tunda(lanjut, batasMs);
+			}
 		}, lanjut);
 	}
 

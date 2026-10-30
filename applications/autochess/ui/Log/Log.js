@@ -8,15 +8,15 @@
  * tersembunyi (display:none selamanya). main.js log() menulis ke sana,
  * dan resep Playwright / soak membaca #log.textContent (mis. mencari
  * "map termuat"). Jendela ini hanya MENAMPILKAN 200 baris terakhir dari
- * teks yang sama (renderLog) di denyut 250 ms, dan menggulir ke bawah
- * setiap ada baris baru.
+ * teks yang sama (renderLog) di denyut 250 ms; menggulir ke bawah hanya
+ * bila pembaca sudah di dasar. Sink dibatasi 2000 baris (logSink.js).
  */
 
 import UIManager from 'UI/UIManager.js';
 import GUIComponent from 'UI/GUIComponent.js';
 import htmlText from './Log.html?raw';
 import cssText from './Log.css?raw';
-import { renderLog, BARIS_LOG_MAKS } from '../render/log.js';
+import { renderLog, perbaruiLog, BARIS_LOG_MAKS } from '../render/log.js';
 import { pasangKerangka, tulisBila } from '../janela.js';
 
 const Log = new GUIComponent('Log', cssText);
@@ -39,8 +39,11 @@ Log.init = function init() {
 	this.draggable('.titlebar');
 };
 
-/** Menggambar ekor log; menggulir ke bawah bila ada baris baru. */
-function isiUlang() {
+/**
+ * Menggambar ekor log. Menggulir ke dasar hanya bila pembaca sudah di dasar
+ * (atau jendela baru dibuka); pembaca yang menggulir ke atas dibiarkan.
+ */
+function isiUlang(paksaDasar = false) {
 	if (!Log.isi) {
 		return;
 	}
@@ -50,10 +53,7 @@ function isiUlang() {
 			Log.judul.textContent = judul;
 		}
 	}
-	const berubah = tulisBila(Log.isi, renderLog(sumber()?.textContent ?? '', BARIS_LOG_MAKS));
-	if (berubah) {
-		Log.isi.scrollTop = Log.isi.scrollHeight;
-	}
+	perbaruiLog(Log.isi, renderLog(sumber()?.textContent ?? '', BARIS_LOG_MAKS), tulisBila, paksaDasar);
 }
 
 /** @returns {boolean} true bila jendela sedang tampil */
@@ -63,7 +63,7 @@ Log.terbuka = function terbuka() {
 
 Log.buka = function buka() {
 	this._host?.classList.add('terbuka');
-	isiUlang();
+	isiUlang(true);
 };
 
 Log.tutup = function tutup() {

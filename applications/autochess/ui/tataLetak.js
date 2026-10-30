@@ -85,13 +85,23 @@ export function hitungTataLetak(lebar, tinggi) {
 	const atasTombolDPS = Math.round(tinggi * 0.45);
 	const kiriDPS = kiriTombolKanan - SELA - U.DPS.lebar;
 	const kiriKap = Math.round((lebar - U.Kapasitas.lebar) / 2);
-	// Log: rata kanan, tepat di atas tombol K. Di layar sempit kolom kirinya
-	// masuk ke lebar Bangku; saat itu ia naik ke atas Bangku supaya tidak
-	// menutupnya (tersembunyi bawaan, jadi hanya kotaknya yang dijaga).
+	// Log: rata kanan, tepat di atas tombol K. Bila slot itu menabrak Bangku
+	// atau DPS (layar sempit), ia pindah ke slot kolom kanan di antara Sinergi
+	// dan DPS, selama muat. Bila slot itu pun tidak muat (layar terpendek,
+	// mis. 1314x588) tetap di atas K dan boleh menimpa DPS: dua overlay yang
+	// tersembunyi bawaan dan bisa digeser (PENGECUALIAN_TUMPANG di uji).
 	const kiriLog = lebar - TEPI - U.Log.lebar;
 	let atasLog = tinggi - TEPI - U.TombolToko.tinggi - SELA - U.Log.tinggi;
-	if (kiriLog < kiriBangku + U.Bangku.lebar + SELA) {
-		atasLog = Math.min(atasLog, atasBangku - SELA - U.Log.tinggi);
+	const kenaTetangga = (y) => {
+		const k = { x: kiriLog, y, lebar: U.Log.lebar, tinggi: U.Log.tinggi };
+		return beririsan(k, { x: kiriBangku, y: atasBangku, lebar: U.Bangku.lebar, tinggi: U.Bangku.tinggi })
+			|| beririsan(k, { x: kiriDPS, y: atasTombolDPS, lebar: U.DPS.lebar, tinggi: U.DPS.tinggi });
+	};
+	if (kenaTetangga(atasLog)) {
+		const alternatif = atasTombolDPS - SELA - U.Log.tinggi;
+		if (alternatif >= atasSinergi + U.Sinergi.tinggi + SELA && !kenaTetangga(alternatif)) {
+			atasLog = alternatif;
+		}
 	}
 
 	return {

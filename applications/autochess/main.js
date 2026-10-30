@@ -110,6 +110,7 @@ import DPSJ       from './ui/DPS/DPS.js';
 import TombolDPSJ from './ui/TombolDPS/TombolDPS.js';
 import KartuBidakJ from './ui/KartuBidak/KartuBidak.js';
 import LogJ       from './ui/Log/Log.js';
+import { buatSinkLog } from './logSink.js';
 import { buatPemantauPosisi, KUNCI_POSISI } from './ui/posisi.js';
 import { aturTataLetak } from './ui/tataLetak.js';
 import { lupakanTulisan } from './ui/janela.js';
@@ -137,10 +138,11 @@ const SUDUT = 250;
 
 const logEl  = document.getElementById('log');
 const uiEl   = document.getElementById('ui');
+// Sink #log dibatasi (logSink.js): baris awal tetap ada, tengahnya dipangkas.
+const tambahLog = buatSinkLog(logEl);
 
 function log(msg) {
-	logEl.textContent += msg + '\n';
-	logEl.scrollTop = logEl.scrollHeight;
+	tambahLog(msg);
 	console.log('[ac]', msg);
 }
 

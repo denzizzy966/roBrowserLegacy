@@ -44,6 +44,37 @@ export function ekorLog(teks, maks = BARIS_LOG_MAKS) {
 	return s.slice(awal, akhir).split('\n');
 }
 
+/** Toleransi (px) agar dianggap "di dasar" saat menggulir. */
+export const TOLERANSI_DASAR = 4;
+
+/** true bila elemen bergulir sedang di dasar (atau belum bisa digulir). */
+export function diDasar(el, toleransi = TOLERANSI_DASAR) {
+	return el.scrollTop + el.clientHeight >= el.scrollHeight - toleransi;
+}
+
+/**
+ * Menulis html ke elemen bergulir `isi`, menggulir ke dasar HANYA bila
+ * pengguna sudah di dasar sebelum penulisan (atau isi pertama kali /
+ * `paksaDasar`); selain itu scrollTop dipertahankan, supaya pembaca yang
+ * menggulir ke atas tidak ditarik balik tiap denyut.
+ *
+ * @param {{scrollTop:number, scrollHeight:number, clientHeight:number}} isi
+ * @param {string} html
+ * @param {function(object, string): boolean} tulis tulisBila (true bila berubah)
+ * @param {boolean} [paksaDasar]
+ * @returns {boolean} true bila isi berubah
+ */
+export function perbaruiLog(isi, html, tulis, paksaDasar = false) {
+	const pertama = isi._htmlTerakhir === undefined;
+	const sebelum = isi.scrollTop;
+	const diBawah = paksaDasar || pertama || diDasar(isi);
+	const berubah = tulis(isi, html);
+	if (berubah) {
+		isi.scrollTop = diBawah ? isi.scrollHeight : sebelum;
+	}
+	return berubah;
+}
+
 /**
  * @param {string} teks isi #log
  * @param {number} [maks] jumlah baris terakhir

@@ -57,6 +57,18 @@ export function gabungPosisi(letak, tersimpan, lebar, tinggi) {
 	return hasil;
 }
 
+/**
+ * true bila host sedang ditata (bukan display:none, juga lewat kelas CSS).
+ * Host tersembunyi tidak punya kotak, jadi offsetLeft/Top-nya 0.
+ */
+function hostTerlihat(host) {
+	if (host.style.display === 'none') {
+		return false;
+	}
+	const cs = globalThis.getComputedStyle?.(host);
+	return !cs || cs.display !== 'none';
+}
+
 /** Tanda tangan posisi inline host: berubah hanya bila ada yang menulis left/top. */
 function tandaTangan(host) {
 	return `${host.style.left}|${host.style.top}`;
@@ -68,9 +80,12 @@ function tandaTangan(host) {
  * @param {object} d.pref Preferences.get(KUNCI_POSISI, {}, 1.0) (isi: nama -> {left, top}; save())
  * @param {EventTarget} [d.dokumen] sumber peristiwa pointer (window)
  * @param {string[]} [d.nama] jendela yang dipantau
+ * @param {function(HTMLElement): boolean} [d.terlihat] true bila host punya kotak tata letak
  * @returns {{catat: function(): void, pantau: function(): boolean, ditekan: function(): boolean}}
  */
-export function buatPemantauPosisi({ jendela, pref, dokumen = globalThis.window, nama = JENDELA_DAPAT_DIGESER }) {
+export function buatPemantauPosisi({
+	jendela, pref, dokumen = globalThis.window, nama = JENDELA_DAPAT_DIGESER, terlihat = hostTerlihat
+}) {
 	/** nama -> tanda tangan posisi yang diterapkan aturTataLetak / terakhir disimpan. */
 	const dasar = new Map();
 	let ditekan = false;
@@ -116,6 +131,11 @@ export function buatPemantauPosisi({ jendela, pref, dokumen = globalThis.window,
 				if (!host) {
 					continue;
 				}
+				if (!terlihat(host)) {
+					// Disembunyikan sebelum sempat dibaca: biarkan garis dasar,
+					// geseran disimpan pada denyut saat jendela tampil lagi.
+					continue;
+				}
 				const kini = tandaTangan(host);
 				if (!dasar.has(n)) {
 					dasar.set(n, kini); // pertama terlihat: belum ada garis dasar, bukan geseran
@@ -125,8 +145,13 @@ export function buatPemantauPosisi({ jendela, pref, dokumen = globalThis.window,
 					continue;
 				}
 				dasar.set(n, kini);
-				pref[n] = { left: host.offsetLeft, top: host.offsetTop };
-				simpan = true;
+				// Nilai yang ditulis geseran (px inline), bukan offsetLeft/Top.
+				const left = parseFloat(host.style.left);
+				const top = parseFloat(host.style.top);
+				if (Number.isFinite(left) && Number.isFinite(top)) {
+					pref[n] = { left, top };
+					simpan = true;
+				}
 			}
 			if (simpan) {
 				pref.save?.();
