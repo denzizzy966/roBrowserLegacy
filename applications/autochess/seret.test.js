@@ -52,8 +52,14 @@ function buatDokumen() {
 		},
 		// Toko yang tampil menutupi apa pun di bawahnya (lihat tokoPalsu).
 		elementFromPoint: (x, y) => (dok.tokoDi?.(x, y) ? dok.tokoDi.el : dok.diBawah),
+		// Urutan pendaftaran = urutan panggil; stopPropagation/
+		// stopImmediatePropagation (pev) menghentikan pendengar berikutnya,
+		// cukup untuk meniru capture di dokumen sebelum tombol sasaran.
 		picu(nama, ev) {
 			for (const fn of [...(pendengar.get(nama) ?? [])]) {
+				if (ev?.berhenti) {
+					break;
+				}
 				fn(ev);
 			}
 		},
@@ -63,10 +69,20 @@ function buatDokumen() {
 }
 
 function pev(x, y, ekstra = {}) {
-	return {
-		clientX: x, clientY: y, pageX: x, pageY: y, button: 0,
-		preventDefault: vi.fn(), stopPropagation: vi.fn(), ...ekstra
+	const ev = {
+		clientX: x, clientY: y, pageX: x, pageY: y, button: 0, berhenti: false,
+		preventDefault: vi.fn(() => {
+			ev.defaultPrevented = true;
+		}),
+		stopPropagation: vi.fn(() => {
+			ev.berhenti = true;
+		}),
+		stopImmediatePropagation: vi.fn(() => {
+			ev.berhenti = true;
+		}),
+		...ekstra
 	};
+	return ev;
 }
 
 let dok, jen, Mouse, Renderer, Cursor, kirim, potret, sorot, log, snap, ambilSnap, seret;
@@ -181,6 +197,19 @@ function seretPapan(x, y) {
 	const ok = seret.mulaiDariPapan(pev(x, y));
 	dok.picu('pointermove', pev(x + 10, y));
 	return ok;
+}
+
+/**
+ * Klik kiri lengkap selama bawa: pointerdown (penentu), pointerup, lalu
+ * `click` pada tombol UI ber-data-aksi di bawah pointer. Mengembalikan
+ * event click-nya.
+ */
+function klikBawa(x, y) {
+	dok.picu('pointerdown', pev(x, y));
+	dok.picu('pointerup', pev(x, y));
+	const klik = pev(x, y, { target: { dataset: { aksi: 'beli-exp' } } });
+	dok.picu('click', klik);
+	return klik;
 }
 
 /** Hantu dilepas, kursor kembali, sorotan padam, listener dicabut. */
@@ -733,24 +762,84 @@ describe('bawa (AC7 K4)', () => {
 		dok.picu('pointerdown', ev);
 		expect(ev.stopPropagation).toHaveBeenCalled();
 		expect(kirim).toHaveBeenCalledWith('taruh', { bidakId: 1, kolom: 3, baris: 2 });
+		dok.picu('pointerup', pev(760, 550));
+		dok.picu('click', pev(760, 550));
 		harusBersih();
 	});
 
 	it('klik kiri di zona jual -> jual', () => {
 		seret.mulaiBawa(BIDAK[2], { x: 760, y: 550 });
 		dok.picu('pointermove', pev(DI_TOKO.x, DI_TOKO.y));
-		dok.picu('pointerdown', pev(DI_TOKO.x, DI_TOKO.y));
+		klikBawa(DI_TOKO.x, DI_TOKO.y);
 		expect(kirim).toHaveBeenCalledWith('jual', { bidakId: 3 });
 		harusBersih();
 	});
 
-	it('klik kanan -> batal tanpa kirim', () => {
+	it('klik kanan -> batal tanpa kirim, tanpa penelan click yang tertinggal', () => {
 		seret.mulaiBawa(BIDAK[0], { x: 600, y: 840 });
 		diAtasPapan(44.5, 41.5);
 		dok.picu('pointerdown', pev(500, 650, { button: 2 }));
 		expect(kirim).not.toHaveBeenCalled();
 		expect(log).not.toHaveBeenCalled();
 		harusBersih();
+		// Klik kiri biasa sesudahnya tidak ditelan.
+		const klik = pev(500, 650);
+		dok.picu('click', klik);
+		expect(klik.preventDefault).not.toHaveBeenCalled();
+	});
+
+	it('review I1: click sesudah klik kiri penentu ditelan sekali; tombol UI di bawah pointer tidak bertindak', () => {
+		seret.mulaiBawa(BIDAK[0], { x: 600, y: 840 });
+		// Di atas Bangku, di bawah pointer ada tombol Beli EXP (bertindak pada click).
+		dok.diBawah = { nama: 'Beli EXP' };
+		dok.picu('pointermove', pev(700, 780));
+		dok.picu('pointerdown', pev(700, 780));
+		expect(seret.modus()).toBeNull();
+		const tombol = vi.fn(() => kirim('beli-exp', {}));
+		dok.addEventListener('click', tombol); // sasaran: sesudah capture dokumen
+		dok.picu('pointerup', pev(700, 780));
+		const klik = pev(700, 780, { target: { dataset: { aksi: 'beli-exp' } } });
+		dok.picu('click', klik);
+		expect(klik.preventDefault).toHaveBeenCalled();
+		expect(klik.defaultPrevented).toBe(true);
+		expect(klik.stopImmediatePropagation).toHaveBeenCalled();
+		expect(tombol).not.toHaveBeenCalled();
+		expect(kirim).not.toHaveBeenCalledWith('beli-exp', {});
+		dok.removeEventListener('click', tombol);
+		harusBersih();
+		// Hanya sekali: click berikutnya lewat.
+		const lagi = pev(700, 780);
+		dok.picu('click', lagi);
+		expect(lagi.preventDefault).not.toHaveBeenCalled();
+	});
+
+	it('review I1: penelan dilepas pada tick sesudah pointerup bila click tidak datang, atau oleh pointerdown berikutnya', () => {
+		seret.mulaiBawa(BIDAK[0], { x: 600, y: 840 });
+		diAtasPapan(44.5, 41.5);
+		dok.picu('pointerdown', pev(500, 650));
+		expect(kirim).toHaveBeenCalledTimes(1);
+		dok.picu('pointerup', pev(500, 650));
+		jalankanPewaktu(); // tick berikutnya, tanpa click
+		harusBersih();
+		const klik = pev(500, 650);
+		dok.picu('click', klik);
+		expect(klik.preventDefault).not.toHaveBeenCalled();
+
+		seret.mulaiBawa(BIDAK[0], { x: 600, y: 840 });
+		dok.picu('pointerdown', pev(500, 650));
+		dok.picu('pointerdown', pev(510, 650)); // klik baru tanpa click di antaranya
+		expect(dok.jumlahPendengar()).toBe(0);
+	});
+
+	it('review I1: bereskan interaksi berikutnya juga melepas penelan', () => {
+		seret.mulaiBawa(BIDAK[0], { x: 600, y: 840 });
+		diAtasPapan(44.5, 41.5);
+		dok.picu('pointerdown', pev(500, 650));
+		expect(dok.jumlahPendengar()).toBeGreaterThan(0);
+		// Pegangan baru lewat API (tanpa pointerdown dokumen), lalu dibatalkan.
+		seret.mulaiDariBangku(1, pev(600, 840));
+		dok.picu('pointercancel', pev(600, 840));
+		expect(dok.jumlahPendengar()).toBe(0);
 	});
 
 	it('batalBawa() -> bersih; tanpa bawa tidak berbuat apa-apa', () => {

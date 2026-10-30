@@ -28,7 +28,9 @@
  * - 'bawa' (K4): hantu dan zona jual yang sama tanpa tombol ditahan;
  *   pointerdown kiri berikutnya -> putuskanDrop, kanan -> batal,
  *   batalBawa() (Esc) -> batal. pointerdown itu ditelan (capture di
- *   dokumen) supaya tidak memulai pegangan baru di bawahnya.
+ *   dokumen) supaya tidak memulai pegangan baru di bawahnya, dan `click`
+ *   yang menyusul klik kiri itu juga ditelan sekali (tombol UI di bawah
+ *   pointer tidak ikut tertekan).
  *
  * Semua jalan keluar memakai satu bereskan(): listener dan status dilepas
  * paling dulu, lalu pewaktu, hantu, kursor, sorotan, zona jual, dan
@@ -227,6 +229,14 @@ export function buatSeret({
 	/** Pendaftar padaKlik / padaTahan (satu masing-masing). */
 	let fnKlik = null;
 	let fnTahan = null;
+	/**
+	 * Penelan `click` sesudah klik kiri penentu bawa: {timer} atau null.
+	 * pointerdown yang ditelan tidak mencegah `click` yang menyusul, dan
+	 * semua tombol UI autochess bertindak pada `click` (ikatAksi,
+	 * TombolToko, Beli EXP di atas Bangku): tanpa ini satu klik bawa juga
+	 * menekan tombol di bawah pointer.
+	 */
+	let telan = null;
 
 	function diKanvas(x, y) {
 		return dokumen.elementFromPoint(x, y) === Renderer.canvas;
@@ -311,6 +321,7 @@ export function buatSeret({
 		dokumen.removeEventListener('pointerdown', tekanBawa, true);
 		dokumen.removeEventListener('pointercancel', batal);
 		jendela?.removeEventListener('blur', batal);
+		lepasTelanKlik();
 		if (!lama) {
 			return;
 		}
@@ -392,12 +403,61 @@ export function buatSeret({
 		ev.preventDefault?.();
 		ev.stopPropagation?.();
 		if (ev.button === 2) {
+			// Tombol kanan tidak menghasilkan `click`: tidak ada yang ditelan.
 			bereskan(ev);
 			return;
 		}
 		if (ev.button === undefined || ev.button === 0) {
-			putuskanDiTitik(ev);
+			// Dipasang SESUDAH keputusan (bereskan di dalamnya melepas
+			// penelan lama), juga bila keputusan melempar.
+			try {
+				putuskanDiTitik(ev);
+			} finally {
+				pasangTelanKlik();
+			}
 		}
+	}
+
+	/** `click` yang menyusul klik penentu bawa: ditelan sekali. */
+	function telanKlik(ev) {
+		ev.preventDefault?.();
+		ev.stopImmediatePropagation?.();
+		ev.stopPropagation?.();
+		lepasTelanKlik();
+	}
+
+	/**
+	 * pointerup sesudah klik penentu: `click` dikirim dalam task yang sama
+	 * sesudah pointerup; bila tidak ada (pointerup di elemen yang tidak
+	 * punya leluhur bersama yang sah, dsb.), penelan dilepas pada tick
+	 * berikutnya supaya klik keyboard sesudahnya tidak ikut tertelan.
+	 */
+	function lepasTelanSesudahUp() {
+		if (telan && telan.timer === null) {
+			telan.timer = tunda(lepasTelanKlik, 0);
+		}
+	}
+
+	function pasangTelanKlik() {
+		lepasTelanKlik();
+		telan = { timer: null };
+		dokumen.addEventListener('click', telanKlik, true);
+		dokumen.addEventListener('pointerup', lepasTelanSesudahUp, true);
+		// pointerdown berikutnya berarti klik baru: penelan tidak berlaku lagi.
+		dokumen.addEventListener('pointerdown', lepasTelanKlik, true);
+	}
+
+	function lepasTelanKlik() {
+		if (!telan) {
+			return;
+		}
+		dokumen.removeEventListener('click', telanKlik, true);
+		dokumen.removeEventListener('pointerup', lepasTelanSesudahUp, true);
+		dokumen.removeEventListener('pointerdown', lepasTelanKlik, true);
+		if (telan.timer !== null) {
+			batalTunda(telan.timer);
+		}
+		telan = null;
 	}
 
 	/** pointermove selama diam: lewat ambang -> seret (atau lepas klik-saja). */
