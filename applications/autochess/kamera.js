@@ -11,7 +11,7 @@
  */
 
 import { hitungTataLetak } from './ui/tataLetak.js';
-import { KOLOM, BARIS } from './papan.js';
+import { KOLOM, BARIS, SKALA_PETAK as SKALA } from './papan.js';
 
 /** Sudut kamera (Camera.angleFinal[0]). */
 export const SUDUT = 250;
@@ -53,17 +53,30 @@ export const P0 = 31.95;
 export const P1 = 7.122;
 export const P2 = 0.036;
 
+/** Nomor fase (sama dengan FASE di pesan.js; tidak diimpor agar berkas ini murni). */
+export const FASE_PERSIAPAN = 1;
+export const FASE_TEMPUR = 2;
+export const FASE_HASIL = 3;
+/** Jarak minimum papan penuh dari tepi area bebas (px). */
+export const MARGIN_PAPAN = 8;
+/** Tinggi cell lantai arena guild_vs3 (rata) untuk perhitungan murni. */
+const TINGGI_LANTAI = 4;
+
 /** Zoom/sudut cadangan bila viewport belum diketahui. */
 export const ZOOM_CADANGAN = 220;
 
 /**
  * @param {number} lebar Renderer.width
  * @param {number} tinggi Renderer.height
+ * @param {number} [fase] FASE catur; TEMPUR/HASIL = papan penuh (kameraPenuh)
  * @returns {{zoom:number, sudut:number, geserY:number}}
  */
-export function kameraUntuk(lebar, tinggi) {
+export function kameraUntuk(lebar, tinggi, fase = FASE_PERSIAPAN) {
 	if (!(lebar > 0) || !(tinggi > 0)) {
 		return { zoom: ZOOM_CADANGAN, sudut: SUDUT, geserY: 0 };
+	}
+	if (fase === FASE_TEMPUR || fase === FASE_HASIL) {
+		return kameraPenuh(lebar, tinggi);
 	}
 	const mentah = (K_LEBAR * tinggi) / (PORSI_LEBAR * lebar) - C_ZOOM;
 	const zoom = Math.round(Math.min(ZOOM_MAKS, Math.max(ZOOM_MIN, mentah)) * 10) / 10;
@@ -136,16 +149,16 @@ export function proyeksiTitik(Camera, x, y, z, layar) {
 }
 
 /**
- * Kotak layar (bounding box) separuh papan sendiri: empat sudutnya
- * (baris 0..3 dari TIM_A = y asal .. asal + BARIS/2 * skala).
+ * Kotak layar (bounding box) dari `baris` baris papan mulai dari y asal:
+ * 4 baris = separuh sendiri (baris 0..3 dari TIM_A), 8 = papan penuh.
  *
  * @returns {{x:number, y:number, lebar:number, tinggi:number}}
  */
-export function kotakSeparuhSendiri(Camera, asal, skala, tinggiCell, layar) {
+export function kotakPapan(Camera, asal, skala, tinggiCell, layar, baris) {
 	const x0 = asal.x;
 	const x1 = asal.x + KOLOM * skala;
 	const y0 = asal.y;
-	const y1 = asal.y + (BARIS / 2) * skala;
+	const y1 = asal.y + baris * skala;
 	const titik = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].map(([x, y]) =>
 		proyeksiTitik(Camera, x, y, tinggiCell(Math.floor(Math.min(x, x1 - 1)), Math.floor(Math.min(y, y1 - 1))), layar));
 	const xs = titik.map((t) => t.sx);
@@ -157,6 +170,14 @@ export function kotakSeparuhSendiri(Camera, asal, skala, tinggiCell, layar) {
 		lebar: Math.round(Math.max(...xs) - minX), tinggi: Math.round(Math.max(...ys) - minY)
 	};
 }
+
+/** Kotak layar separuh papan sendiri (4 baris). */
+export const kotakSeparuhSendiri = (Camera, asal, skala, tinggiCell, layar) =>
+	kotakPapan(Camera, asal, skala, tinggiCell, layar, BARIS / 2);
+
+/** Kotak layar papan penuh (8 baris, kedua separuh). */
+export const kotakPapanPenuh = (Camera, asal, skala, tinggiCell, layar) =>
+	kotakPapan(Camera, asal, skala, tinggiCell, layar, BARIS);
 
 /** Sudut pandang vertikal renderer (Renderer.vFov, derajat). */
 export const VFOV = 15;
@@ -203,4 +224,60 @@ export function matriksKamera(zoom, sudut, target, layar) {
 	const putarX = [1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1];
 	const modelView = kali(kali(geser(0, 0, -zoom / 2), putarX), geser(-target.x - 0.5, target.z, -target.y - 0.5));
 	return { projection, modelView };
+}
+
+/**
+ * Kamera TEMPUR/HASIL: seluruh papan (kedua separuh) muat di area bebas
+ * antara dasar Timer dan puncak BilahDeck dengan margin MARGIN_PAPAN, di
+ * tengah area itu. Dihitung langsung dari matriksKamera (bisection):
+ * zoom terkecil (papan terbesar) dalam [ZOOM_MIN, ZOOM_MAKS] yang tingginya muat, lalu
+ * geserY yang menaruh pusat kotak di tengah area.
+ *
+ * @returns {{zoom:number, sudut:number, geserY:number}}
+ */
+export function kameraPenuh(lebar, tinggi) {
+	const l = hitungTataLetak(lebar, tinggi);
+	const atas = l.Timer.kotak.y + l.Timer.kotak.tinggi;
+	const bawah = l.BilahDeck.kotak.y;
+	const tengah = (atas + bawah) / 2;
+	const tersedia = bawah - atas - 2 * MARGIN_PAPAN - 2;  // 2 px cadangan pembulatan kotak
+	const asal = { x: 0, y: 0 };
+	const pusat = { x: KOLOM * SKALA / 2, y: BARIS * SKALA / 2 };
+	const layar = { lebar, tinggi };
+	const kotakUntuk = (zoom, g) => {
+		const cam = matriksKamera(zoom, SUDUT, { x: pusat.x - 0.5, y: pusat.y - 0.5 - g, z: TINGGI_LANTAI }, layar);
+		return kotakPapanPenuh(cam, asal, SKALA, () => TINGGI_LANTAI, layar);
+	};
+	// Pusat kotak turun bila g mengecil; cari g agar pusatnya = tengah (kontinu, tanpa pembulatan).
+	const geserUntuk = (zoom) => {
+		let lo = -12;
+		let hi = 12;
+		for (let i = 0; i < 40; i++) {
+			const mid = (lo + hi) / 2;
+			const b = kotakUntuk(zoom, mid);
+			if (b.y + b.tinggi / 2 > tengah) {
+				lo = mid;
+			} else {
+				hi = mid;
+			}
+		}
+		return (lo + hi) / 2;
+	};
+	// Tinggi kotak turun bila zoom naik: ambil zoom TERKECIL (papan terbesar) yang muat.
+	const muat = (z) => kotakUntuk(z, geserUntuk(z)).tinggi <= tersedia;
+	let zoom = ZOOM_MIN;
+	if (!muat(ZOOM_MIN)) {
+		let lo = ZOOM_MIN;
+		let hi = ZOOM_MAKS;
+		for (let i = 0; i < 30; i++) {
+			const mid = (lo + hi) / 2;
+			if (muat(mid)) {
+				hi = mid;
+			} else {
+				lo = mid;
+			}
+		}
+		zoom = Math.min(ZOOM_MAKS, Math.ceil(hi * 10) / 10);
+	}
+	return { zoom, sudut: SUDUT, geserY: Math.round(geserUntuk(zoom) * 100) / 100 };
 }

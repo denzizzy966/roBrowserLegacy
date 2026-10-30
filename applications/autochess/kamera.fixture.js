@@ -16,3 +16,14 @@ export const SEPARUH_SENDIRI = {
 	'1366x641': { x: 307, y: 88, lebar: 752, tinggi: 341 },
 	'1280x720': { x: 286, y: 131, lebar: 708, tinggi: 323 }
 };
+
+/**
+ * Kotak layar papan penuh (kedua separuh, 8x8 petak) selama TEMPUR/HASIL,
+ * direkam di browser dengan __ac.kotakPapan() (Fix round 1, 2026-10-30).
+ * Hanya dua ukuran diukur di browser; tiga lainnya dicek lewat model
+ * (matriksKamera cocok dengan peramban sampai +-1 px di semua kasus lain).
+ */
+export const PAPAN_PENUH_TEMPUR = {
+	'1536x695': { x: 521, y: 82, lebar: 494, tinggi: 447 },
+	'1600x900': { x: 439, y: 81, lebar: 723, tinggi: 653 }
+};

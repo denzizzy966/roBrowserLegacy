@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-	kameraUntuk, terapkanKamera, proyeksiTitik, kotakSeparuhSendiri, matriksKamera,
+	kameraUntuk, kameraPenuh, kotakPapanPenuh, MARGIN_PAPAN, FASE_TEMPUR, FASE_HASIL, terapkanKamera, proyeksiTitik, kotakSeparuhSendiri, matriksKamera,
 	SUDUT, ZOOM_MIN, ZOOM_MAKS, PORSI_LEBAR, PORSI_PUSAT
 } from './kamera.js';
-import { SEPARUH_SENDIRI } from './kamera.fixture.js';
+import { SEPARUH_SENDIRI, PAPAN_PENUH_TEMPUR } from './kamera.fixture.js';
 import { hitungTataLetak } from './ui/tataLetak.js';
 import { pusatPapan, SKALA_PETAK } from './papan.js';
 
@@ -129,5 +129,58 @@ describe('proyeksiTitik dan kotakSeparuhSendiri', () => {
 	});
 	it('kotak pada zoom 220 tanpa geser sama dengan ukuran terukur di browser (394x186 di 559,359)', () => {
 		expect(kotakSeparuhSendiri(cam, ASAL, SKALA_PETAK, rata, layar)).toEqual({ x: 559, y: 359, lebar: 394, tinggi: 186 });
+	});
+});
+
+describe('kamera per fase: TEMPUR/HASIL = papan penuh (Fix round 1)', () => {
+	function kotakPenuh(w, h, fase = FASE_TEMPUR) {
+		const hasil = kameraUntuk(w, h, fase);
+		const pusat = pusatPapan(ASAL, SKALA_PETAK);
+		const layar = { lebar: w, tinggi: h };
+		const cam = matriksKamera(hasil.zoom, hasil.sudut, { x: pusat.x - 0.5, y: pusat.y - 0.5 - hasil.geserY, z: TINGGI_CELL }, layar);
+		return kotakPapanPenuh(cam, ASAL, SKALA_PETAK, rata, layar);
+	}
+
+	it('TEMPUR dipaku: 1536x695 = {175.2, 250, 1.75}, 1600x900 = {155.9, 250, 1.32}', () => {
+		expect(kameraUntuk(1536, 695, FASE_TEMPUR)).toEqual({ zoom: 175.2, sudut: 250, geserY: 1.75 });
+		expect(kameraUntuk(1600, 900, FASE_TEMPUR)).toEqual({ zoom: 155.9, sudut: 250, geserY: 1.32 });
+	});
+	it('HASIL sama dengan TEMPUR; PERSIAPAN (atau tanpa fase) tidak berubah', () => {
+		expect(kameraUntuk(1536, 695, FASE_HASIL)).toEqual(kameraUntuk(1536, 695, FASE_TEMPUR));
+		expect(kameraUntuk(1536, 695, 1)).toEqual({ zoom: 101.8, sudut: 250, geserY: 5.45 });
+		expect(kameraUntuk(1536, 695)).toEqual(kameraUntuk(1536, 695, 1));
+		expect(kameraUntuk(1600, 900, 1)).toEqual({ zoom: 125.1, sudut: 250, geserY: 5.6 });
+	});
+	it.each(UKURAN)('%ix%i: papan penuh di dalam area bebas dengan margin >= 8 px, di tengahnya', (w, h) => {
+		const b = kotakPenuh(w, h);
+		const l = hitungTataLetak(w, h);
+		const atas = l.Timer.kotak.y + l.Timer.kotak.tinggi;
+		const bawah = l.BilahDeck.kotak.y;
+		expect(b.y).toBeGreaterThanOrEqual(atas + MARGIN_PAPAN - 1);
+		expect(b.y + b.tinggi).toBeLessThanOrEqual(bawah - MARGIN_PAPAN + 1);
+		expect(Math.abs(b.y + b.tinggi / 2 - (atas + bawah) / 2)).toBeLessThan(2);
+		expect(Math.abs(b.x + b.lebar / 2 - w / 2)).toBeLessThan(2);
+		// Tidak ada jendela tetap atau Toko yang menutup papan penuh.
+		for (const [n, v] of Object.entries(l)) {
+			if (n === 'Lore' || n === 'DPS' || n === 'Log') {
+				continue;
+			}
+			const sama = b.x < v.kotak.x + v.kotak.lebar && v.kotak.x < b.x + b.lebar && b.y < v.kotak.y + v.kotak.tinggi && v.kotak.y < b.y + b.tinggi;
+			expect(sama, `${n} menutup papan penuh`).toBe(false);
+		}
+	});
+	it('zoom TEMPUR dalam [60, 220] dan lebih dekat dari ukuran tinggi yang lebih kecil', () => {
+		for (const [w, h] of UKURAN) {
+			const { zoom } = kameraPenuh(w, h);
+			expect(zoom).toBeGreaterThanOrEqual(ZOOM_MIN);
+			expect(zoom).toBeLessThanOrEqual(ZOOM_MAKS);
+		}
+	});
+	it.each(Object.entries(PAPAN_PENUH_TEMPUR))('%s: prediksi cocok dengan kotak papan penuh yang direkam di browser (+-3 px)', (kunci, f) => {
+		const [w, h] = kunci.split('x').map(Number);
+		const b = kotakPenuh(w, h);
+		for (const k of ['x', 'y', 'lebar', 'tinggi']) {
+			expect(Math.abs(b[k] - f[k]), `${kunci} ${k}`).toBeLessThanOrEqual(3);
+		}
 	});
 });

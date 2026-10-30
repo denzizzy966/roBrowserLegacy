@@ -83,7 +83,7 @@ import {
 } from './pesan.js';
 import { buatManajerEfek } from './efek.js';
 import { SKALA_PETAK, pusatPapan } from './papan.js';
-import { kameraUntuk, terapkanKamera, kotakSeparuhSendiri } from './kamera.js';
+import { kameraUntuk, terapkanKamera, kotakSeparuhSendiri, kotakPapanPenuh, FASE_TEMPUR, FASE_HASIL } from './kamera.js';
 import { buatState } from './state.js';
 import { muatKatalog, buatKatalog } from './katalog.js';
 import { buatTeks, formatZeny } from './teks.js';
@@ -246,22 +246,35 @@ function aturKamera() {
 	});
 }
 
-/** "lebarxtinggi" Renderer saat kamera terakhir diterapkan. */
+/** Kunci "lebarxtinggixmode" saat kamera terakhir diterapkan (mode: papan penuh atau separuh). */
 let ukuranKamera = '';
 
+/** Kunci kamera sekarang: ukuran Renderer dan mode fase (K8: TEMPUR/HASIL = papan penuh). */
+function kunciKamera(fase) {
+	const penuh = fase === FASE_TEMPUR || fase === FASE_HASIL;
+	return `${Renderer.width}x${Renderer.height}x${penuh ? 'penuh' : 'separuh'}`;
+}
+
 /**
- * AC6 K8: zoom, sudut, dan geser target dari ukuran viewport (kamera.js).
- * ZOOM/SUDUT di atas hanya cadangan bila Renderer belum berukuran.
+ * AC6 K8: zoom, sudut, dan geser target dari ukuran viewport dan fase
+ * (kamera.js). PERSIAPAN: separuh sendiri besar; TEMPUR/HASIL: seluruh
+ * papan. ZOOM/SUDUT di atas hanya cadangan bila Renderer belum berukuran.
  */
-function terapkanKameraViewport() {
-	ukuranKamera = `${Renderer.width}x${Renderer.height}`;
-	const hasil = kameraUntuk(Renderer.width, Renderer.height);
+function terapkanKameraViewport(fase = st.ambil().fase) {
+	ukuranKamera = kunciKamera(fase);
+	const hasil = kameraUntuk(Renderer.width, Renderer.height, fase);
 	if (!(Renderer.width > 0)) {
 		hasil.zoom = ZOOM;
 		hasil.sudut = SUDUT;
 	}
 	terapkanKamera(Camera, spot, pusatPapan(ASAL_PAPAN, SKALA_PETAK), hasil, (x, y) => Altitude.getCellHeight(x, y));
 	return hasil;
+}
+
+/** Kotak layar papan penuh, kedua separuh (fixture TEMPUR/HASIL). */
+function kotakPapan() {
+	return kotakPapanPenuh(Camera, ASAL_PAPAN, SKALA_PETAK, (x, y) => Altitude.getCellHeight(x, y),
+		{ lebar: Renderer.width, tinggi: Renderer.height });
 }
 
 /** Kotak layar separuh papan sendiri (fixture uji tata letak). */
@@ -501,6 +514,9 @@ function tanganiPesan({ galat, info, msg }, data) {
 			dps.reset();
 			// AC6 (O1/K1): Toko tetap terbuka selama TEMPUR; ia kini kolom
 			// kanan yang tidak menutupi papan, dan server menerima Beli dsb.
+		}
+		if (jendelaTertempel) {
+			amankan(() => terapkanKameraViewport(fase.fase), log)();
 		}
 		gambarJendelaAman();
 		jalankan(() => {
@@ -806,7 +822,7 @@ function tataLetakBilaBerubah() {
 		tataLetak();
 	}
 	// AC6 K8: kamera mengikuti ukuran viewport juga.
-	if (jendelaTertempel && ukuranKamera && ukuranKamera !== `${Renderer.width}x${Renderer.height}`) {
+	if (jendelaTertempel && ukuranKamera && ukuranKamera !== kunciKamera(st.ambil().fase)) {
 		terapkanKameraViewport();
 	}
 }
@@ -1083,7 +1099,7 @@ window.__ac = {
 	Bangku: BangkuJ, DaftarPemain: DaftarPemainJ, InfoPemain: InfoPemainJ,
 	Sinergi: SinergiJ, Lore: LoreJ, DPS: DPSJ, dps: () => dps.ambil(), lore: (id) => LoreJ.buka(id),
 	debug, tataLetak, pesan: tampilkanPesan,
-	kotakSeparuh, kameraUntuk, terapkanKameraViewport,
+	kotakSeparuh, kotakPapan, kameraUntuk, terapkanKameraViewport,
 	kameraCoba: (zoom, geserY) => {
 		const pusat = pusatPapan(ASAL_PAPAN, SKALA_PETAK);
 		terapkanKamera(Camera, spot, pusat, { zoom, sudut: SUDUT, geserY }, (x, y) => Altitude.getCellHeight(x, y));
