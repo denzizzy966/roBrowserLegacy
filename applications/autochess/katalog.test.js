@@ -19,6 +19,31 @@ const CONTOH = {
 	ekonomi: { refresh: 2, beli_exp: { harga: 4, exp: 4 }, bangku: 8 }
 };
 
+describe('statBintang, skillUnit, unitSinergi', () => {
+	const stat = (hp) => ({ hp, atk: 10, matk: 0, def: 1, mdef: 1, aspd: 1, jangkauan: 1, sp_awal: 0, sp_maks: 100, elemen: 'netral', ukuran: 'medium', ras: 'human' });
+	const json = {
+		units: { novice: { nama: { id: 'Novis', en: 'Novice' }, stat_bintang: [stat(100), stat(180), stat(320)], skill: { id: 'AL_HEAL', lv: 1, nama: { id: 'Heal', en: 'Heal' }, ringkasan: { id: '', en: '' } } } },
+		sinergi: { prontera: { units: ['novice'] } }
+	};
+	it('statBintang mengembalikan stat per bintang, null di luar 1..3 atau id asing', () => {
+		const k = buatKatalog(json);
+		expect(k.statBintang('novice', 1).hp).toBe(100);
+		expect(k.statBintang('novice', 3).hp).toBe(320);
+		expect(k.statBintang('novice', 0)).toBeNull();
+		expect(k.statBintang('novice', 4)).toBeNull();
+		expect(k.statBintang('novice', 1.5)).toBeNull();
+		expect(k.statBintang('x', 1)).toBeNull();
+	});
+	it('skillUnit dan unitSinergi', () => {
+		const k = buatKatalog(json);
+		expect(k.skillUnit('novice').id).toBe('AL_HEAL');
+		expect(k.skillUnit('x')).toBeNull();
+		expect(k.unitSinergi('prontera')).toEqual(['novice']);
+		expect(k.unitSinergi('x')).toEqual([]);
+		expect(buatKatalog({}).unitSinergi('prontera')).toEqual([]);
+	});
+});
+
 describe('buatKatalog', () => {
 	it('idUnitDariNama mencari unit dari nama EN (nama EvtSpawn); nama ID tidak diindeks', () => {
 		const log = vi.fn();

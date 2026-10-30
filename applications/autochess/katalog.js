@@ -84,6 +84,15 @@ export function buatKatalog(json, log = () => {}) {
 		/** @returns {string|null} id unit bernama EN persis `nama` (nama EvtSpawn), tanpa log */
 		idUnitDariNama: (nama) => (nama && idDariNama.get(nama)) || null,
 		spriteUnit: (id) => units[id]?.sprite ?? (laporkan('unit', id), null),
+		/** @returns {object|null} stat unit pada bintang 1..3 (StatKatalog); null bila id/bintang tak sah */
+		statBintang: (id, bintang) => {
+			if (!Number.isInteger(bintang) || bintang < 1 || bintang > 3) return null;
+			return units[id]?.stat_bintang?.[bintang - 1] ?? null;
+		},
+		/** @returns {{id:string, lv:number, nama:object, ringkasan:object}|null} skill aktif unit */
+		skillUnit: (id) => units[id]?.skill ?? null,
+		/** @returns {string[]} id unit anggota sinergi (tier menaik lalu id); [] bila tak dikenal */
+		unitSinergi: (id) => sinergiMap[id]?.units ?? [],
 		sinergi,
 		namaSinergi: (id, bahasa = 'id') => namaDari(sinergi(id), id, bahasa),
 		/** @returns {string[]} semua id sinergi katalog (origin dan kelas) */
