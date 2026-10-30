@@ -36,6 +36,11 @@ export function tulisBila(el, html) {
  */
 export function lupakanTulisan(komponen) {
 	for (const el of komponen._shadow?.querySelectorAll('*') ?? []) {
+		if (el._htmlTerakhir !== undefined) {
+			// Tanda "pernah ditulis": tulis ulang karena ganti bahasa bukan
+			// penulisan pertama (perbaruiLog tak boleh melompat ke dasar).
+			el._pernahDitulis = true;
+		}
 		delete el._htmlTerakhir;
 	}
 }

@@ -85,6 +85,19 @@ describe('perbaruiLog (autoscroll hanya di dasar)', () => {
 		expect(el.scrollTop).toBe(120);
 	});
 
+	it('tulis ulang sesudah lupakanTulisan (ganti bahasa) mempertahankan gulungan', () => {
+		const atas = elemen({ scrollTop: 120 });
+		atas._htmlTerakhir = 'lama';
+		atas._pernahDitulis = true; // diset lupakanTulisan
+		delete atas._htmlTerakhir;
+		perbaruiLog(atas, 'lama', tulis);
+		expect(atas.scrollTop).toBe(120);
+		const bawah = elemen({ scrollTop: 400 });
+		bawah._pernahDitulis = true;
+		perbaruiLog(bawah, 'lama', tulis);
+		expect(bawah.scrollTop).toBe(513);
+	});
+
 	it('penulisan pertama dan paksaDasar selalu ke dasar', () => {
 		const pertama = elemen({ scrollTop: 0 });
 		perbaruiLog(pertama, 'x', tulis);

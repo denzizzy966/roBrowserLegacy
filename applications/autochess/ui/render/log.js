@@ -65,7 +65,8 @@ export function diDasar(el, toleransi = TOLERANSI_DASAR) {
  * @returns {boolean} true bila isi berubah
  */
 export function perbaruiLog(isi, html, tulis, paksaDasar = false) {
-	const pertama = isi._htmlTerakhir === undefined;
+	// Penulisan ulang sesudah lupakanTulisan (ganti bahasa) bukan yang pertama.
+	const pertama = isi._htmlTerakhir === undefined && !isi._pernahDitulis;
 	const sebelum = isi.scrollTop;
 	const diBawah = paksaDasar || pertama || diDasar(isi);
 	const berubah = tulis(isi, html);
