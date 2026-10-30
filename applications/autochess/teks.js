@@ -77,8 +77,9 @@ export const KAMUS = {
 	'stat.aspd':        { id: 'ASPD', en: 'ASPD' },
 	'stat.jangkauan':   { id: 'Jangkauan', en: 'Range' },
 	'stat.sp_maks':     { id: 'SP maks', en: 'Max SP' },
-	'label.skill':      { id: 'Skill', en: 'Skill' },
 	'label.skillLv':    { id: '{0} (Lv {1})', en: '{0} (Lv {1})' },
+	'label.skills':     { id: 'Skill', en: 'Skills' },
+	'label.terbuka_di': { id: 'Terbuka di ★{0}', en: 'Unlocks at ★{0}' },
 	'label.bonus_sinergi': { id: 'Bonus sinergi', en: 'Synergy bonus' },
 
 	// AC7 K16-K18: jendela Deskripsi Unit (blok skill dan lore). Kata

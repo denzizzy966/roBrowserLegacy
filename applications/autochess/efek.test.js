@@ -485,3 +485,169 @@ describe('bersihkanStatus (AC6 K3, Review Focus 2)', () => {
 	});
 });
 
+
+// AC8 K14: nama skill di atas bilah cast. Cast palsu meniru
+// Renderer/Entity/EntityCast.js secukupnya: set/remove/clean, render yang
+// menaruh kanvas di lapisan overlay dan melepas diri saat waktu habis, dan
+// clean() yang memanggil this.remove() -- jalur yang sama dengan
+// Entity.clean() saat despawn.
+describe('nama skill di bilah cast (AC8 K14)', () => {
+	function elemenPalsu(tag) {
+		return {
+			tag,
+			className: '',
+			textContent: '',
+			style: {},
+			parentNode: null,
+			remove() {
+				if (this.parentNode) {
+					this.parentNode.anak = this.parentNode.anak.filter((x) => x !== this);
+					this.parentNode = null;
+				}
+			}
+		};
+	}
+	function lapisanPalsu() {
+		return {
+			anak: [],
+			appendChild(el) {
+				el.remove();
+				el.parentNode = this;
+				this.anak.push(el);
+				return el;
+			}
+		};
+	}
+	class CastPalsu {
+		constructor(lapisan) {
+			this.lapisan = lapisan;
+			this.display = false;
+			this.selesai = false;
+			this.canvas = elemenPalsu('canvas');
+			this.canvas.width = 60;
+			this.canvas.height = 6;
+		}
+		set(delay) {
+			this.display = true;
+			this.delay = delay;
+		}
+		remove() {
+			this.display = false;
+			this.canvas.remove();
+		}
+		clean() {
+			this.remove();
+		}
+		render() {
+			if (this.selesai) {
+				this.remove();
+				return;
+			}
+			this.canvas.style.top = '200px';
+			this.canvas.style.left = '370px';
+			if (this.canvas.parentNode !== this.lapisan) {
+				this.lapisan.appendChild(this.canvas);
+			}
+		}
+	}
+	const SKILL_INFO = { 5: { SkillName: 'Bash' }, 89: { SkillName: 'Storm Gust' } };
+
+	function siapkanNama(entities, extra = {}) {
+		const lapisan = lapisanPalsu();
+		for (const e of entities) {
+			e.cast = new CastPalsu(lapisan);
+		}
+		const r = siapkan(entities);
+		r.deps.EntityManager.forEach = (fn) => entities.forEach(fn);
+		const dokumen = { createElement: vi.fn((tag) => elemenPalsu(tag)) };
+		const efek = buatManajerEfek({ ...r.deps, skillInfo: SKILL_INFO, dokumen, tunda: () => {}, ...extra });
+		const label = () => lapisan.anak.filter((x) => x.className === 'nama-skill');
+		return { ...r, efek, lapisan, dokumen, label };
+	}
+
+	it('EvtSkillMulai ber-cast: label .nama-skill berisi SkillName menempel di atas bilah cast entity', () => {
+		const ksatria = entityPalsu(1);
+		const { efek, label } = siapkanNama([ksatria]);
+
+		efek.mulaiSkill({ src: 1, skid: 5, lv: 5, dst: 0, x: 15, y: 25, castMs: 800 });
+		ksatria.cast.render();
+
+		expect(label()).toHaveLength(1);
+		const el = label()[0];
+		expect(el.textContent).toBe('Bash');
+		// di atas kanvas bilah, dipusatkan pada bilah (kiri + lebar/2)
+		expect(parseInt(el.style.top, 10)).toBeLessThan(200);
+		expect(el.style.left).toBe('400px');
+
+		// rapal berikutnya: label lama ikut lepas bersama bilah, yang baru memuat nama baru (satu label per entity)
+		efek.kenaSkill({ src: 1, skid: 5, lv: 5, x: 15, y: 25, kena: [] });
+		expect(label()).toHaveLength(0);
+		efek.mulaiSkill({ src: 1, skid: 89, lv: 5, dst: 0, x: 15, y: 25, castMs: 800 });
+		ksatria.cast.render();
+		expect(label()).toHaveLength(1);
+		expect(label()[0].textContent).toBe('Storm Gust');
+
+		// rapal baru menimpa bilah yang masih tampil: tetap satu elemen, teks berganti
+		efek.mulaiSkill({ src: 1, skid: 5, lv: 5, dst: 0, x: 15, y: 25, castMs: 800 });
+		ksatria.cast.render();
+		expect(label()).toHaveLength(1);
+		expect(label()[0].textContent).toBe('Bash');
+	});
+
+	it('skid tanpa entri SkillInfo, cast instan, atau tanpa skillInfo: tanpa label dan tanpa galat', () => {
+		const a = entityPalsu(1);
+		const { deps, efek, label, dokumen } = siapkanNama([a]);
+		expect(() => {
+			efek.mulaiSkill({ src: 1, skid: 4242, lv: 1, dst: 0, x: 15, y: 25, castMs: 800 });
+			a.cast.render();
+		}).not.toThrow();
+		expect(label()).toHaveLength(0);
+		expect(dokumen.createElement).not.toHaveBeenCalled();
+		expect(deps.log).not.toHaveBeenCalled();
+
+		// cast instan (tanpa bilah) juga tanpa label
+		a.cast.remove();
+		efek.mulaiSkill({ src: 1, skid: 5, lv: 5, dst: 4, x: 15, y: 25, castMs: 0 });
+		a.cast.render();
+		expect(label()).toHaveLength(0);
+
+		// skillInfo tidak disuntikkan: tetap jalan
+		const b = entityPalsu(2);
+		const s2 = siapkanNama([b], { skillInfo: undefined });
+		expect(() => {
+			s2.efek.mulaiSkill({ src: 2, skid: 5, lv: 5, dst: 0, x: 15, y: 25, castMs: 800 });
+			b.cast.render();
+		}).not.toThrow();
+		expect(s2.label()).toHaveLength(0);
+	});
+
+	it('label hilang bersama bilah: bersihkanStatus, despawn (Entity.clean -> cast.clean), cast batal, waktu habis', () => {
+		const a = entityPalsu(1);
+		const { efek, label } = siapkanNama([a]);
+		const mulai = () => {
+			efek.mulaiSkill({ src: 1, skid: 5, lv: 5, dst: 0, x: 15, y: 25, castMs: 800 });
+			a.cast.render();
+			expect(label()).toHaveLength(1);
+		};
+
+		mulai();
+		efek.bersihkanStatus();
+		expect(label()).toHaveLength(0);
+		// render sesudah dibersihkan tidak memasang label lama lagi
+		a.cast.render();
+		expect(label()).toHaveLength(0);
+
+		mulai();
+		a.cast.clean(); // Entity.clean() saat EvtDespawn
+		expect(label()).toHaveLength(0);
+
+		mulai();
+		efek.ubahStatus({ entityId: 1, efst: EFEK_STATUS.PINGSAN, aktif: true, durasiMs: 1000 });
+		expect(label()).toHaveLength(0);
+
+		mulai();
+		a.cast.selesai = true; // EntityCast.render melepas diri saat persen >= 1
+		a.cast.render();
+		expect(label()).toHaveLength(0);
+	});
+});

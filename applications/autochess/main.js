@@ -70,6 +70,7 @@ import EffectManager from 'Renderer/EffectManager.js';
 import Damage        from 'Renderer/Effects/Damage.js';
 import SK            from 'DB/Skills/SkillConst.js';
 import SkillEffect   from 'DB/Skills/SkillEffect.js';
+import SkillInfo     from 'DB/Skills/SkillInfo.js';
 import FlatColorTile from 'Renderer/Effects/FlatColorTile.js';
 import Mouse         from 'Controls/MouseEventHandler.js';
 import Cursor        from 'UI/CursorManager.js';
@@ -162,6 +163,8 @@ const penggerak = buatPenggerak({ log, hapusPCSetelahMati: true });
 // teruji tanpa WebGL.
 const efek = buatManajerEfek({
 	EntityManager, EffectManager, Damage, Renderer, Altitude, SkillEffect,
+	// AC8 K14: SkillName per skid untuk label nama di atas bilah cast (baca-saja).
+	skillInfo: SkillInfo,
 	hidupkanBar, mainkanAksi, log
 });
 

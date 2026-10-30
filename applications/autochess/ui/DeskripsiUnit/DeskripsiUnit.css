@@ -6,7 +6,7 @@
 .judul { position: absolute; left: 6px; top: 2px; font-weight: bold; font-size: 11px; text-shadow: 1px 1px #fff; white-space: nowrap; }
 .tutup { position: absolute; right: 3px; top: 2px; width: 13px; height: 13px; padding: 0; border: 1px solid #889; border-radius: 2px; background: #f4f4f8; color: #333; font: bold 11px/10px Arial, sans-serif; cursor: pointer; }
 .tutup:hover { background: #fff; color: #000; }
-/* Di layar pendek isinya bergulir; titlebar tetap terlihat. */
+/* Isi bergulir (AC8 K12: daftar sampai empat skill tidak muat); tinggi maksimum tetap, titlebar tetap terlihat. */
 .isi { padding: 8px 12px 10px; max-height: calc(100vh - 60px); overflow-y: auto; }
 .nama { font-weight: bold; font-size: 14px; color: #fe9; }
 .meta { margin: 2px 0; color: #cdd; }
@@ -21,7 +21,13 @@ table.stat tr:first-child th { color: #cdd; font-weight: bold; }
 table.stat .aktif { background: rgba(255, 210, 74, 0.14); color: #fe9; }
 table.stat th.aktif { color: #fd4; }
 .stat-kecil { margin-bottom: 6px; color: #aab; font-size: 11px; }
-.skill { margin-top: 4px; padding-top: 6px; border-top: 1px solid #445; }
+/* AC8 K12: daftar skill; skill yang belum terbuka pada bintang bidak ini redup, labelnya tetap terbaca. */
+.judul-skill { margin-top: 4px; padding-top: 6px; border-top: 1px solid #445; font-weight: bold; color: #cdd; }
+.skill { margin-top: 5px; padding-top: 5px; border-top: 1px dotted #3a3a4c; }
+.judul-skill + .skill { margin-top: 2px; padding-top: 0; border-top: 0; }
+.skill-nama b { color: #fe9; }
+.skill.terkunci > *:not(.skill-nama), .skill.terkunci .skill-nama b { opacity: 0.45; }
+.terbuka-di { margin-left: 4px; padding: 0 4px; border: 1px solid #776; border-radius: 2px; color: #fd4; font-size: 10px; white-space: nowrap; }
 .skill-jenis { color: #cdd; }
 .skill-status { color: #f9a; }
 dl.skill-detail { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; margin: 4px 0; font-size: 11px; }

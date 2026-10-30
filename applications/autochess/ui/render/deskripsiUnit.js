@@ -3,10 +3,12 @@
  * nama sesuai bahasa UI, Tier n · ★n, asal · kelas (klik -> Lore sinergi,
  * [data-aksi="lore"][data-id]), tabel statistik tiga kolom ★1/★2/★3
  * (katalog.statBintang) dengan kolom bintang bidak yang diklik berkelas
- * `aktif`, baris elemen · ukuran · ras, blok skill dari field terstruktur
- * katalog (K17: jenis · target, rasio, status, jangkauan, splash, waktu
- * rapal, SP penuh, lalu ringkasan bahasa aktif), dan lore unit (K18:
- * lore ID kosong -> EN). Tanpa HP/SP berjalan (itu kartu hover).
+ * `aktif`, baris elemen · ukuran · ras, daftar SEMUA skill unit (AC8 K12),
+ * tiap skill satu blok dari field terstruktur katalog (K17: jenis · target,
+ * rasio, status, jangkauan, splash, waktu rapal, SP penuh, lalu ringkasan
+ * bahasa aktif) dengan label "Terbuka di ★n" dan kelas `terkunci` untuk
+ * skill yang belum terbuka pada bintang bidak yang diklik, dan lore unit
+ * (K18: lore ID kosong -> EN). Tanpa HP/SP berjalan (itu kartu hover).
  *
  * info = keluaran seret.padaKlik: {sumber, bidakId?, unitId, bintang,
  * sendiri, entityId?, nama}. Creep (unitId null atau tanpa stat katalog)
@@ -94,16 +96,20 @@ function baris(label, nilai) {
 	return `<dt>${esc(label)}</dt><dd>${esc(nilai)}</dd>`;
 }
 
-/** Blok skill (K17); '' bila unit tanpa skill. */
-function blokSkill(info, deps) {
-	const { t, bahasa, katalog } = deps;
-	const sk = info.unitId ? katalog.skillUnit?.(info.unitId) : null;
-	if (!sk) {
-		return '';
-	}
+/**
+ * Blok detail satu skill (AC7 K17): nama (Lv), jenis · target, status,
+ * rasio/jangkauan/splash/waktu rapal/SP penuh, lalu ringkasan bahasa aktif.
+ * AC8 K12: skill yang terbuka di bintang lebih tinggi dari bintang bidak
+ * yang diklik diberi label "Terbuka di ★n" dan kelas `terkunci` (redup).
+ */
+function blokSatuSkill(sk, bintang, deps) {
+	const { t, bahasa } = deps;
 	const nama = sk.nama?.[bahasa] || sk.nama?.id || sk.id;
-	let html = '<div class="skill">'
-		+ `<div class="skill-nama"><b>${esc(t('label.skill'))}:</b> ${esc(t('label.skillLv', nama, sk.lv))}</div>`;
+	const terkunci = angka(sk.terbuka_di_bintang) > bintang;
+	let html = `<div class="skill${terkunci ? ' terkunci' : ''}" data-skill="${esc(sk.id)}">`
+		+ `<div class="skill-nama"><b>${esc(t('label.skillLv', nama, sk.lv))}</b>`
+		+ (terkunci ? ` <span class="terbuka-di">${esc(t('label.terbuka_di', angka(sk.terbuka_di_bintang)))}</span>` : '')
+		+ '</div>';
 	const jenis = [
 		sk.jenis ? kataAtau(t, `skill.jenis.${sk.jenis}`, sk.jenis) : '',
 		sk.target ? kataAtau(t, `skill.target.${sk.target}`, sk.target) : ''
@@ -148,6 +154,22 @@ function blokSkill(info, deps) {
 	return `${html}</div>`;
 }
 
+/**
+ * Daftar semua skill unit, urut katalog (AC8 K12), di bawah judul "Skill";
+ * '' bila unit tanpa skill. Bintang tak dikenal (0) dibaca sebagai ★1.
+ */
+function blokDaftarSkill(info, deps) {
+	const { t, katalog } = deps;
+	const skills = info.unitId ? (katalog.skillsUnit?.(info.unitId) ?? []) : [];
+	if (!skills.length) {
+		return '';
+	}
+	const bintang = angka(info.bintang) || 1;
+	return `<div class="daftar-skill"><div class="judul-skill">${esc(t('label.skills'))}</div>`
+		+ skills.map((sk) => blokSatuSkill(sk, bintang, deps)).join('')
+		+ '</div>';
+}
+
 /** Lore unit (K18): bahasa aktif, lalu EN, lalu ID; '' bila kosong. */
 function blokLore(info, deps) {
 	const { t, bahasa, katalog } = deps;
@@ -189,6 +211,6 @@ export function renderDeskripsiUnit(info, deps) {
 	if (sinergi.length) {
 		isi += `<div class="baris-sinergi">${sinergi.join(' · ')}</div>`;
 	}
-	isi += blokStat(info, deps) + blokSkill(info, deps) + blokLore(info, deps);
+	isi += blokStat(info, deps) + blokDaftarSkill(info, deps) + blokLore(info, deps);
 	return { judul: t('jendela.deskripsi_unit'), isi };
 }

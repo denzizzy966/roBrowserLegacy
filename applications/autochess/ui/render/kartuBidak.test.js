@@ -12,7 +12,17 @@ const katalog = buatKatalog({
 		wizard: {
 			nama: { id: 'Penyihir', en: 'Wizard' }, tier: 3, origin: 'geffen', kelas: 'elementalist',
 			stat_bintang: [STAT(1000, 80), STAT(1800, 144, 0.8), STAT(3200, 260)],
-			skill: { id: 'storm', lv: 5, nama: { id: 'Badai Petir', en: 'Lightning Storm' }, ringkasan: { id: 'Sambaran petir area.', en: 'Area lightning.' } }
+			skills: [{ id: 'storm', lv: 5, nama: { id: 'Badai Petir', en: 'Lightning Storm' }, ringkasan: { id: 'Sambaran petir area.', en: 'Area lightning.' }, terbuka_di_bintang: 1 }]
+		},
+		ksatria_rune: {
+			nama: { id: 'Ksatria Rune', en: 'Rune Knight' }, tier: 4, origin: 'prontera', kelas: 'vanguard',
+			stat_bintang: [STAT(1200, 90), STAT(2100, 160), STAT(3800, 290)],
+			skills: [
+				{ id: 'RK_DRAGONBREATH', lv: 10, nama: { id: 'Napas Naga', en: 'Dragon Breath' }, ringkasan: { id: 'r1', en: 'r1' }, terbuka_di_bintang: 1 },
+				{ id: 'RK_SONICWAVE', lv: 5, nama: { id: 'Gelombang Sonik', en: 'Sonic Wave' }, ringkasan: { id: 'r2', en: 'r2' }, terbuka_di_bintang: 1 },
+				{ id: 'RK_HUNDREDSPEAR', lv: 5, nama: { id: 'Seratus Tombak', en: 'Hundred Spear' }, ringkasan: { id: 'r3', en: 'r3' }, terbuka_di_bintang: 2 },
+				{ id: 'RK_IGNITIONBREAK', lv: 5, nama: { id: 'Ledakan Api', en: 'Ignition Break' }, ringkasan: { id: 'r4', en: 'r4' }, terbuka_di_bintang: 3 }
+			]
 		},
 		tanpa_skill: { nama: { id: 'A', en: 'A' }, tier: 1, origin: 'geffen', kelas: 'vanguard', stat_bintang: [STAT(1, 1), STAT(2, 2), STAT(3, 3)] }
 	},
@@ -113,13 +123,29 @@ describe('K5/K17: statistik, skill, bonus sinergi', () => {
 		expect(h).not.toContain('bonus');
 	});
 
-	it('baris skill ID/EN dengan ringkasan; tanpa skill tidak ada baris', () => {
-		expect(renderKartuBidak(INFO, deps('id'))).toContain('Badai Petir (Lv 5)');
-		expect(renderKartuBidak(INFO, deps('id'))).toContain('<div class="skill-ringkas">Sambaran petir area.</div>');
+	it('baris skill ID/EN berisi nama skill terbuka saja (AC8 K13); tanpa skill tidak ada baris', () => {
+		expect(renderKartuBidak(INFO, deps('id'))).toContain('<div class="skill"><b>Skill:</b> Badai Petir</div>');
 		const en = renderKartuBidak(INFO, deps('en'));
-		expect(en).toContain('Lightning Storm (Lv 5)');
-		expect(en).toContain('Area lightning.');
+		expect(en).toContain('<div class="skill"><b>Skills:</b> Lightning Storm</div>');
+		// ringkasan tidak lagi di kartu hover (ada di Deskripsi Unit)
+		expect(en).not.toContain('skill-ringkas');
 		expect(renderKartuBidak({ ...INFO, unitId: 'tanpa_skill' }, deps())).not.toContain('class="skill');
+	});
+
+	it('AC8 K13: unit tier 4 menampilkan nama skill yang terbuka pada bintangnya', () => {
+		const RK = { ...INFO, unitId: 'ksatria_rune', nama: 'Rune Knight' };
+		expect(renderKartuBidak({ ...RK, bintang: 1 }, deps('id')))
+			.toContain('<div class="skill"><b>Skill:</b> Napas Naga, Gelombang Sonik</div>');
+		expect(renderKartuBidak({ ...RK, bintang: 2 }, deps('id')))
+			.toContain('<div class="skill"><b>Skill:</b> Napas Naga, Gelombang Sonik, Seratus Tombak</div>');
+		expect(renderKartuBidak({ ...RK, bintang: 3 }, deps('id')))
+			.toContain('<div class="skill"><b>Skill:</b> Napas Naga, Gelombang Sonik, Seratus Tombak, Ledakan Api</div>');
+		expect(renderKartuBidak({ ...RK, bintang: 3 }, deps('en')))
+			.toContain('<div class="skill"><b>Skills:</b> Dragon Breath, Sonic Wave, Hundred Spear, Ignition Break</div>');
+		// kartu Toko: selalu yang terbuka di ★1, apa pun bintang di info
+		const toko = renderKartuBidak({ ...RK, sumber: 'toko', bintang: 3 }, deps('id'));
+		expect(toko).toContain('<div class="skill"><b>Skill:</b> Napas Naga, Gelombang Sonik</div>');
+		expect(toko).not.toContain('Seratus Tombak');
 	});
 
 	it('bonus sinergi hanya bila aktif DAN mencakup unit ini', () => {

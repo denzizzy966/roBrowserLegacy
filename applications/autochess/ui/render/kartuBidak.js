@@ -10,6 +10,7 @@
 
 import { teksNilaiEfek } from './sinergi.js';
 import { sinergiTampil } from '../../state.js';
+import { terbukaSkill } from '../../katalog.js';
 
 const ENTITAS = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -52,20 +53,23 @@ function blokStat(info, deps) {
 	return html;
 }
 
-/** Baris skill unit "nama (Lv n)" + ringkasan bila ada; '' bila tak ada skill. */
+/**
+ * Baris "Skill: nama1, nama2" berisi nama skill yang TERBUKA pada bintang
+ * bidak ini (AC8 K13): skills.slice(0, terbukaSkill(tier, bintang)), bahasa
+ * aktif; yang terkunci tidak disebut (detailnya di Deskripsi Unit). Kartu
+ * Toko selalu bintang 1. '' bila unit tanpa skill.
+ */
 function blokSkill(info, deps) {
 	const { t, bahasa, katalog } = deps;
-	const sk = info.unitId ? katalog.skillUnit?.(info.unitId) : null;
-	if (!sk) {
+	const skills = info.unitId ? (katalog.skillsUnit?.(info.unitId) ?? []) : [];
+	if (!skills.length) {
 		return '';
 	}
-	const nama = sk.nama?.[bahasa] ?? sk.nama?.id ?? sk.id;
-	let html = `<div class="skill"><b>${esc(t('label.skill'))}:</b> ${esc(t('label.skillLv', nama, sk.lv))}</div>`;
-	const ringkas = sk.ringkasan?.[bahasa] ?? sk.ringkasan?.id ?? '';
-	if (ringkas) {
-		html += `<div class="skill-ringkas">${esc(ringkas)}</div>`;
-	}
-	return html;
+	const bintang = info.sumber === 'toko' ? 1 : (angka(info.bintang) || 1);
+	// Tier tak tercatat diperlakukan tier 1 (hanya skill pertama).
+	const terbuka = skills.slice(0, terbukaSkill(angka(katalog.unit(info.unitId)?.tier) || 1, bintang));
+	const nama = terbuka.map((sk) => sk.nama?.[bahasa] ?? sk.nama?.id ?? sk.id);
+	return `<div class="skill"><b>${esc(t('label.skills'))}:</b> ${esc(nama.join(', '))}</div>`;
 }
 
 /**

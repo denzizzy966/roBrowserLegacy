@@ -16,24 +16,55 @@ const SKILL = {
 	},
 	jenis: 'fisik', target: 'area_musuh', rasio: 2.8,
 	status: { nama: 'pingsan', peluang: 30, durasi_ms: 2000 },
-	jangkauan: 1, splash: 2, cast_ms: 700, sp_maks: 80
+	jangkauan: 1, splash: 2, cast_ms: 700, sp_maks: 80, terbuka_di_bintang: 1
 };
+
+/** Skill ringkas untuk fixture daftar (AC8 K12). */
+const SKILL_KECIL = (id, namaId, namaEn, terbuka) => ({
+	id, lv: 3, nama: { id: namaId, en: namaEn }, ringkasan: { id: `ringkas ${namaId}`, en: `summary ${namaEn}` },
+	jenis: 'sihir', target: 'musuh', rasio: 1.5, jangkauan: 4, splash: 0, cast_ms: 500, sp_maks: 60, terbuka_di_bintang: terbuka
+});
 
 const katalog = buatKatalog({
 	units: {
 		ksatria: {
 			nama: { id: 'Ksatria', en: 'Knight' }, tier: 3, origin: 'prontera', kelas: 'vanguard',
 			stat_bintang: [STAT(1000, 80, 0.75), STAT(1800, 144, 0.8), STAT(3240, 259, 0.85)],
-			skill: SKILL,
+			skills: [SKILL],
 			lore: { id: '', en: 'A sworn knight of <Prontera>.' }
 		},
-		tanpa_stat: { nama: { id: 'Hantu', en: 'Ghost' }, tier: 1, origin: 'prontera', kelas: 'vanguard' }
+		tanpa_stat: { nama: { id: 'Hantu', en: 'Ghost' }, tier: 1, origin: 'prontera', kelas: 'vanguard' },
+		penyihir_agung: {
+			nama: { id: 'Penyihir Agung', en: 'High Wizard' }, tier: 4, origin: 'geffen', kelas: 'elementalist',
+			stat_bintang: [STAT(900, 40, 0.7), STAT(1600, 72, 0.75), STAT(2900, 130, 0.8)],
+			skills: [
+				SKILL_KECIL('WZ_METEOR', 'Hujan Meteor', 'Meteor Storm', 1),
+				SKILL_KECIL('WZ_STORMGUST', 'Badai Es', 'Storm Gust', 1),
+				SKILL_KECIL('WZ_JUPITEL', 'Petir Jupiter', 'Jupitel Thunder', 2),
+				SKILL_KECIL('HW_NAPALMVULCAN', 'Napalm Vulkan', 'Napalm Vulcan', 3)
+			]
+		},
+		novis: {
+			nama: { id: 'Novis', en: 'Novice' }, tier: 1, origin: 'prontera', kelas: 'vanguard',
+			stat_bintang: [STAT(500, 20, 0.6), STAT(900, 36, 0.65), STAT(1600, 65, 0.7)],
+			skills: [SKILL_KECIL('SM_BASH', 'Bash', 'Bash', 1)]
+		}
 	},
 	sinergi: {
 		prontera: { nama: { id: 'Kerajaan Prontera', en: 'Prontera Kingdom' }, origin: true, ambang: [2] },
-		vanguard: { nama: { id: 'Garda', en: 'Vanguard' }, ambang: [2] }
+		vanguard: { nama: { id: 'Garda', en: 'Vanguard' }, ambang: [2] },
+		geffen: { nama: { id: 'Geffen', en: 'Geffen' }, origin: true, ambang: [2] },
+		elementalist: { nama: { id: 'Elementalis', en: 'Elementalist' }, ambang: [2] }
 	}
 });
+
+/** Blok-blok skill (<div class="skill[ terkunci]" data-skill="ID">...) dalam urutan tampil; tiap potongan sampai blok berikutnya. */
+function blokSkill(html) {
+	return html.split(/(?=<div class="skill(?: terkunci)?" data-skill=)/).slice(1).map((isi) => {
+		const m = isi.match(/^<div class="skill( terkunci)?" data-skill="([^"]+)">/);
+		return { terkunci: Boolean(m[1]), id: m[2], isi };
+	});
+}
 
 function deps(bahasa = 'id') {
 	const teks = buatTeks({ pref: { bahasa } });
@@ -104,8 +135,8 @@ describe('renderDeskripsiUnit (K16)', () => {
 
 	it('jangkauan/splash pecahan dalam petak papan: satu desimal, koma di ID; bulat tanpa desimal', () => {
 		const k = buatKatalog({
-			units: { pemanah: { nama: { id: 'Pemanah', en: 'Archer' }, tier: 1, skill: { ...SKILL, jangkauan: 2.5, splash: 3.5 } },
-				pemburu: { nama: { id: 'Pemburu', en: 'Hunter' }, tier: 4, skill: { ...SKILL, jangkauan: 4, splash: 1 / 3 } } }
+			units: { pemanah: { nama: { id: 'Pemanah', en: 'Archer' }, tier: 1, skills: [{ ...SKILL, jangkauan: 2.5, splash: 3.5 }] },
+				pemburu: { nama: { id: 'Pemburu', en: 'Hunter' }, tier: 4, skills: [{ ...SKILL, jangkauan: 4, splash: 1 / 3 }] } }
 		});
 		const id = renderDeskripsiUnit({ ...INFO, unitId: 'pemanah' }, { ...deps('id'), katalog: k }).isi;
 		expect(id).toContain('<dt>Jangkauan</dt><dd>2,5 petak</dd>');
@@ -120,7 +151,7 @@ describe('renderDeskripsiUnit (K16)', () => {
 
 	it('skill tanpa rasio/status/splash/cast: baris itu tidak ada', () => {
 		const k = buatKatalog({
-			units: { pendeta: { nama: { id: 'Pendeta', en: 'Priest' }, tier: 2, skill: { ...SKILL, jenis: 'dukung', target: 'musuh', rasio: 0, status: undefined, splash: 0, cast_ms: 0 } } }
+			units: { pendeta: { nama: { id: 'Pendeta', en: 'Priest' }, tier: 2, skills: [{ ...SKILL, jenis: 'dukung', target: 'musuh', rasio: 0, status: undefined, splash: 0, cast_ms: 0 }] } }
 		});
 		const { isi } = renderDeskripsiUnit({ ...INFO, unitId: 'pendeta' }, { ...deps(), katalog: k });
 		expect(isi).toContain('Dukungan');
@@ -129,6 +160,53 @@ describe('renderDeskripsiUnit (K16)', () => {
 		expect(isi).not.toContain('<dt>Splash</dt>');
 		expect(isi).not.toContain(`<dt>${deps().t('label.cast')}</dt>`);
 		expect(isi).toContain('<dt>Jangkauan</dt>');
+	});
+
+	it("AC8 K12: daftar semua skill urut; yang belum terbuka berlabel 'Terbuka di ★n' dan berkelas terkunci", () => {
+		const INFO4 = { ...INFO, unitId: 'penyihir_agung', bintang: 1, nama: 'Penyihir Agung' };
+		const satu = renderDeskripsiUnit(INFO4, deps('id')).isi;
+		const blok = blokSkill(satu);
+		expect(blok.map((b) => b.id)).toEqual(['WZ_METEOR', 'WZ_STORMGUST', 'WZ_JUPITEL', 'HW_NAPALMVULCAN']);
+		expect(blok[0].isi).toContain('Hujan Meteor (Lv 3)');
+		expect(blok[0].isi).toContain('<div class="skill-ringkas">ringkas Hujan Meteor</div>');
+		expect(blok[3].isi).toContain('Napalm Vulkan (Lv 3)');
+		expect(blok[0].isi).not.toContain('terbuka-di');
+		expect(blok[1].isi).not.toContain('terbuka-di');
+		expect(blok[0].terkunci).toBe(false);
+		expect(blok[1].terkunci).toBe(false);
+		expect(blok[2].isi).toContain('<span class="terbuka-di">Terbuka di ★2</span>');
+		expect(blok[3].isi).toContain('<span class="terbuka-di">Terbuka di ★3</span>');
+		expect(blok[2].terkunci).toBe(true);
+		expect(blok[3].terkunci).toBe(true);
+		// judul daftar
+		expect(satu).toContain('<div class="judul-skill">Skill</div>');
+
+		// bintang 2: hanya skill ke-4 yang terkunci
+		const dua = blokSkill(renderDeskripsiUnit({ ...INFO4, bintang: 2 }, deps('id')).isi);
+		expect(dua.map((b) => b.terkunci)).toEqual([false, false, false, true]);
+		expect(dua[2].isi).not.toContain('terbuka-di');
+
+		// bintang 3: semuanya terbuka
+		const tiga = renderDeskripsiUnit({ ...INFO4, bintang: 3 }, deps('id')).isi;
+		expect(tiga).not.toContain('terkunci');
+		expect(tiga).not.toContain('terbuka-di');
+		expect(blokSkill(tiga)).toHaveLength(4);
+
+		// EN
+		const en = renderDeskripsiUnit(INFO4, deps('en')).isi;
+		expect(en).toContain('<span class="terbuka-di">Unlocks at ★2</span>');
+		expect(en).toContain('<span class="terbuka-di">Unlocks at ★3</span>');
+		expect(en).toContain('<div class="judul-skill">Skills</div>');
+		expect(en).toContain('Meteor Storm (Lv 3)');
+	});
+
+	it('AC8 K12: unit tier 1 satu skill -> satu blok tanpa label kunci', () => {
+		const { isi } = renderDeskripsiUnit({ ...INFO, unitId: 'novis', bintang: 1, nama: 'Novis' }, deps('id'));
+		const blok = blokSkill(isi);
+		expect(blok).toHaveLength(1);
+		expect(blok[0].terkunci).toBe(false);
+		expect(isi).not.toContain('terbuka-di');
+		expect(isi).toContain('Bash (Lv 3)');
 	});
 
 	it('lore: id kosong -> tampil EN', () => {

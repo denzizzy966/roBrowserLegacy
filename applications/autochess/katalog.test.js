@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import { muatKatalog, buatKatalog } from './katalog.js';
+import { muatKatalog, buatKatalog, terbukaSkill } from './katalog.js';
 
 const CONTOH = {
 	units: {
@@ -19,10 +19,13 @@ const CONTOH = {
 	ekonomi: { refresh: 2, beli_exp: { harga: 4, exp: 4 }, bangku: 8 }
 };
 
-describe('statBintang, skillUnit, unitSinergi', () => {
+describe('statBintang, skillsUnit, unitSinergi', () => {
 	const stat = (hp) => ({ hp, atk: 10, matk: 0, def: 1, mdef: 1, aspd: 1, jangkauan: 1, sp_awal: 0, sp_maks: 100, elemen: 'netral', ukuran: 'medium', ras: 'human' });
 	const json = {
-		units: { novice: { nama: { id: 'Novis', en: 'Novice' }, stat_bintang: [stat(100), stat(180), stat(320)], skill: { id: 'AL_HEAL', lv: 1, nama: { id: 'Heal', en: 'Heal' }, ringkasan: { id: '', en: '' } } } },
+		units: { novice: { nama: { id: 'Novis', en: 'Novice' }, stat_bintang: [stat(100), stat(180), stat(320)], skills: [
+			{ id: 'AL_HEAL', lv: 1, nama: { id: 'Heal', en: 'Heal' }, ringkasan: { id: '', en: '' }, terbuka_di_bintang: 1 },
+			{ id: 'AL_BLESSING', lv: 1, nama: { id: 'Blessing', en: 'Blessing' }, ringkasan: { id: '', en: '' }, terbuka_di_bintang: 1 }
+		] } },
 		sinergi: { prontera: { units: ['novice'] } }
 	};
 	it('statBintang mengembalikan stat per bintang, null di luar 1..3 atau id asing', () => {
@@ -34,10 +37,13 @@ describe('statBintang, skillUnit, unitSinergi', () => {
 		expect(k.statBintang('novice', 1.5)).toBeNull();
 		expect(k.statBintang('x', 1)).toBeNull();
 	});
-	it('skillUnit dan unitSinergi', () => {
+	it('skillsUnit (daftar urut, [] untuk id asing atau unit tanpa skills) dan unitSinergi', () => {
 		const k = buatKatalog(json);
-		expect(k.skillUnit('novice').id).toBe('AL_HEAL');
-		expect(k.skillUnit('x')).toBeNull();
+		expect(k.skillsUnit('novice').map((s) => s.id)).toEqual(['AL_HEAL', 'AL_BLESSING']);
+		expect(k.skillsUnit('x')).toEqual([]);
+		expect(buatKatalog({ units: { a: { nama: { id: 'A', en: 'A' } } } }).skillsUnit('a')).toEqual([]);
+		expect(buatKatalog({}).skillsUnit('novice')).toEqual([]);
+		expect(k.skillUnit).toBeUndefined();
 		expect(k.unitSinergi('prontera')).toEqual(['novice']);
 		expect(k.unitSinergi('x')).toEqual([]);
 		expect(buatKatalog({}).unitSinergi('prontera')).toEqual([]);
@@ -136,9 +142,10 @@ describe('loreKelas', () => {
 describe('loreUnit dan skill terstruktur (AC7 K17/K18)', () => {
 	const skill = {
 		id: 'KN_BOWLINGBASH', lv: 5, nama: { id: 'B', en: 'B' }, ringkasan: { id: 'r', en: 'r' }, jenis: 'fisik', target: 'area_musuh',
-		rasio: 2.8, status: { nama: 'pingsan', peluang: 30, durasi_ms: 2000 }, jangkauan: 1, splash: 2, cast_ms: 0, sp_maks: 80
+		rasio: 2.8, status: { nama: 'pingsan', peluang: 30, durasi_ms: 2000 }, jangkauan: 1, splash: 2, cast_ms: 0, sp_maks: 80,
+		terbuka_di_bintang: 1
 	};
-	const json = { units: { knight: { nama: { id: 'Ksatria', en: 'Knight' }, skill, lore: { id: '', en: 'A knight.' } }, polos: { nama: { id: 'P', en: 'P' } } } };
+	const json = { units: { knight: { nama: { id: 'Ksatria', en: 'Knight' }, skills: [skill], lore: { id: '', en: 'A knight.' } }, polos: { nama: { id: 'P', en: 'P' } } } };
 
 	it('loreUnit mengembalikan {id, en} atau null', () => {
 		const k = buatKatalog(json);
@@ -148,7 +155,24 @@ describe('loreUnit dan skill terstruktur (AC7 K17/K18)', () => {
 		expect(buatKatalog({}).loreUnit('knight')).toBeNull();
 	});
 
-	it('skillUnit mengembalikan field baru apa adanya', () => {
-		expect(buatKatalog(json).skillUnit('knight')).toEqual(skill);
+	it('skillsUnit mengembalikan field tiap skill apa adanya (termasuk terbuka_di_bintang)', () => {
+		expect(buatKatalog(json).skillsUnit('knight')).toEqual([skill]);
+	});
+});
+
+describe('terbukaSkill (AC8 K2/K13): min(tier, bintang + 1, 4)', () => {
+	it('tabel tier 1..5 x bintang 1..3', () => {
+		const tabel = {
+			1: [1, 1, 1],
+			2: [2, 2, 2],
+			3: [2, 3, 3],
+			4: [2, 3, 4],
+			5: [2, 3, 4]
+		};
+		for (const [tier, perBintang] of Object.entries(tabel)) {
+			perBintang.forEach((mau, i) => {
+				expect(terbukaSkill(Number(tier), i + 1), `tier ${tier} bintang ${i + 1}`).toBe(mau);
+			});
+		}
 	});
 });

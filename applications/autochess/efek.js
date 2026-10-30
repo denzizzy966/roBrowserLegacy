@@ -112,6 +112,75 @@ export function gambarBarSP(life, sp, maxSp) {
 	return true;
 }
 
+// AC8 K14: jarak (px) dari puncak bilah cast ke puncak label nama skill.
+const TINGGI_NAMA_SKILL = 14;
+
+/**
+ * Menaruh label nama skill (cast.__acNamaSkill) tepat di atas kanvas bilah
+ * cast, dipusatkan pada bilah, di lapisan overlay yang sama. Dipanggil
+ * sesudah EntityCast.render menempatkan kanvasnya; tidak berbuat apa pun
+ * bila bilah sudah lepas (render melepasnya saat waktu habis) atau belum
+ * pernah ditempatkan.
+ * @param {object} cast entity.cast (EntityCast)
+ */
+function letakkanNamaSkill(cast) {
+	const el = cast.__acNamaSkill;
+	const kanvas = cast.canvas;
+	if (!el || !cast.display || !kanvas || !kanvas.parentNode) {
+		return;
+	}
+	const atas = parseInt(kanvas.style.top, 10);
+	const kiri = parseInt(kanvas.style.left, 10);
+	if (!Number.isFinite(atas) || !Number.isFinite(kiri)) {
+		return;
+	}
+	el.style.top = `${atas - TINGGI_NAMA_SKILL}px`;
+	el.style.left = `${kiri + Math.round(kanvas.width / 2)}px`;
+	if (el.parentNode !== kanvas.parentNode) {
+		kanvas.parentNode.appendChild(el);
+	}
+}
+
+/** Mencabut dan melupakan label nama skill sebuah bilah cast (bila ada). */
+function lepasNamaSkill(cast) {
+	const el = cast && cast.__acNamaSkill;
+	if (!el) {
+		return;
+	}
+	cast.__acNamaSkill = null;
+	if (typeof el.remove === 'function') {
+		el.remove();
+	}
+}
+
+/**
+ * Mengaitkan label nama skill ke SATU instance EntityCast (sekali per
+ * instance, tanpa mengubah client/src): render() asli lalu letakkan label;
+ * remove() asli lalu cabut label. Semua jalur pembersihan bilah lewat
+ * remove(): clean() (kenaSkill, cast batal, bersihkanStatus, dan
+ * Entity.clean saat despawn) dan render() saat waktu cast habis -- jadi
+ * label tidak pernah tertinggal tanpa bilahnya.
+ * @param {object} cast entity.cast (EntityCast)
+ */
+function kaitkanBilahCast(cast) {
+	if (cast.__acNamaKait) {
+		return;
+	}
+	cast.__acNamaKait = true;
+	const renderAsli = cast.render;
+	const removeAsli = cast.remove;
+	cast.render = function (...arg) {
+		const hasil = renderAsli.apply(this, arg);
+		letakkanNamaSkill(this);
+		return hasil;
+	};
+	cast.remove = function (...arg) {
+		const hasil = removeAsli.apply(this, arg);
+		lepasNamaSkill(this);
+		return hasil;
+	};
+}
+
 /**
  * Membuat penerjemah event skill/status/SP ke renderer roBrowserLegacy.
  *
@@ -123,13 +192,21 @@ export function gambarBarSP(life, sp, maxSp) {
  * @param {{getCellHeight: function(number, number): number}} d.Altitude
  * @param {object} [d.SkillEffect]  DB/Skills/SkillEffect.js; dibaca untuk
  *   hideCastBar/hideCastAura seperti onEntityCastSkill
+ * @param {object} [d.skillInfo]  DB/Skills/SkillInfo.js; SkillName per skid
+ *   untuk label nama di atas bilah cast (AC8 K14). Disuntikkan agar uji
+ *   node tidak memuat client/src; tanpa entri = bilah tanpa label.
+ * @param {{createElement: function(string): object}} [d.dokumen]  document
+ *   (disuntikkan untuk test); tanpa dokumen tidak ada label.
  * @param {function} d.hidupkanBar  harness/tempur.js
  * @param {function} d.mainkanAksi  harness/tempur.js
  * @param {function(string): void} d.log
  * @param {function(function, number): any} [d.tunda]  setTimeout; disuntikkan untuk test
  * @returns {{mulaiSkill: function, kenaSkill: function, ubahStatus: function, ubahSP: function, bersihkanStatus: function}}
  */
-export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer, Altitude, SkillEffect = {}, hidupkanBar, mainkanAksi, log, tunda = (fn, ms) => setTimeout(fn, ms) }) {
+export function buatManajerEfek({
+	EntityManager, EffectManager, Damage, Renderer, Altitude, SkillEffect = {}, skillInfo = {},
+	dokumen = globalThis.document, hidupkanBar, mainkanAksi, log, tunda = (fn, ms) => setTimeout(fn, ms)
+}) {
 	// Skill yang efek tabelnya pernah melempar; dilaporkan sekali saja.
 	const skidGagal = new Set();
 
@@ -155,6 +232,46 @@ export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer
 				log(`! efek skill ${skid} gagal (src): ${err && err.message}`);
 			}
 		}
+	}
+
+	/**
+	 * AC8 K14: label nama skill (SkillInfo[skid].SkillName) untuk bilah
+	 * cast yang baru dipasang -- paling banyak SATU elemen per entity
+	 * (disimpan di entity.cast; rapal yang menimpa bilah yang masih tampil
+	 * mengganti teksnya), dibuat saat rapal dan dicabut bersama bilahnya.
+	 * Skid tanpa nama, tanpa dokumen, atau cast tanpa render/remove: label
+	 * lama dicabut, bilah tampil polos.
+	 * @param {object} cast entity.cast
+	 * @param {number} skid
+	 */
+	function pasangNamaSkill(cast, skid) {
+		if (!cast) {
+			return;
+		}
+		const nama = skillInfo && skillInfo[skid] && skillInfo[skid].SkillName;
+		const bisa = dokumen && typeof dokumen.createElement === 'function'
+			&& typeof cast.render === 'function' && typeof cast.remove === 'function';
+		if (!nama || !bisa) {
+			lepasNamaSkill(cast);
+			return;
+		}
+		kaitkanBilahCast(cast);
+		if (!cast.__acNamaSkill) {
+			const el = dokumen.createElement('div');
+			el.className = 'nama-skill';
+			Object.assign(el.style, {
+				position: 'absolute',
+				zIndex: '1',
+				transform: 'translateX(-50%)',
+				whiteSpace: 'nowrap',
+				pointerEvents: 'none',
+				font: 'bold 11px Arial, sans-serif',
+				color: '#fff',
+				textShadow: '-1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000'
+			});
+			cast.__acNamaSkill = el;
+		}
+		cast.__acNamaSkill.textContent = nama;
 	}
 
 	/**
@@ -211,6 +328,9 @@ export function buatManajerEfek({ EntityManager, EffectManager, Damage, Renderer
 
 		if (adaCast && !info.hideCastBar) {
 			src.cast.set(ev.castMs);
+			pasangNamaSkill(src.cast, ev.skid);
+		} else {
+			lepasNamaSkill(src.cast);
 		}
 
 		efekAman(ev.skid, () => EffectManager.spamSkillCast(ev.skid, ev.src, Renderer.tick, ev.src));

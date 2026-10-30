@@ -23,6 +23,18 @@ export async function muatKatalog(fetchFn, url) {
 }
 
 /**
+ * Jumlah skill terdepan daftar unit yang terbuka pada bintang tertentu
+ * (AC8, sama dengan arena.TerbukaSkill di server): min(tier, bintang + 1, 4).
+ * Pemanggil tetap menjepit ke panjang daftar (slice).
+ * @param {number} tier tier unit 1..5
+ * @param {number} bintang bintang bidak 1..3
+ * @returns {number}
+ */
+export function terbukaSkill(tier, bintang) {
+	return Math.min(tier, bintang + 1, 4);
+}
+
+/**
  * Membangun pengakses katalog. Bagian yang hilang dari json ditoleransi
  * (katalog kosong tetap sah) supaya UI tetap jalan bila katalog gagal dimuat.
  * @param {object} json keluaran muatKatalog (atau {}).
@@ -90,13 +102,16 @@ export function buatKatalog(json, log = () => {}) {
 			return units[id]?.stat_bintang?.[bintang - 1] ?? null;
 		},
 		/**
-		 * Skill aktif unit apa adanya (AC7 K17): {id, lv, nama{id,en}, ringkasan{id,en},
-		 * jenis, target, rasio, status?: {nama, peluang, durasi_ms}, jangkauan, splash,
-		 * cast_ms, sp_maks}; null bila tak ada. jangkauan dan splash dalam petak
-		 * papan (boleh pecahan, mis. 2.5), cast_ms sesudah faktor_cast arena.
-		 * @returns {object|null}
+		 * Daftar skill unit apa adanya, urut seperti units.yml (AC8 K11); tiap
+		 * entri berbentuk AC7 K17 {id, lv, nama{id,en}, ringkasan{id,en}, jenis,
+		 * target, rasio, status?: {nama, peluang, durasi_ms}, jangkauan, splash,
+		 * cast_ms, sp_maks} ditambah terbuka_di_bintang (1, 1, 2, 3 menurut
+		 * indeks). jangkauan dan splash dalam petak papan (boleh pecahan, mis.
+		 * 2.5), cast_ms sesudah faktor_cast arena. [] bila id asing atau unit
+		 * tanpa skill.
+		 * @returns {object[]}
 		 */
-		skillUnit: (id) => units[id]?.skill ?? null,
+		skillsUnit: (id) => (Array.isArray(units[id]?.skills) ? units[id].skills : []),
 		/** @returns {{id:string, en:string}|null} lore unit (AC7 K18; id bisa kosong) */
 		loreUnit: (id) => units[id]?.lore ?? null,
 		/** @returns {string[]} id unit anggota sinergi (tier menaik lalu id); [] bila tak dikenal */
