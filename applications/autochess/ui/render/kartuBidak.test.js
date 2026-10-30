@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { renderKartuBidak } from './kartuBidak.js';
+import { renderKartuBidak, pilihSinergi } from './kartuBidak.js';
 import { buatKartu } from '../../kartu.js';
 import { buatKatalog } from '../../katalog.js';
 import { buatTeks } from '../../teks.js';
@@ -142,6 +142,35 @@ describe('K5/K17: statistik, skill, bonus sinergi', () => {
 		expect(toko).not.toContain('class="bar');
 		expect(toko).toContain('class="stat"');
 		expect(renderKartuBidak({ ...INFO, sumber: 'bangku' }, deps())).toContain('class="bar hp"');
+	});
+});
+
+describe('I1/I2: sumber sinergi dan bidak lawan', () => {
+	const sendiri = [{ id: 'geffen', jumlah: 3, tingkatAktif: 1 }];
+	const ditonton = [{ id: 'elementalist', jumlah: 2, tingkatAktif: 1 }];
+	const snap = {
+		ditonton: 2,
+		state: { saya: { kursi: 1, sinergi: sendiri }, tontonan: { kursi: 2, bidak: [], sinergi: ditonton } }
+	};
+
+	it('kartu Toko/bangku memakai sinergi sendiri, bidak papan memakai kursi yang ditonton', () => {
+		expect(pilihSinergi({ ...INFO, sumber: 'toko' }, snap)).toBe(sendiri);
+		expect(pilihSinergi({ ...INFO, sumber: 'bangku' }, snap)).toBe(sendiri);
+		expect(pilihSinergi(INFO, snap)).toBe(ditonton);
+		const toko = renderKartuBidak({ ...INFO, sumber: 'toko' }, { ...deps(), sinergiAktif: pilihSinergi({ sumber: 'toko' }, snap) });
+		expect(toko).toContain('+10% ATK — Geffen 3');
+		const papan = renderKartuBidak(INFO, { ...deps(), sinergiAktif: pilihSinergi(INFO, snap) });
+		expect(papan).toContain('+20% MATK — Elementalis 2');
+		expect(papan).not.toContain('Geffen 3');
+	});
+
+	it('sendiri: false (lawan/creep) tanpa blok bonus walau sinergi cocok aktif', () => {
+		const h = renderKartuBidak({ ...INFO, sendiri: false }, { ...deps(), sinergiAktif: sendiri });
+		expect(h).not.toContain('bonus');
+	});
+
+	it('ASPD satu desimal', () => {
+		expect(renderKartuBidak({ ...INFO, bintang: 1 }, deps())).toContain('<span class="stat-nilai">150.0</span>');
 	});
 });
 

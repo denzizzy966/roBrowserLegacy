@@ -15,9 +15,8 @@ import UIManager from 'UI/UIManager.js';
 import GUIComponent from 'UI/GUIComponent.js';
 import htmlText from './KartuBidak.html?raw';
 import cssText from './KartuBidak.css?raw';
-import { renderKartuBidak } from '../render/kartuBidak.js';
+import { renderKartuBidak, pilihSinergi } from '../render/kartuBidak.js';
 import { posisiKartu } from '../tataLetak.js';
-import { sinergiTampil } from '../../state.js';
 import { pasangKerangka, tulisBila } from '../janela.js';
 
 const KartuBidak = new GUIComponent('KartuBidak', cssText);
@@ -28,6 +27,7 @@ KartuBidak.mouseMode = GUIComponent.MouseMode.CROSS;
 let infoAktif = null;
 let titikAktif = { x: 0, y: 0 };
 let depsTerakhir = null;
+let snapTerakhir = null;
 
 KartuBidak.init = function init() {
 	const root = this.getRoot();
@@ -42,13 +42,14 @@ function isiUlang() {
 	}
 	const deps = {
 		...depsTerakhir,
+		sinergiAktif: pilihSinergi(infoAktif, snapTerakhir),
 		ikon: (efst) => depsTerakhir.ikonStatus?.(efst, isiUlang) ?? null
 	};
 	tulisBila(KartuBidak.isi, renderKartuBidak(infoAktif, deps));
 	const host = KartuBidak._host;
 	const { left, top } = posisiKartu(
 		titikAktif,
-		{ lebar: host.offsetWidth || 200, tinggi: host.offsetHeight || 120 },
+		{ lebar: host.offsetWidth || 300, tinggi: host.offsetHeight || 120 },
 		{ lebar: window.innerWidth, tinggi: window.innerHeight }
 	);
 	host.style.left = `${left}px`;
@@ -95,7 +96,8 @@ KartuBidak.terbuka = function terbuka() {
  * @param {object} deps {t, bahasa, katalog, ikonStatus}
  */
 KartuBidak.gambar = function gambar(snap, deps) {
-	depsTerakhir = { ...deps, sinergiAktif: sinergiTampil(snap) };
+	depsTerakhir = deps;
+	snapTerakhir = snap;
 };
 
 export default UIManager.addComponent(KartuBidak);

@@ -9,6 +9,7 @@
  */
 
 import { teksNilaiEfek } from './sinergi.js';
+import { sinergiTampil } from '../../state.js';
 
 const ENTITAS = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -41,7 +42,7 @@ function blokStat(info, deps) {
 	let html = '<div class="stat">';
 	for (const k of KOLOM_STAT) {
 		html += `<span class="stat-baris" data-stat="${k}"><span class="stat-nama">${esc(t('stat.' + k))}</span>`
-			+ `<span class="stat-nilai">${esc(stat[k] ?? 0)}</span></span>`;
+			+ `<span class="stat-nilai">${esc(k === 'aspd' && Number.isFinite(stat.aspd) ? Number(stat.aspd).toFixed(1) : (stat[k] ?? 0))}</span></span>`;
 	}
 	html += '</div>';
 	const kecil = [stat.elemen, stat.ukuran, stat.ras].filter((x) => x !== undefined && x !== null && x !== '');
@@ -68,11 +69,23 @@ function blokSkill(info, deps) {
 }
 
 /**
+ * Sinergi sumber baris bonus: kartu Toko/bangku (info.sumber) selalu milik
+ * kursi sendiri (saya.sinergi); bidak papan mengikuti kursi yang tampil.
+ */
+export function pilihSinergi(info, snap) {
+	return info?.sumber ? (snap?.state?.saya?.sinergi ?? []) : sinergiTampil(snap);
+}
+
+/**
  * Baris bonus sinergi aktif yang mencakup unit ini: "+10% ATK — Prontera 3".
  * deps.sinergiAktif = sinergiTampil(snap) ({id, jumlah, tingkatAktif}).
  */
 function blokBonus(info, deps) {
 	const { t, bahasa, katalog } = deps;
+	// Bidak lawan/creep di arena tidak menerima bonus sinergi kita.
+	if (info.sendiri === false) {
+		return '';
+	}
 	const unit = info.unitId ? katalog.unit(info.unitId) : null;
 	if (!unit) {
 		return '';
